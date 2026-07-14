@@ -270,6 +270,32 @@ test setiap fold. Ringkasan akhir tersimpan di
 `outputs/grouped5fold/oof/M0_M1_ensemble_seed42/metrics.json`, sedangkan kurva
 alpha dan metrik lengkap tersimpan di `comparison.json`.
 
+## Ablasi ciri warna, bentuk, dan tekstur (CPU)
+
+Runner berikut menguji seluruh tujuh kombinasi non-kosong: warna (`C`), bentuk
+(`S`), tekstur (`T`), `CS`, `CT`, `ST`, dan `CST`. Mask biji dibuat otomatis,
+lalu warna diringkas di ruang LAB/HSV, bentuk memakai properti region dan Hu
+moments, sedangkan tekstur memakai masked GLCM dan LBP. Setiap kombinasi memakai
+RBF-SVM; `C` dan `gamma` dipilih hanya dari validation fold.
+
+```powershell
+python -u -m bilinear_lmmd.run_attribute_ablation `
+  --data-root data/coffee_5fold `
+  --output-root outputs/attribute_ablation
+```
+
+Ekstraksi fitur hanya dilakukan sekali dan disimpan dalam cache. Kombinasi yang
+sudah selesai juga dilewati saat runner dijalankan ulang. Periksa
+`mask_audit.png` sebelum menafsirkan metrik. Hasil utama berada di
+`summary.json`; setiap kombinasi juga menyimpan `metrics.json` dan 979 prediksi
+OOF di `predictions.csv`.
+
+Jika prediksi OOF HBP tersedia, tambahkan
+`--hbp-predictions path/to/HBP_predictions.csv`. Runner akan menghitung berapa
+sampel yang hanya benar oleh model atribut atau hanya benar oleh HBP. Audit ini
+menentukan apakah eksperimen hybrid layak dilakukan; ia bukan ensemble yang
+memakai label test.
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran

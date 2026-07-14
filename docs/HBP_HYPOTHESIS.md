@@ -282,6 +282,27 @@ dari M1 asli pada endpoint primer.
 | M0b single-layer bilinear | Screening selesai; tidak mengungguli HBP secara umum |
 | GAP-HBP probability ensemble | Selesai; kalah dari HBP pada Macro/Hard-F1 |
 | M1c/M1f feature fusion | Selesai; sinyal GAP ada, tetapi Worst-F1 collapse |
-| M1rc/M1r residual fusion | Menunggu stress test seed 123 |
+| M1rc/M1r residual fusion | Stress test seed 123 selesai; belum bukti tiga seed |
 | Clean grouped 5-fold | Selesai untuk GAP dan HBP |
 | XAI | Tahap analisis pola kelas setelah konfirmasi |
+
+## Ablasi atribut tanpa HBP
+
+Untuk menguji apakah ciri khas kopi yang lebih eksplisit dapat menjelaskan
+kesalahan HBP, seluruh kombinasi warna (`C`), bentuk (`S`), dan tekstur (`T`)
+diuji: `C`, `S`, `T`, `CS`, `CT`, `ST`, dan `CST`. Eksperimen menggunakan outer
+grouped 5-fold yang sama dengan GAP/HBP. Hyperparameter RBF-SVM dipilih hanya
+dari validation pada masing-masing fold, kemudian seluruh outer-test digabung
+menjadi 979 prediksi OOF.
+
+Hipotesis atribut dinilai dalam dua tahap:
+
+1. Ranking tujuh kombinasi menentukan atribut yang membawa informasi paling
+   kuat tanpa deep feature.
+2. Prediksi kombinasi terbaik dipasangkan dengan prediksi OOF HBP untuk
+   menghitung `attribute_only`, `hbp_only`, dan `both_wrong`.
+
+Model atribut tidak harus mengungguli HBP agar berguna. Kandidat hybrid hanya
+layak bila terdapat cukup sampel `attribute_only`, khususnya pada kelas yang
+lemah di HBP. Jika kesalahannya hampir sama, menambah cabang atribut hanya
+menambah kompleksitas tanpa bukti informasi komplementer.
