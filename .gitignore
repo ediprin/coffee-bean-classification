@@ -11,3 +11,5 @@ outputs/
 *.pth
 
 docs/*.pdf
+docs/*.xlsx
+docs/roboust/*.pdf
