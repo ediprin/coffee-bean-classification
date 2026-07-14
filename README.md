@@ -214,6 +214,27 @@ Fold yang sudah menyelesaikan 50 epoch dan evaluasi akan dilewati otomatis.
 Setelah lima fold selesai, prediksi test digabung menjadi 979 out-of-fold
 predictions di `outputs/grouped5fold/oof/`.
 
+### Ensemble probabilitas GAP-HBP tanpa training ulang
+
+Setelah grouped 5-fold M0 dan M1 lengkap, evaluasi ensemble dengan checkpoint
+yang sama. Untuk setiap fold, bobot HBP (`alpha`) dipilih hanya dari validation
+set, kemudian diterapkan ke outer test fold. Label OOF tidak digunakan untuk
+memilih bobot.
+
+```powershell
+python -u -m bilinear_lmmd.run_oof_ensemble `
+  --data-root data/coffee_5fold `
+  --output-root outputs/grouped5fold `
+  --seed 42
+```
+
+Definisi ensemble adalah
+`p = (1 - alpha) * p_GAP + alpha * p_HBP`. Perintah ini hanya melakukan
+inference; model tidak dilatih ulang. Progress ditampilkan untuk validation dan
+test setiap fold. Ringkasan akhir tersimpan di
+`outputs/grouped5fold/oof/M0_M1_ensemble_seed42/metrics.json`, sedangkan kurva
+alpha dan metrik lengkap tersimpan di `comparison.json`.
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran
