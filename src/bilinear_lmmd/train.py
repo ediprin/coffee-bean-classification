@@ -116,12 +116,15 @@ def train(
     config_path: str,
     seed_override: int | None = None,
     output_dir_override: str | None = None,
+    data_root_override: str | None = None,
 ) -> None:
     cfg = load_config(config_path)
     if seed_override is not None:
         cfg["seed"] = seed_override
     if output_dir_override is not None:
         cfg["training"]["output_dir"] = output_dir_override
+    if data_root_override is not None:
+        cfg["data"]["root"] = data_root_override
     seed_everything(int(cfg["seed"]))
     device = resolve_device(cfg["device"])
     adaptation_cfg = cfg["adaptation"]
@@ -286,8 +289,14 @@ def main() -> None:
     parser.add_argument("--config", required=True, help="Path ke file YAML eksperimen")
     parser.add_argument("--seed", type=int, help="Override seed dari YAML")
     parser.add_argument("--output-dir", help="Override output_dir dari YAML")
+    parser.add_argument("--data-root", help="Override data.root dari YAML")
     args = parser.parse_args()
-    train(args.config, seed_override=args.seed, output_dir_override=args.output_dir)
+    train(
+        args.config,
+        seed_override=args.seed,
+        output_dir_override=args.output_dir,
+        data_root_override=args.data_root,
+    )
 
 
 if __name__ == "__main__":

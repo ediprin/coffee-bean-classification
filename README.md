@@ -185,6 +185,35 @@ python -m bilinear_lmmd.aggregate_ablation `
   --output reports/M0_vs_M1_aggregate.json
 ```
 
+## Konfirmasi clean grouped 5-fold
+
+Screening holdout memakai test set kecil. Konfirmasi utama membentuk lima fold
+dari 979 citra asli. Setiap identitas menjadi test tepat satu kali, sedangkan
+augmentasi tetap hanya diterapkan oleh loader train.
+
+Siapkan fold:
+
+```powershell
+python -m bilinear_lmmd.prepare_grouped_folds `
+  --source-root data/coffee/source `
+  --output-root data/coffee_5fold
+```
+
+Jalankan GAP dan HBP dengan satu perintah yang aman dijalankan ulang setelah
+interupsi:
+
+```powershell
+python -u -m bilinear_lmmd.run_grouped_cv `
+  --data-root data/coffee_5fold `
+  --output-root outputs/grouped5fold `
+  --models M0 M1 `
+  --seed 42
+```
+
+Fold yang sudah menyelesaikan 50 epoch dan evaluasi akan dilewati otomatis.
+Setelah lima fold selesai, prediksi test digabung menjadi 979 out-of-fold
+predictions di `outputs/grouped5fold/oof/`.
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran

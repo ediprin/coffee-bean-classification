@@ -191,6 +191,12 @@ M0b tetap menjadi eksperimen kausal wajib. Screening holdout ini juga harus
 dikonfirmasi dengan stratified grouped 5-fold pada identitas citra asli sebelum
 kesimpulan final.
 
+Pipeline konfirmasi tersedia melalui `prepare_grouped_folds` dan
+`run_grouped_cv`. Outer test fold mencakup sekitar 20% citra asli, validation
+diambil sekitar 10% dari keseluruhan data, dan sisanya menjadi train. Setiap
+identitas muncul pada outer test tepat satu kali. Runner menggabungkan lima
+test fold menjadi 979 out-of-fold predictions sebelum menghitung metrik akhir.
+
 ## Status komponen
 
 | Komponen | Status saat ini |
