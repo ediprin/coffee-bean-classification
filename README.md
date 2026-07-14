@@ -296,6 +296,26 @@ sampel yang hanya benar oleh model atribut atau hanya benar oleh HBP. Audit ini
 menentukan apakah eksperimen hybrid layak dilakukan; ia bukan ensemble yang
 memakai label test.
 
+### Screening disagreement gate HBP-CST
+
+Jika audit menemukan prediksi CST yang benar ketika HBP salah, screening gate
+berbasis pasangan label dapat dijalankan tanpa training ulang backbone:
+
+```powershell
+python -u -m bilinear_lmmd.run_disagreement_gate `
+  --attribute-predictions outputs/attribute_ablation/CST/predictions.csv `
+  --hbp-predictions outputs/grouped5fold/oof/M1_seed42/predictions.csv `
+  --output-dir outputs/attribute_ablation/HBP_CST_gate
+```
+
+Untuk setiap outer fold, gate hanya belajar dari empat fold lainnya. Nilai
+`min_support` dan margin keuntungan CST dipilih dengan inner leave-one-fold
+validation. Pasangan yang jarang, seri, atau tidak dikenal selalu kembali ke
+HBP; kandidat HBP murni juga tersedia agar validation tidak dipaksa memakai
+CST. Ini tetap screening meta-model atas hard prediction OOF. Klaim final
+memerlukan kalibrasi gate dari validation prediction model dasar atau test set
+independen.
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran

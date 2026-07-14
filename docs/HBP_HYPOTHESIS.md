@@ -306,3 +306,32 @@ Model atribut tidak harus mengungguli HBP agar berguna. Kandidat hybrid hanya
 layak bila terdapat cukup sampel `attribute_only`, khususnya pada kelas yang
 lemah di HBP. Jika kesalahannya hampir sama, menambah cabang atribut hanya
 menambah kompleksitas tanpa bukti informasi komplementer.
+
+### Hasil ablasi atribut dan audit komplementaritas
+
+| Fitur | Macro-F1 (%) | Hard-F1 (%) | Worst-F1 (%) |
+|---|---:|---:|---:|
+| C | 60,60 | 55,62 | 36,00 |
+| S | 30,58 | 24,10 | 8,33 |
+| T | 44,94 | 40,71 | 9,52 |
+| CS | 69,10 | 61,93 | 30,77 |
+| CT | 65,79 | 61,64 | 41,18 |
+| ST | 54,85 | 48,70 | 25,35 |
+| CST | **71,74** | **65,95** | **49,52** |
+
+CST tidak menggantikan HBP (Macro-F1 84,41%), tetapi pasangan prediksi OOF
+menemukan 51 sampel yang hanya benar oleh CST, 175 yang hanya benar oleh HBP,
+653 yang benar oleh keduanya, dan 100 yang salah oleh keduanya. Oracle akurasi
+HBP-CST adalah 89,79%; ini batas atas dan bukan hasil model yang sah. CST
+menyelamatkan 51 dari 151 kesalahan HBP. Rescue terbesar muncul pada Partial
+Sour (11), Immature (8), Withered (8), dan Slight Insect Damage (5), tetapi
+Partial Sour adalah satu-satunya kelas dengan `CST_only > HBP_only`.
+
+Karena manfaat bergantung pada sampel, eksperimen berikutnya adalah
+cross-fitted disagreement gate. Untuk setiap outer fold, aturan pasangan
+prediksi dipelajari dari empat fold lain; `min_support` dan margin dipilih lewat
+inner leave-one-fold validation. Pasangan jarang/default tetap memakai HBP.
+Screening dinilai berhasil hanya bila Macro-F1 dan Hard-F1 gate mengungguli HBP
+tanpa penurunan Worst-F1. Karena memakai hard prediction OOF yang sudah ada,
+hasil ini tetap eksploratif dan harus dikonfirmasi dengan calibration prediction
+validation atau test independen sebelum klaim final.
