@@ -1,0 +1,8 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/M0_mobilenetv3_gap_source

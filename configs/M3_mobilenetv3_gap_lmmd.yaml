@@ -1,0 +1,8 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+adaptation:
+  method: lmmd
+training:
+  output_dir: outputs/M3_mobilenetv3_gap_lmmd

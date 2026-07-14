@@ -1,0 +1,8 @@
+model:
+  backbone: swin_tiny_patch4_window7_224
+  head: gap
+  out_indices: [3]
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/B3_swin_tiny_gap

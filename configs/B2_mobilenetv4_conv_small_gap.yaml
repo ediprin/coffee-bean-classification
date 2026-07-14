@@ -1,0 +1,8 @@
+model:
+  backbone: mobilenetv4_conv_small
+  head: gap
+  out_indices: [4]
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/B2_mobilenetv4_conv_small_gap

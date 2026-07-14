@@ -1,0 +1,8 @@
+model:
+  backbone: efficientnet_b0
+  head: gap
+  out_indices: [4]
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/B4_efficientnet_b0_gap

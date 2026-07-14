@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+DEFAULTS: dict[str, Any] = {
+    "seed": 42,
+    "device": "auto",
+    "data": {
+        "root": "data/coffee",
+        "source": "source",
+        "target": "target",
+        "train_split": "train",
+        "val_split": "val",
+        "image_size": 224,
+        "batch_size": 32,
+        "workers": 4,
+        "rotation_angles": [0, 45, 90, 135, 180, 225, 270],
+    },
+    "model": {
+        "backbone": "mobilenetv3_large_100",
+        "pretrained": True,
+        "head": "hbp",
+        "num_classes": 17,
+        "out_indices": [1, 3, 4],
+        "projection_dim": 512,
+        "dropout": 0.2,
+        "enable_domain_classifier": False,
+    },
+    "adaptation": {
+        "method": "lmmd",
+        "weight": 1.0,
+        "warmup_epochs": 5,
+        "confidence_threshold": 0.0,
+        "kernel_mul": 2.0,
+        "kernel_num": 5,
+    },
+    "training": {
+        "epochs": 50,
+        "lr": 0.0003,
+        "weight_decay": 0.0001,
+        "label_smoothing": 0.1,
+        "output_dir": "outputs/default",
+    },
+    "evaluation": {
+        "hard_groups": {
+            "sour_black": ["Partial Black", "Partial Sour", "Full Sour"],
+            "shape_withered": ["Withered", "Immature", "Cut"],
+            "insect_damage": ["Slight Insect Damage", "Severe Insect Damage"],
+        }
+    },
+}
+
+
+def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    result = deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def load_config(path: str | Path) -> dict[str, Any]:
+    with Path(path).open("r", encoding="utf-8") as handle:
+        override = yaml.safe_load(handle) or {}
+    return _merge(DEFAULTS, override)

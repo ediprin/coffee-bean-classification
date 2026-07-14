@@ -1,0 +1,9 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: bilinear
+  out_indices: [4]
+  projection_dim: 256
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/M0b_mobilenetv3_bilinear_source
