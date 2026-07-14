@@ -2,7 +2,10 @@ model:
   backbone: mobilenetv3_large_100
   head: bilinear
   out_indices: [4]
-  projection_dim: 256
+  # Low-rank bottleneck chosen so total parameters closely match M1/HBP.
+  projection_dim: 160
+  # Same embedding and classifier input dimension as 3 x 512 HBP.
+  bilinear_output_dim: 1536
 adaptation:
   method: source_only
 training:

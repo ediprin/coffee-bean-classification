@@ -38,19 +38,29 @@ class GAPHead(nn.Module):
 
 
 class FactorizedBilinearPooling(nn.Module):
-    """Single-layer low-dimensional bilinear control on the deepest feature."""
+    """Single-layer low-rank bilinear control on the deepest feature.
 
-    def __init__(self, channels: int, projection_dim: int):
+    ``projection_dim`` controls the bilinear rank. ``output_dim`` can expand
+    that representation so the downstream classifier matches the HBP model.
+    """
+
+    def __init__(self, channels: int, projection_dim: int, output_dim: int | None = None):
         super().__init__()
         self.left = nn.Conv2d(channels, projection_dim, kernel_size=1, bias=False)
         self.right = nn.Conv2d(channels, projection_dim, kernel_size=1, bias=False)
-        self.output_dim = projection_dim
+        self.expansion = (
+            nn.Linear(projection_dim, output_dim, bias=False)
+            if output_dim is not None and output_dim != projection_dim
+            else nn.Identity()
+        )
+        self.output_dim = output_dim or projection_dim
 
     def forward(self, features: list[Tensor]) -> Tensor:
         feature = features[-1]
         interaction = (self.left(feature) * self.right(feature)).flatten(2).mean(-1)
         interaction = torch.sign(interaction) * torch.sqrt(torch.abs(interaction) + 1e-8)
-        return F.normalize(interaction, p=2, dim=1)
+        interaction = F.normalize(interaction, p=2, dim=1)
+        return F.normalize(self.expansion(interaction), p=2, dim=1)
 
 
 class HierarchicalBilinearPooling(nn.Module):
@@ -115,6 +125,7 @@ class AdaptationModel(nn.Module):
         head: str = "hbp",
         out_indices: tuple[int, ...] = (1, 3, 4),
         projection_dim: int = 512,
+        bilinear_output_dim: int | None = None,
         dropout: float = 0.2,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
@@ -136,7 +147,9 @@ class AdaptationModel(nn.Module):
         if head == "hbp":
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
         elif head == "bilinear":
-            self.pool = FactorizedBilinearPooling(channels[-1], projection_dim)
+            self.pool = FactorizedBilinearPooling(
+                channels[-1], projection_dim, bilinear_output_dim
+            )
         else:
             self.pool = GAPHead(channels[-1])
         self.dropout = nn.Dropout(dropout)
@@ -175,6 +188,11 @@ def build_model(cfg: dict) -> AdaptationModel:
         head=cfg.get("head", "hbp"),
         out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
         projection_dim=int(cfg.get("projection_dim", 512)),
+        bilinear_output_dim=(
+            int(cfg["bilinear_output_dim"])
+            if cfg.get("bilinear_output_dim") is not None
+            else None
+        ),
         dropout=float(cfg.get("dropout", 0.2)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
