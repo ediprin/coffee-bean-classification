@@ -4,7 +4,12 @@ import torch
 pytest.importorskip("timm")
 
 from bilinear_lmmd.config import load_config
-from bilinear_lmmd.models import AdaptationModel, build_model
+from bilinear_lmmd.models import (
+    AdaptationModel,
+    FixedFusionCBAM,
+    LGFCBAM,
+    build_model,
+)
 
 
 @pytest.mark.parametrize(
@@ -17,6 +22,8 @@ from bilinear_lmmd.models import AdaptationModel, build_model
         "gap_hbp_fusion",
         "hbp_residual_control",
         "gap_hbp_residual",
+        "gap_fixed_cbam",
+        "gap_lgf_cbam",
     ],
 )
 def test_mobilenetv3_output_shapes(head):
@@ -118,3 +125,80 @@ def test_residual_fusion_keeps_full_hbp_embedding_unchanged():
 
     assert fused.shape[1] == hbp.shape[1] + 12
     assert torch.equal(fused[:, : hbp.shape[1]], hbp)
+
+
+def test_lgf_cbam_starts_as_fixed_fusion_and_gates_sum_to_one():
+    fixed = FixedFusionCBAM(channels=12, reduction=4)
+    learnable = LGFCBAM(channels=12, reduction=4)
+    learnable.paths.load_state_dict(fixed.paths.state_dict())
+    feature = torch.randn(3, 12, 9, 9)
+
+    fixed_output = fixed(feature)
+    learnable_output = learnable(feature)
+
+    assert torch.allclose(fixed_output, learnable_output)
+    assert learnable.last_gate_weights is not None
+    assert torch.allclose(
+        learnable.last_gate_weights,
+        torch.full((3, 2), 0.5),
+    )
+    assert torch.allclose(
+        learnable.last_gate_weights.sum(dim=1), torch.ones(3)
+    )
+
+
+def test_lgf_cbam_backpropagates_into_attention_and_gate():
+    module = LGFCBAM(channels=12, reduction=4)
+    output = module(torch.randn(2, 12, 9, 9))
+    output.square().mean().backward()
+
+    assert module.paths.channel_mlp[0].weight.grad is not None
+    assert module.paths.spatial.weight.grad is not None
+    assert module.gate_mlp[-1].weight.grad is not None
+
+
+def test_fixed_and_lgf_models_share_same_seed_initialization():
+    kwargs = {
+        "backbone": "mobilenetv3_small_050",
+        "num_classes": 4,
+        "out_indices": (4,),
+        "attention_reduction": 4,
+        "pretrained": False,
+    }
+    torch.manual_seed(17)
+    fixed = AdaptationModel(head="gap_fixed_cbam", **kwargs)
+    torch.manual_seed(17)
+    learnable = AdaptationModel(head="gap_lgf_cbam", **kwargs)
+
+    for fixed_parameter, learnable_parameter in zip(
+        fixed.encoder.parameters(), learnable.encoder.parameters()
+    ):
+        assert torch.equal(fixed_parameter, learnable_parameter)
+    for fixed_parameter, learnable_parameter in zip(
+        fixed.pool.attention.paths.parameters(),
+        learnable.pool.attention.paths.parameters(),
+    ):
+        assert torch.equal(fixed_parameter, learnable_parameter)
+    assert torch.equal(fixed.classifier.weight, learnable.classifier.weight)
+    assert torch.equal(fixed.classifier.bias, learnable.classifier.bias)
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        "configs/M0a_mobilenetv3_gap_fixed_cbam_source.yaml",
+        "configs/M0lgf_mobilenetv3_gap_lgf_cbam_source.yaml",
+    ],
+)
+def test_attention_gap_configs_use_only_deepest_feature(config_path):
+    cfg = load_config(config_path)
+    cfg["model"]["pretrained"] = False
+    model = build_model(cfg["model"])
+    model.eval()
+
+    with torch.no_grad():
+        output = model(torch.randn(2, 3, 96, 96))
+
+    assert tuple(cfg["model"]["out_indices"]) == (4,)
+    assert output.logits.shape == (2, 17)
+    assert output.embedding.shape[1] == model.pool.output_dim

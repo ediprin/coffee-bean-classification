@@ -1,0 +1,9 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap_fixed_cbam
+  out_indices: [4]
+  attention_reduction: 16
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/M0a_mobilenetv3_gap_fixed_cbam_source

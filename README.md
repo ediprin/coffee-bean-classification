@@ -316,6 +316,33 @@ CST. Ini tetap screening meta-model atas hard prediction OOF. Klaim final
 memerlukan kalibrasi gate dari validation prediction model dasar atau test set
 independen.
 
+## Screening LGF-CBAM tanpa HBP
+
+Eksperimen attention dari Techie-Menson et al. (2026) diuji sebagai model yang
+berdiri sendiri: feature map terdalam MobileNetV3 diproses oleh channel dan
+spatial attention, lalu GAP dan classifier. HBP tidak digunakan.
+
+| Kode | Model |
+|---|---|
+| M0 | MobileNetV3 + GAP |
+| M0a | MobileNetV3 + fixed 50:50 channel/spatial fusion + GAP |
+| M0lgf | MobileNetV3 + learnable gated channel/spatial fusion + GAP |
+
+Jalankan screening seed 123:
+
+```powershell
+python -u -m bilinear_lmmd.run_attention_screening `
+  --data-root data/coffee `
+  --output-root outputs/attention_screen `
+  --seeds 123
+```
+
+Runner aman dilanjutkan setelah interupsi. Perbandingan primer adalah M0lgf vs
+M0a, karena keduanya memiliki jalur attention yang sama. Gate LGF diinisialisasi
+50:50 sehingga kedua model memulai dari fungsi fusion yang identik. Detail
+operasional dan keterbatasan paper dicatat di
+`docs/LGF_CBAM_HYPOTHESIS.md`.
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran

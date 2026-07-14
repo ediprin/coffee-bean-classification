@@ -33,6 +33,7 @@ DEFAULTS: dict[str, Any] = {
         "fusion_gap_dim": 256,
         "residual_control_dim": 80,
         "residual_gap_dim": 128,
+        "attention_reduction": 16,
         "dropout": 0.2,
         "enable_domain_classifier": False,
     },

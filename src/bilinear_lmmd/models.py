@@ -110,6 +110,120 @@ class HierarchicalBilinearPooling(nn.Module):
         return torch.cat(pairwise, dim=1)
 
 
+class CBAMAttentionPaths(nn.Module):
+    """Channel-then-spatial attention paths used by the paper's equations 8-9."""
+
+    def __init__(self, channels: int, reduction: int = 16):
+        super().__init__()
+        hidden = max(1, channels // reduction)
+        self.channel_mlp = nn.Sequential(
+            nn.Conv2d(channels, hidden, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden, channels, kernel_size=1, bias=False),
+        )
+        self.spatial = nn.Conv2d(
+            2, 1, kernel_size=7, padding=3, bias=False
+        )
+
+    def forward(self, feature: Tensor) -> tuple[Tensor, Tensor]:
+        average = F.adaptive_avg_pool2d(feature, 1)
+        maximum = F.adaptive_max_pool2d(feature, 1)
+        channel_attention = torch.sigmoid(
+            self.channel_mlp(average) + self.channel_mlp(maximum)
+        )
+        channel_feature = channel_attention * feature
+
+        spatial_descriptor = torch.cat(
+            (
+                channel_feature.mean(dim=1, keepdim=True),
+                channel_feature.amax(dim=1, keepdim=True),
+            ),
+            dim=1,
+        )
+        spatial_attention = torch.sigmoid(self.spatial(spatial_descriptor))
+        spatial_feature = spatial_attention * channel_feature
+        return channel_feature, spatial_feature
+
+
+class FixedFusionCBAM(nn.Module):
+    """Parameter-free 50/50 fusion control for the LGF attention paths."""
+
+    def __init__(self, channels: int, reduction: int = 16):
+        super().__init__()
+        self.paths = CBAMAttentionPaths(channels, reduction)
+
+    def forward(self, feature: Tensor) -> Tensor:
+        channel_feature, spatial_feature = self.paths(feature)
+        return 0.5 * (channel_feature + spatial_feature)
+
+
+class LGFCBAM(nn.Module):
+    """Learnable gated fusion of channel and spatial CBAM feature maps.
+
+    This follows equations 8-11/pseudocode in Techie-Menson et al. (2026):
+    spatial attention refines the channel-attended map, and a per-sample
+    softmax gate fuses both paths. The last gate layer starts at zero so the
+    module initially matches the fixed 50/50 control.
+    """
+
+    def __init__(self, channels: int, reduction: int = 16):
+        super().__init__()
+        self.paths = CBAMAttentionPaths(channels, reduction)
+        hidden = max(2, channels // reduction)
+        # Preserve the global RNG stream so a same-seed fixed-fusion control
+        # receives identical encoder, attention-path, and classifier weights.
+        rng_state = torch.random.get_rng_state()
+        self.gate_mlp = nn.Sequential(
+            nn.Linear(channels * 2, hidden),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden, 2),
+        )
+        torch.random.set_rng_state(rng_state)
+        nn.init.zeros_(self.gate_mlp[-1].weight)
+        nn.init.zeros_(self.gate_mlp[-1].bias)
+        self.last_gate_weights: Tensor | None = None
+
+    def forward(self, feature: Tensor) -> Tensor:
+        channel_feature, spatial_feature = self.paths(feature)
+        descriptors = torch.cat(
+            (
+                F.adaptive_avg_pool2d(channel_feature, 1).flatten(1),
+                F.adaptive_avg_pool2d(spatial_feature, 1).flatten(1),
+            ),
+            dim=1,
+        )
+        gates = torch.softmax(self.gate_mlp(descriptors), dim=1)
+        self.last_gate_weights = gates.detach()
+        alpha = gates[:, 0].view(-1, 1, 1, 1)
+        beta = gates[:, 1].view(-1, 1, 1, 1)
+        return alpha * channel_feature + beta * spatial_feature
+
+
+class AttentionGAP(nn.Module):
+    """Refine the deepest feature map, then use ordinary global average pooling."""
+
+    def __init__(
+        self,
+        channels: int,
+        attention: str,
+        reduction: int = 16,
+    ):
+        super().__init__()
+        attention_classes = {
+            "fixed": FixedFusionCBAM,
+            "lgf": LGFCBAM,
+        }
+        if attention not in attention_classes:
+            raise ValueError("attention harus 'fixed' atau 'lgf'.")
+        module = attention_classes[attention]
+        self.attention = module(channels, reduction)
+        self.output_dim = channels
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        refined = self.attention(features[-1])
+        return F.adaptive_avg_pool2d(refined, 1).flatten(1)
+
+
 class ProjectedHBP(nn.Module):
     """HBP followed by a learnable nonlinear projection capacity control."""
 
@@ -226,6 +340,7 @@ class AdaptationModel(nn.Module):
         fusion_gap_dim: int = 256,
         residual_control_dim: int = 80,
         residual_gap_dim: int = 128,
+        attention_reduction: int = 16,
         dropout: float = 0.2,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
@@ -239,6 +354,8 @@ class AdaptationModel(nn.Module):
             "gap_hbp_fusion",
             "hbp_residual_control",
             "gap_hbp_residual",
+            "gap_fixed_cbam",
+            "gap_lgf_cbam",
         }
         if head not in supported_heads:
             raise ValueError(f"head harus salah satu dari {sorted(supported_heads)}.")
@@ -262,6 +379,18 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head == "hbp":
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "gap_fixed_cbam":
+            self.pool = AttentionGAP(
+                channels[-1],
+                attention="fixed",
+                reduction=attention_reduction,
+            )
+        elif head == "gap_lgf_cbam":
+            self.pool = AttentionGAP(
+                channels[-1],
+                attention="lgf",
+                reduction=attention_reduction,
+            )
         elif head == "hbp_mlp":
             self.pool = ProjectedHBP(channels, projection_dim, hbp_mlp_dim)
         elif head == "gap_hbp_fusion":
@@ -331,6 +460,7 @@ def build_model(cfg: dict) -> AdaptationModel:
         fusion_gap_dim=int(cfg.get("fusion_gap_dim", 256)),
         residual_control_dim=int(cfg.get("residual_control_dim", 80)),
         residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
+        attention_reduction=int(cfg.get("attention_reduction", 16)),
         dropout=float(cfg.get("dropout", 0.2)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
