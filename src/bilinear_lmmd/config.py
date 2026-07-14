@@ -31,6 +31,8 @@ DEFAULTS: dict[str, Any] = {
         "hbp_mlp_dim": 672,
         "fusion_hbp_dim": 512,
         "fusion_gap_dim": 256,
+        "residual_control_dim": 80,
+        "residual_gap_dim": 128,
         "dropout": 0.2,
         "enable_domain_classifier": False,
     },

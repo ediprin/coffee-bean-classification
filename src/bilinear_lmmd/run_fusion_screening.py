@@ -13,6 +13,8 @@ from .config import load_config
 MODEL_CONFIGS = {
     "M1c": Path("configs/M1c_mobilenetv3_hbp_mlp_source.yaml"),
     "M1f": Path("configs/M1f_mobilenetv3_gap_hbp_fusion_source.yaml"),
+    "M1rc": Path("configs/M1rc_mobilenetv3_hbp_residual_control_source.yaml"),
+    "M1r": Path("configs/M1r_mobilenetv3_gap_hbp_residual_source.yaml"),
 }
 
 
@@ -43,8 +45,11 @@ def run_fusion_screening(
     data_root: Path,
     output_root: Path,
     seeds: list[int],
+    models: list[str] | None = None,
 ) -> None:
-    for model_code, config_path in MODEL_CONFIGS.items():
+    selected_models = models or ["M1c", "M1f"]
+    for model_code in selected_models:
+        config_path = MODEL_CONFIGS[model_code]
         epochs = int(load_config(config_path)["training"]["epochs"])
         for seed in seeds:
             label = f"{model_code} | seed {seed}"
@@ -95,7 +100,12 @@ def run_fusion_screening(
                     ]
                 )
 
-    comparisons = (("M1", "M1c"), ("M1c", "M1f"), ("M1", "M1f"))
+    comparisons: list[tuple[str, str]] = []
+    if {"M1c", "M1f"}.issubset(selected_models):
+        comparisons.append(("M1c", "M1f"))
+    if {"M1rc", "M1r"}.issubset(selected_models):
+        comparisons.append(("M1rc", "M1r"))
+    comparisons.extend(("M1", candidate) for candidate in selected_models)
     for baseline, candidate in comparisons:
         baseline_paths = _report_paths(output_root, baseline, seeds)
         candidate_paths = _report_paths(output_root, candidate, seeds)
@@ -136,18 +146,28 @@ def run_fusion_screening(
         )
         print(f"SAVED: {destination}")
 
-    print("\nPASS: screening M1c dan M1f selesai.", flush=True)
+    print(
+        f"\nPASS: screening {', '.join(selected_models)} selesai.", flush=True
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Screening 3-seed untuk kontrol HBP-MLP dan GAP-HBP fusion"
+        description="Screening holdout untuk kontrol dan GAP-HBP feature fusion"
     )
     parser.add_argument("--data-root", type=Path, default=Path("data/coffee"))
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--seeds", type=int, nargs="+", default=[42, 123, 2026])
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        choices=tuple(MODEL_CONFIGS),
+        default=["M1c", "M1f"],
+    )
     args = parser.parse_args()
-    run_fusion_screening(args.data_root, args.output_root, args.seeds)
+    run_fusion_screening(
+        args.data_root, args.output_root, args.seeds, models=args.models
+    )
 
 
 if __name__ == "__main__":

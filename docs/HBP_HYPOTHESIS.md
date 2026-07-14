@@ -237,6 +237,40 @@ M1c serta delta macro-F1 positif pada minimal dua dari tiga seed. Worst-class
 F1 tetap dilaporkan sebagai constraint; peningkatan agregat tidak boleh disebut
 solusi worst class jika metrik tersebut turun.
 
+### Hasil screening fusion terkompresi
+
+| Metrik | M1c (%) | M1f (%) | Delta M1f (poin) |
+|---|---:|---:|---:|
+| Macro-F1 | 83,37 | 85,55 | +2,18 |
+| Hard-class F1 | 82,75 | 84,29 | +1,54 |
+| Worst-class F1 | 65,28 | 49,40 | -15,88 |
+
+M1f meningkatkan macro-F1 terhadap kontrol pada 3/3 seed dan hard-class F1
+pada 2/3 seed. Sebelas kelas memperoleh mean F1 lebih tinggi, termasuk Shell,
+Withered, Immature, serta kedua kelas insect damage. Namun Full Sour turun
+25,13 poin dan tidak membaik pada satu pun seed; pada seed 123 F1 Full Sour
+hanya 20,00%. M1f juga tetap di bawah M1 asli pada macro-F1 dan hard-class F1.
+
+Hasil ini mendukung adanya informasi komplementer pada GAP, tetapi menolak M1f
+sebagai model final. M1c dan M1f sama-sama mengganti embedding HBP 1536-D dengan
+bottleneck 672-D/512-D. Penurunan M1c terhadap M1 menunjukkan bahwa perubahan
+representasi tersebut sendiri merupakan confound yang merugikan.
+
+### Residual fusion tanpa kompresi yang dipraregistrasikan
+
+| Kode | Representasi |
+|---|---|
+| M1rc | HBP asli 1536-D + auxiliary HBP 80-D |
+| M1r | HBP asli 1536-D + residual GAP 128-D |
+
+Bobot proyeksi tambahan keduanya sama-sama 122.880 dan total parameter berbeda
+sekitar 0,03%. Komponen HBP 1536-D dipertahankan tanpa perubahan. Seed 123
+dipakai lebih dulu hanya sebagai stress test rekayasa karena merupakan failure
+case M1f, bukan sebagai bukti final. Jika collapse Full Sour berkurang, seed 42
+dan 2026 wajib dijalankan sebelum kesimpulan. Klaim manfaat residual fusion
+tetap memerlukan M1r mengungguli M1rc pada agregasi tiga seed dan tidak kalah
+dari M1 asli pada endpoint primer.
+
 ## Status komponen
 
 | Komponen | Status saat ini |
@@ -247,6 +281,7 @@ solusi worst class jika metrik tersebut turun.
 | HBP + LMMD | Belum boleh diklaim sinergis |
 | M0b single-layer bilinear | Screening selesai; tidak mengungguli HBP secara umum |
 | GAP-HBP probability ensemble | Selesai; kalah dari HBP pada Macro/Hard-F1 |
-| M1c/M1f feature fusion | Dipraregistrasikan; menunggu screening tiga seed |
+| M1c/M1f feature fusion | Selesai; sinyal GAP ada, tetapi Worst-F1 collapse |
+| M1rc/M1r residual fusion | Menunggu stress test seed 123 |
 | Clean grouped 5-fold | Selesai untuk GAP dan HBP |
 | XAI | Tahap analisis pola kelas setelah konfirmasi |

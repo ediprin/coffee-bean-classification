@@ -8,7 +8,16 @@ from bilinear_lmmd.models import AdaptationModel, build_model
 
 
 @pytest.mark.parametrize(
-    "head", ["gap", "bilinear", "hbp", "hbp_mlp", "gap_hbp_fusion"]
+    "head",
+    [
+        "gap",
+        "bilinear",
+        "hbp",
+        "hbp_mlp",
+        "gap_hbp_fusion",
+        "hbp_residual_control",
+        "gap_hbp_residual",
+    ],
 )
 def test_mobilenetv3_output_shapes(head):
     model = AdaptationModel(
@@ -72,3 +81,40 @@ def test_gap_hbp_fusion_backpropagates_through_both_branches():
 
     assert model.pool.hbp_projector[0].weight.grad is not None
     assert model.pool.gap_projector[0].weight.grad is not None
+
+
+def test_residual_control_and_fusion_have_matched_capacity():
+    control_cfg = load_config(
+        "configs/M1rc_mobilenetv3_hbp_residual_control_source.yaml"
+    )
+    fusion_cfg = load_config(
+        "configs/M1r_mobilenetv3_gap_hbp_residual_source.yaml"
+    )
+    control_cfg["model"]["pretrained"] = False
+    fusion_cfg["model"]["pretrained"] = False
+    control = build_model(control_cfg["model"])
+    fusion = build_model(fusion_cfg["model"])
+
+    control_params = sum(parameter.numel() for parameter in control.parameters())
+    fusion_params = sum(parameter.numel() for parameter in fusion.parameters())
+    assert abs(control_params - fusion_params) / fusion_params < 0.001
+
+
+def test_residual_fusion_keeps_full_hbp_embedding_unchanged():
+    model = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="gap_hbp_residual",
+        out_indices=(1, 3, 4),
+        projection_dim=32,
+        residual_gap_dim=12,
+        pretrained=False,
+    )
+    model.eval()
+    with torch.no_grad():
+        features = model.encoder(torch.randn(2, 3, 96, 96))
+        hbp = model.pool.hbp(features)
+        fused = model.pool(features)
+
+    assert fused.shape[1] == hbp.shape[1] + 12
+    assert torch.equal(fused[:, : hbp.shape[1]], hbp)

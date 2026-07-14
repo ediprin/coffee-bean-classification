@@ -162,6 +162,49 @@ class GAPHBPFeatureFusion(nn.Module):
         return torch.cat((hbp, gap), dim=1)
 
 
+class ResidualHBPControl(nn.Module):
+    """Preserve the full HBP vector and append a small HBP-only branch."""
+
+    def __init__(
+        self, channels: list[int], projection_dim: int, auxiliary_dim: int
+    ):
+        super().__init__()
+        self.hbp = HierarchicalBilinearPooling(channels, projection_dim)
+        self.auxiliary_projector = nn.Sequential(
+            nn.Linear(self.hbp.output_dim, auxiliary_dim),
+            nn.LayerNorm(auxiliary_dim),
+            nn.GELU(),
+        )
+        self.output_dim = self.hbp.output_dim + auxiliary_dim
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        hbp = self.hbp(features)
+        auxiliary = F.normalize(self.auxiliary_projector(hbp), p=2, dim=1)
+        return torch.cat((hbp, auxiliary), dim=1)
+
+
+class ResidualGAPHBPFusion(nn.Module):
+    """Preserve the full HBP vector and append a normalized GAP residual."""
+
+    def __init__(
+        self, channels: list[int], projection_dim: int, gap_output_dim: int
+    ):
+        super().__init__()
+        self.hbp = HierarchicalBilinearPooling(channels, projection_dim)
+        self.gap = GAPHead(channels[-1])
+        self.gap_projector = nn.Sequential(
+            nn.Linear(self.gap.output_dim, gap_output_dim),
+            nn.LayerNorm(gap_output_dim),
+            nn.GELU(),
+        )
+        self.output_dim = self.hbp.output_dim + gap_output_dim
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        hbp = self.hbp(features)
+        gap = F.normalize(self.gap_projector(self.gap(features)), p=2, dim=1)
+        return torch.cat((hbp, gap), dim=1)
+
+
 @dataclass
 class ModelOutput:
     logits: Tensor
@@ -181,15 +224,32 @@ class AdaptationModel(nn.Module):
         hbp_mlp_dim: int = 672,
         fusion_hbp_dim: int = 512,
         fusion_gap_dim: int = 256,
+        residual_control_dim: int = 80,
+        residual_gap_dim: int = 128,
         dropout: float = 0.2,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
     ):
         super().__init__()
-        supported_heads = {"gap", "bilinear", "hbp", "hbp_mlp", "gap_hbp_fusion"}
+        supported_heads = {
+            "gap",
+            "bilinear",
+            "hbp",
+            "hbp_mlp",
+            "gap_hbp_fusion",
+            "hbp_residual_control",
+            "gap_hbp_residual",
+        }
         if head not in supported_heads:
             raise ValueError(f"head harus salah satu dari {sorted(supported_heads)}.")
-        if head in {"hbp", "hbp_mlp", "gap_hbp_fusion"} and len(out_indices) != 3:
+        hbp_heads = {
+            "hbp",
+            "hbp_mlp",
+            "gap_hbp_fusion",
+            "hbp_residual_control",
+            "gap_hbp_residual",
+        }
+        if head in hbp_heads and len(out_indices) != 3:
             raise ValueError("out_indices untuk head berbasis HBP harus tepat 3 indeks.")
 
         self.backbone_name = backbone
@@ -210,6 +270,14 @@ class AdaptationModel(nn.Module):
                 projection_dim,
                 fusion_hbp_dim,
                 fusion_gap_dim,
+            )
+        elif head == "hbp_residual_control":
+            self.pool = ResidualHBPControl(
+                channels, projection_dim, residual_control_dim
+            )
+        elif head == "gap_hbp_residual":
+            self.pool = ResidualGAPHBPFusion(
+                channels, projection_dim, residual_gap_dim
             )
         elif head == "bilinear":
             self.pool = FactorizedBilinearPooling(
@@ -261,6 +329,8 @@ def build_model(cfg: dict) -> AdaptationModel:
         hbp_mlp_dim=int(cfg.get("hbp_mlp_dim", 672)),
         fusion_hbp_dim=int(cfg.get("fusion_hbp_dim", 512)),
         fusion_gap_dim=int(cfg.get("fusion_gap_dim", 256)),
+        residual_control_dim=int(cfg.get("residual_control_dim", 80)),
+        residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
         dropout=float(cfg.get("dropout", 0.2)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),

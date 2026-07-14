@@ -33,6 +33,8 @@ Tahap B menguji kontribusi metode:
 | M1 | MobileNetV3 + HBP, source-only | kontribusi HBP |
 | M1c | MobileNetV3 + HBP + nonlinear projection | kontrol kapasitas fusion |
 | M1f | MobileNetV3 + GAP-HBP feature fusion | komplementaritas orde pertama-kedua |
+| M1rc | HBP utuh + auxiliary HBP kecil | kontrol kapasitas residual fusion |
+| M1r | HBP utuh + residual GAP kecil | fusion tanpa kompresi HBP |
 | M2 | MobileNetV3 + GAP + MMD | alignment global |
 | M3 | MobileNetV3 + GAP + LMMD | alignment class-wise |
 | M4 | MobileNetV3 + HBP + DANN | baseline adversarial |
@@ -203,6 +205,20 @@ dilewati. M1c dan M1f memiliki jumlah parameter yang berbeda kurang dari 0,1%,
 sehingga perbandingan M1c-vs-M1f mengisolasi manfaat fitur GAP dari sekadar
 tambahan kapasitas. Setelah enam run selesai, agregasi M1-vs-M1c,
 M1c-vs-M1f, dan M1-vs-M1f dicetak otomatis.
+
+Untuk stress test residual fusion pada seed 123 saja:
+
+```powershell
+python -u -m bilinear_lmmd.run_fusion_screening `
+  --data-root data/coffee `
+  --output-root outputs/holdout `
+  --models M1rc M1r `
+  --seeds 123
+```
+
+M1r mempertahankan seluruh embedding HBP 1536-D dan hanya menambahkan residual
+GAP 128-D. M1rc mempertahankan HBP yang sama dan menambahkan auxiliary HBP 80-D;
+jumlah parameter M1rc dan M1r berbeda kurang dari 0,1%.
 
 ## Konfirmasi clean grouped 5-fold
 
