@@ -1,0 +1,12 @@
+data:
+  image_size: 320
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/F0_mobilenetv3_gap_320_ce_source
+

@@ -15,6 +15,10 @@ MODEL_CONFIGS = {
     "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
     "M0b": Path("configs/M0b_mobilenetv3_bilinear_source.yaml"),
     "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
+    "F0": Path("configs/F0_mobilenetv3_gap_320_ce_source.yaml"),
+    "F1": Path("configs/F1_mobilenetv3_hbp_320_ce_source.yaml"),
+    "F2": Path("configs/F2_mobilenetv3_gap_320_arcface_source.yaml"),
+    "F3": Path("configs/F3_mobilenetv3_hbp_320_arcface_source.yaml"),
 }
 
 
@@ -81,6 +85,7 @@ def run_grouped_cv(
                         str(fold_root),
                         "--output-dir",
                         str(run_dir),
+                        "--resume",
                     ]
                 )
 
@@ -110,14 +115,24 @@ def run_grouped_cv(
         merge_oof(report_dirs, oof_dir, expected_count=expected_count)
         oof_paths[model_code] = oof_dir / "metrics.json"
 
-    if "M0" in oof_paths:
-        for candidate in ("M0b", "M1"):
-            if candidate not in oof_paths:
-                continue
-            result = compare(oof_paths["M0"], oof_paths[candidate])
-            comparison_path = output_root / "oof" / f"M0_vs_{candidate}_seed{seed}.json"
-            comparison_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-            print(f"SAVED: {comparison_path}", flush=True)
+    comparisons = (
+        ("M0", "M0b"),
+        ("M0", "M1"),
+        ("M1", "F1"),
+        ("F0", "F1"),
+        ("F0", "F2"),
+        ("F1", "F3"),
+        ("F2", "F3"),
+    )
+    for baseline, candidate in comparisons:
+        if baseline not in oof_paths or candidate not in oof_paths:
+            continue
+        result = compare(oof_paths[baseline], oof_paths[candidate])
+        comparison_path = (
+            output_root / "oof" / f"{baseline}_vs_{candidate}_seed{seed}.json"
+        )
+        comparison_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        print(f"SAVED: {comparison_path}", flush=True)
     print("\nPASS: seluruh grouped CV yang diminta sudah lengkap.", flush=True)
 
 

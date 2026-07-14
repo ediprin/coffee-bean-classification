@@ -6,10 +6,80 @@ pytest.importorskip("timm")
 from bilinear_lmmd.config import load_config
 from bilinear_lmmd.models import (
     AdaptationModel,
+    ArcMarginClassifier,
     FixedFusionCBAM,
     LGFCBAM,
     build_model,
 )
+
+
+def test_arcface_applies_margin_only_to_target_and_backpropagates():
+    classifier = ArcMarginClassifier(
+        in_features=8,
+        num_classes=4,
+        scale=16.0,
+        margin=0.3,
+    )
+    embedding = torch.randn(3, 8, requires_grad=True)
+    labels = torch.tensor([0, 2, 1])
+
+    inference_logits = classifier(embedding)
+    training_logits = classifier(embedding, labels)
+    target = torch.arange(labels.shape[0])
+    assert torch.all(training_logits[target, labels] < inference_logits[target, labels])
+
+    non_target_mask = torch.ones_like(training_logits, dtype=torch.bool)
+    non_target_mask[target, labels] = False
+    assert torch.allclose(
+        training_logits[non_target_mask],
+        inference_logits[non_target_mask],
+    )
+
+    torch.nn.functional.cross_entropy(training_logits, labels).backward()
+    assert embedding.grad is not None
+    assert classifier.weight.grad is not None
+
+
+def test_arcface_model_uses_margin_for_training_and_cosine_for_inference():
+    model = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="gap",
+        out_indices=(4,),
+        classifier="arcface",
+        arcface_scale=16.0,
+        arcface_margin=0.3,
+        pretrained=False,
+    )
+    model.eval()
+    images = torch.randn(2, 3, 96, 96)
+    labels = torch.tensor([0, 1])
+    with torch.no_grad():
+        inference = model(images)
+        training = model(images, labels=labels)
+
+    rows = torch.arange(labels.shape[0])
+    assert inference.logits.shape == (2, 4)
+    assert torch.all(training.logits[rows, labels] < inference.logits[rows, labels])
+
+
+@pytest.mark.parametrize(
+    ("config_path", "head", "classifier"),
+    [
+        ("configs/F0_mobilenetv3_gap_320_ce_source.yaml", "gap", "linear"),
+        ("configs/F1_mobilenetv3_hbp_320_ce_source.yaml", "hbp", "linear"),
+        ("configs/F2_mobilenetv3_gap_320_arcface_source.yaml", "gap", "arcface"),
+        ("configs/F3_mobilenetv3_hbp_320_arcface_source.yaml", "hbp", "arcface"),
+    ],
+)
+def test_finegrained_configs_form_controlled_ablation(
+    config_path, head, classifier
+):
+    cfg = load_config(config_path)
+    assert cfg["data"]["image_size"] == 320
+    assert cfg["model"]["head"] == head
+    assert cfg["model"]["classifier"] == classifier
+    assert cfg["adaptation"]["method"] == "source_only"
 
 
 @pytest.mark.parametrize(

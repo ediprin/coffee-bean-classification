@@ -1,0 +1,13 @@
+data:
+  image_size: 320
+model:
+  backbone: mobilenetv3_large_100
+  head: hbp
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/F1_mobilenetv3_hbp_320_ce_source
+

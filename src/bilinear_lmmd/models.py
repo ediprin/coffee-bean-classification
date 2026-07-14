@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 import torch
 from torch import Tensor, nn
@@ -26,6 +27,60 @@ class _GradientReverse(Function):
 
 def gradient_reverse(x: Tensor, strength: float = 1.0) -> Tensor:
     return _GradientReverse.apply(x, strength)
+
+
+class ArcMarginClassifier(nn.Module):
+    """ArcFace classifier with ordinary cosine logits at inference time.
+
+    During training, the angular margin is applied only to the ground-truth
+    class. Without labels the layer returns scaled cosine logits, so existing
+    evaluation and checkpoint-prediction code can use the model unchanged.
+    """
+
+    def __init__(
+        self,
+        in_features: int,
+        num_classes: int,
+        scale: float = 30.0,
+        margin: float = 0.3,
+    ):
+        super().__init__()
+        if scale <= 0:
+            raise ValueError("arcface_scale harus lebih besar dari nol.")
+        if not 0 <= margin < math.pi / 2:
+            raise ValueError("arcface_margin harus berada pada [0, pi/2).")
+        self.in_features = in_features
+        self.out_features = num_classes
+        self.scale = float(scale)
+        self.margin = float(margin)
+        self.weight = nn.Parameter(torch.empty(num_classes, in_features))
+        nn.init.xavier_uniform_(self.weight)
+
+        self.cos_margin = math.cos(self.margin)
+        self.sin_margin = math.sin(self.margin)
+        self.threshold = math.cos(math.pi - self.margin)
+        self.margin_correction = math.sin(math.pi - self.margin) * self.margin
+
+    def forward(self, embedding: Tensor, labels: Tensor | None = None) -> Tensor:
+        cosine = F.linear(
+            F.normalize(embedding, p=2, dim=1),
+            F.normalize(self.weight, p=2, dim=1),
+        ).clamp(-1.0 + 1e-7, 1.0 - 1e-7)
+        if labels is None:
+            return cosine * self.scale
+        if labels.ndim != 1 or labels.shape[0] != embedding.shape[0]:
+            raise ValueError("Label ArcFace harus berbentuk [batch].")
+
+        sine = torch.sqrt(torch.clamp(1.0 - cosine.square(), min=1e-7))
+        phi = cosine * self.cos_margin - sine * self.sin_margin
+        phi = torch.where(
+            cosine > self.threshold,
+            phi,
+            cosine - self.margin_correction,
+        )
+        one_hot = torch.zeros_like(cosine)
+        one_hot.scatter_(1, labels.view(-1, 1), 1.0)
+        return (one_hot * phi + (1.0 - one_hot) * cosine) * self.scale
 
 
 class GAPHead(nn.Module):
@@ -342,6 +397,9 @@ class AdaptationModel(nn.Module):
         residual_gap_dim: int = 128,
         attention_reduction: int = 16,
         dropout: float = 0.2,
+        classifier: str = "linear",
+        arcface_scale: float = 30.0,
+        arcface_margin: float = 0.3,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
     ):
@@ -415,7 +473,19 @@ class AdaptationModel(nn.Module):
         else:
             self.pool = GAPHead(channels[-1])
         self.dropout = nn.Dropout(dropout)
-        self.classifier = nn.Linear(self.pool.output_dim, num_classes)
+        classifier = classifier.lower()
+        if classifier == "linear":
+            self.classifier = nn.Linear(self.pool.output_dim, num_classes)
+        elif classifier == "arcface":
+            self.classifier = ArcMarginClassifier(
+                self.pool.output_dim,
+                num_classes,
+                scale=arcface_scale,
+                margin=arcface_margin,
+            )
+        else:
+            raise ValueError("model.classifier harus 'linear' atau 'arcface'.")
+        self.classifier_type = classifier
         hidden = min(1024, max(128, self.pool.output_dim // 2))
         self.domain_classifier = (
             nn.Sequential(
@@ -428,9 +498,17 @@ class AdaptationModel(nn.Module):
             else None
         )
 
-    def forward(self, x: Tensor, domain_strength: float | None = None) -> ModelOutput:
+    def forward(
+        self,
+        x: Tensor,
+        labels: Tensor | None = None,
+        domain_strength: float | None = None,
+    ) -> ModelOutput:
         embedding = self.pool(self.encoder(x))
-        logits = self.classifier(self.dropout(embedding))
+        if self.classifier_type == "arcface":
+            logits = self.classifier(embedding, labels)
+        else:
+            logits = self.classifier(self.dropout(embedding))
         domain_logits = None
         if domain_strength is not None:
             if self.domain_classifier is None:
@@ -462,6 +540,9 @@ def build_model(cfg: dict) -> AdaptationModel:
         residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
         attention_reduction=int(cfg.get("attention_reduction", 16)),
         dropout=float(cfg.get("dropout", 0.2)),
+        classifier=str(cfg.get("classifier", "linear")),
+        arcface_scale=float(cfg.get("arcface_scale", 30.0)),
+        arcface_margin=float(cfg.get("arcface_margin", 0.3)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
     )

@@ -35,6 +35,9 @@ DEFAULTS: dict[str, Any] = {
         "residual_gap_dim": 128,
         "attention_reduction": 16,
         "dropout": 0.2,
+        "classifier": "linear",
+        "arcface_scale": 30.0,
+        "arcface_margin": 0.3,
         "enable_domain_classifier": False,
     },
     "adaptation": {

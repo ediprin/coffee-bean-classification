@@ -374,6 +374,58 @@ python -u -m bilinear_lmmd.run_grouped_cv `
   --expected-count 965
 ```
 
+## Screening fine-grained: resolusi, HBP, dan ArcFace
+
+Eksperimen utama memakai klasifikasi langsung 17 kelas. ArcFace hanya memberi
+angular margin saat training; evaluasi tetap menghasilkan satu label dari 17
+kelas, bukan klasifikasi pasangan ala Siamese.
+
+Mulai dari satu clean fold dan seed 123 untuk memilih resolusi:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee_clean/folds/fold_1 `
+  --output-root outputs/finegrained_screen `
+  --stage resolution `
+  --seeds 123
+```
+
+Tahap ini membandingkan M1 (HBP 224 + CE) dengan F1 (HBP 320 + CE). Jika 320
+layak, jalankan ablation terkontrol pada resolusi yang sama:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee_clean/folds/fold_1 `
+  --output-root outputs/finegrained_screen `
+  --stage ablation `
+  --seeds 123
+```
+
+Kode eksperimen:
+
+| Kode | Pooling | Classifier | Input |
+|---|---|---|---:|
+| F0 | GAP | linear + CE | 320 |
+| F1 | HBP | linear + CE | 320 |
+| F2 | GAP | ArcFace | 320 |
+| F3 | HBP | ArcFace | 320 |
+
+Runner menampilkan progres epoch langsung, melewati hasil yang sudah lengkap,
+dan meneruskan training dari `last.pt` setelah interupsi untuk checkpoint baru.
+Setelah maksimal dua kandidat dipilih, jalankan grouped OOF bersih, misalnya:
+
+```powershell
+python -u -m bilinear_lmmd.run_grouped_cv `
+  --data-root data/coffee_clean/folds `
+  --output-root outputs/finegrained_grouped5fold `
+  --models F1 F3 `
+  --seed 123 `
+  --expected-count 965
+```
+
+Rancangan hipotesis dan aturan keputusan dicatat di
+`docs/FINEGRAINED_HBP_ARCFACE.md`.
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran

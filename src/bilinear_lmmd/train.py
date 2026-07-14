@@ -117,6 +117,7 @@ def train(
     seed_override: int | None = None,
     output_dir_override: str | None = None,
     data_root_override: str | None = None,
+    resume: bool = False,
 ) -> None:
     cfg = load_config(config_path)
     if seed_override is not None:
@@ -171,9 +172,39 @@ def train(
     epochs = int(training_cfg["epochs"])
     best_f1 = -1.0
     history = []
+    start_epoch = 0
     hard_groups = cfg.get("evaluation", {}).get("hard_groups", {})
 
-    for epoch in range(epochs):
+    last_checkpoint = output_dir / "last.pt"
+    if resume and last_checkpoint.is_file():
+        checkpoint = torch.load(
+            last_checkpoint,
+            map_location=device,
+            weights_only=False,
+        )
+        required_state = {"optimizer", "scheduler", "history", "best_f1"}
+        missing_state = sorted(required_state.difference(checkpoint))
+        if missing_state:
+            print(
+                "Checkpoint lama tidak memiliki state resume lengkap "
+                f"({', '.join(missing_state)}); training dimulai ulang.",
+                flush=True,
+            )
+        else:
+            if checkpoint.get("classes") != loaders.classes:
+                raise ValueError("Urutan kelas checkpoint resume berbeda dari dataset.")
+            model.load_state_dict(checkpoint["model"])
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            scheduler.load_state_dict(checkpoint["scheduler"])
+            history = checkpoint["history"]
+            best_f1 = float(checkpoint["best_f1"])
+            start_epoch = int(checkpoint["epoch"])
+            print(
+                f"RESUME: melanjutkan dari epoch {start_epoch + 1}/{epochs}",
+                flush=True,
+            )
+
+    for epoch in range(start_epoch, epochs):
         model.train()
         factor = adaptation_schedule(
             epoch, epochs, int(adaptation_cfg.get("warmup_epochs", 0))
@@ -190,13 +221,17 @@ def train(
             optimizer.zero_grad(set_to_none=True)
 
             if method == "source_only":
-                source_output = model(source_images)
+                source_output = model(source_images, labels=source_labels)
                 loss = classification_loss(source_output.logits, source_labels)
             else:
                 target_images, _ = next(target_batches)
                 target_images = target_images.to(device)
                 domain_strength = factor if method == "dann" else None
-                source_output = model(source_images, domain_strength=domain_strength)
+                source_output = model(
+                    source_images,
+                    labels=source_labels,
+                    domain_strength=domain_strength,
+                )
                 target_output = model(target_images, domain_strength=domain_strength)
                 cls_loss = classification_loss(source_output.logits, source_labels)
 
@@ -265,20 +300,38 @@ def train(
             )
         )
 
+        selection_metrics = source_metrics
+        is_best = selection_metrics["macro_f1"] > best_f1
+        if is_best:
+            best_f1 = selection_metrics["macro_f1"]
+
         checkpoint = {
             "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
             "classes": loaders.classes,
             "config": cfg,
             "epoch": epoch + 1,
             "target_metrics": target_metrics,
+            "history": history,
+            "best_f1": best_f1,
         }
         torch.save(checkpoint, output_dir / "last.pt")
         # Target labels are evaluation-only in unsupervised domain adaptation.
         # Checkpoint selection must not use target metrics.
-        selection_metrics = source_metrics
-        if selection_metrics["macro_f1"] > best_f1:
-            best_f1 = selection_metrics["macro_f1"]
-            torch.save(checkpoint, output_dir / "best.pt")
+        if is_best:
+            best_checkpoint = {
+                key: checkpoint[key]
+                for key in (
+                    "model",
+                    "classes",
+                    "config",
+                    "epoch",
+                    "target_metrics",
+                    "best_f1",
+                )
+            }
+            torch.save(best_checkpoint, output_dir / "best.pt")
         (output_dir / "history.json").write_text(
             json.dumps(history, indent=2), encoding="utf-8"
         )
@@ -290,12 +343,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, help="Override seed dari YAML")
     parser.add_argument("--output-dir", help="Override output_dir dari YAML")
     parser.add_argument("--data-root", help="Override data.root dari YAML")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Lanjutkan dari last.pt jika state optimizer lengkap tersedia.",
+    )
     args = parser.parse_args()
     train(
         args.config,
         seed_override=args.seed,
         output_dir_override=args.output_dir,
         data_root_override=args.data_root,
+        resume=args.resume,
     )
 
 

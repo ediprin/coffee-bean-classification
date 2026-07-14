@@ -1,0 +1,15 @@
+data:
+  image_size: 320
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+  classifier: arcface
+  arcface_scale: 30.0
+  arcface_margin: 0.3
+adaptation:
+  method: source_only
+training:
+  label_smoothing: 0.0
+  output_dir: outputs/F2_mobilenetv3_gap_320_arcface_source
+
