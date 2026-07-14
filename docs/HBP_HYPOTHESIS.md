@@ -197,7 +197,13 @@ diambil sekitar 10% dari keseluruhan data, dan sisanya menjadi train. Setiap
 identitas muncul pada outer test tepat satu kali. Runner menggabungkan lima
 test fold menjadi 979 out-of-fold predictions sebelum menghitung metrik akhir.
 
-## Hasil clean grouped 5-fold
+## Hasil grouped 5-fold sebelum deduplikasi konten
+
+Audit SHA-256 lanjutan menemukan 13 kelompok exact duplicate: 12 pasangan
+berlabel sama dan satu pasangan byte-identik dengan label Fade/Partial Sour.
+Sebelas kelompok tersebar pada outer fold berbeda. Karena split ini mengelompokkan
+filename, bukan hash konten, hasil 979 OOF di bawah masih berguna sebagai
+screening tetapi belum merupakan konfirmasi content-clean.
 
 Agregasi 979 out-of-fold predictions mengonfirmasi kenaikan agregat HBP, tetapi
 juga memperjelas trade-off pada kelas terburuk.
@@ -283,7 +289,8 @@ dari M1 asli pada endpoint primer.
 | GAP-HBP probability ensemble | Selesai; kalah dari HBP pada Macro/Hard-F1 |
 | M1c/M1f feature fusion | Selesai; sinyal GAP ada, tetapi Worst-F1 collapse |
 | M1rc/M1r residual fusion | Stress test seed 123 selesai; belum bukti tiga seed |
-| Clean grouped 5-fold | Selesai untuk GAP dan HBP |
+| Filename-grouped 5-fold (979) | Selesai untuk GAP dan HBP; mengandung exact duplicate |
+| Content-clean grouped 5-fold (965) | Fold siap; GAP/HBP perlu dikonfirmasi ulang |
 | XAI | Tahap analisis pola kelas setelah konfirmasi |
 
 ## Ablasi atribut tanpa HBP

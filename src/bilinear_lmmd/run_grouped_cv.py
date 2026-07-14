@@ -40,6 +40,7 @@ def run_grouped_cv(
     models: list[str],
     folds: int,
     seed: int,
+    expected_count: int = 979,
 ) -> None:
     fold_roots = [data_root / f"fold_{index}" for index in range(1, folds + 1)]
     missing = [str(path) for path in fold_roots if not (path / "source").is_dir()]
@@ -106,7 +107,7 @@ def run_grouped_cv(
 
         oof_dir = output_root / "oof" / f"{model_code}_seed{seed}"
         print(f"MERGE OOF: {model_code}", flush=True)
-        merge_oof(report_dirs, oof_dir)
+        merge_oof(report_dirs, oof_dir, expected_count=expected_count)
         oof_paths[model_code] = oof_dir / "metrics.json"
 
     if "M0" in oof_paths:
@@ -131,8 +132,16 @@ def main() -> None:
     )
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--expected-count", type=int, default=979)
     args = parser.parse_args()
-    run_grouped_cv(args.data_root, args.output_root, args.models, args.folds, args.seed)
+    run_grouped_cv(
+        args.data_root,
+        args.output_root,
+        args.models,
+        args.folds,
+        args.seed,
+        args.expected_count,
+    )
 
 
 if __name__ == "__main__":

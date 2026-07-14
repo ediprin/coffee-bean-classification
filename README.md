@@ -343,6 +343,37 @@ M0a, karena keduanya memiliki jalur attention yang sama. Gate LGF diinisialisasi
 operasional dan keterbatasan paper dicatat di
 `docs/LGF_CBAM_HYPOTHESIS.md`.
 
+## Membersihkan exact duplicate sebelum grouped CV
+
+Dataset publik berisi exact duplicate satu kelas serta satu hash gambar yang
+memiliki dua label berbeda. Buat salinan bersih tanpa mengubah data asli:
+
+```powershell
+python -u -m bilinear_lmmd.prepare_clean_grouped_folds `
+  --source-root data/coffee/source `
+  --output-root data/coffee_clean
+```
+
+Kebijakan konservatif runner:
+
+- satu file canonical dipertahankan untuk exact duplicate dengan label sama;
+- semua file byte-identik dengan label berbeda masuk karantina;
+- near-duplicate tidak dihapus otomatis;
+- 5-fold baru dibuat dari 965 hash unik.
+
+Audit tersimpan di `data/coffee_clean/audit.json`, konflik label berada di
+`quarantine_label_conflicts/`, dan fold siap training berada di `folds/`.
+Konfirmasi ulang GAP dan HBP dengan:
+
+```powershell
+python -u -m bilinear_lmmd.run_grouped_cv `
+  --data-root data/coffee_clean/folds `
+  --output-root outputs/grouped5fold_clean `
+  --models M0 M1 `
+  --seed 42 `
+  --expected-count 965
+```
+
 ## Catatan implementasi HBP dan LMMD
 
 HBP memproyeksikan tiga feature map ke dimensi yang sama, menyamakan ukuran
