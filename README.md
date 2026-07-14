@@ -31,6 +31,8 @@ Tahap B menguji kontribusi metode:
 | M0 | MobileNetV3 + GAP, source-only | baseline |
 | M0b | MobileNetV3 + factorized bilinear, source-only | kontrol orde kedua satu lapis |
 | M1 | MobileNetV3 + HBP, source-only | kontribusi HBP |
+| M1c | MobileNetV3 + HBP + nonlinear projection | kontrol kapasitas fusion |
+| M1f | MobileNetV3 + GAP-HBP feature fusion | komplementaritas orde pertama-kedua |
 | M2 | MobileNetV3 + GAP + MMD | alignment global |
 | M3 | MobileNetV3 + GAP + LMMD | alignment class-wise |
 | M4 | MobileNetV3 + HBP + DANN | baseline adversarial |
@@ -184,6 +186,23 @@ python -m bilinear_lmmd.aggregate_ablation `
   --candidate reports/M1_seed42/metrics.json reports/M1_seed123/metrics.json reports/M1_seed2026/metrics.json `
   --output reports/M0_vs_M1_aggregate.json
 ```
+
+### Screening feature fusion tiga seed
+
+Setelah M1 tersedia untuk seed 42, 123, dan 2026, jalankan kontrol kapasitas
+M1c dan feature fusion M1f dengan satu perintah:
+
+```powershell
+python -u -m bilinear_lmmd.run_fusion_screening `
+  --data-root data/coffee `
+  --output-root outputs/holdout
+```
+
+Runner aman dijalankan ulang: training dan evaluasi yang sudah lengkap akan
+dilewati. M1c dan M1f memiliki jumlah parameter yang berbeda kurang dari 0,1%,
+sehingga perbandingan M1c-vs-M1f mengisolasi manfaat fitur GAP dari sekadar
+tambahan kapasitas. Setelah enam run selesai, agregasi M1-vs-M1c,
+M1c-vs-M1f, dan M1-vs-M1f dicetak otomatis.
 
 ## Konfirmasi clean grouped 5-fold
 

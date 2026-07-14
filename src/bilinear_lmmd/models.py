@@ -110,6 +110,58 @@ class HierarchicalBilinearPooling(nn.Module):
         return torch.cat(pairwise, dim=1)
 
 
+class ProjectedHBP(nn.Module):
+    """HBP followed by a learnable nonlinear projection capacity control."""
+
+    def __init__(self, channels: list[int], projection_dim: int, output_dim: int):
+        super().__init__()
+        self.hbp = HierarchicalBilinearPooling(channels, projection_dim)
+        self.projector = nn.Sequential(
+            nn.Linear(self.hbp.output_dim, output_dim),
+            nn.LayerNorm(output_dim),
+            nn.GELU(),
+        )
+        self.output_dim = output_dim
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        return self.projector(self.hbp(features))
+
+
+class GAPHBPFeatureFusion(nn.Module):
+    """Fuse first-order GAP and second-order HBP representations.
+
+    Each branch is projected and normalized independently before concatenation,
+    allowing the final classifier to learn class-dependent branch weights.
+    """
+
+    def __init__(
+        self,
+        channels: list[int],
+        projection_dim: int,
+        hbp_output_dim: int,
+        gap_output_dim: int,
+    ):
+        super().__init__()
+        self.hbp = HierarchicalBilinearPooling(channels, projection_dim)
+        self.gap = GAPHead(channels[-1])
+        self.hbp_projector = nn.Sequential(
+            nn.Linear(self.hbp.output_dim, hbp_output_dim),
+            nn.LayerNorm(hbp_output_dim),
+            nn.GELU(),
+        )
+        self.gap_projector = nn.Sequential(
+            nn.Linear(self.gap.output_dim, gap_output_dim),
+            nn.LayerNorm(gap_output_dim),
+            nn.GELU(),
+        )
+        self.output_dim = hbp_output_dim + gap_output_dim
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        hbp = self.hbp_projector(self.hbp(features))
+        gap = self.gap_projector(self.gap(features))
+        return torch.cat((hbp, gap), dim=1)
+
+
 @dataclass
 class ModelOutput:
     logits: Tensor
@@ -126,15 +178,19 @@ class AdaptationModel(nn.Module):
         out_indices: tuple[int, ...] = (1, 3, 4),
         projection_dim: int = 512,
         bilinear_output_dim: int | None = None,
+        hbp_mlp_dim: int = 672,
+        fusion_hbp_dim: int = 512,
+        fusion_gap_dim: int = 256,
         dropout: float = 0.2,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
     ):
         super().__init__()
-        if head not in {"gap", "bilinear", "hbp"}:
-            raise ValueError("head harus 'gap', 'bilinear', atau 'hbp'.")
-        if head == "hbp" and len(out_indices) != 3:
-            raise ValueError("out_indices untuk HBP harus berisi tepat 3 indeks.")
+        supported_heads = {"gap", "bilinear", "hbp", "hbp_mlp", "gap_hbp_fusion"}
+        if head not in supported_heads:
+            raise ValueError(f"head harus salah satu dari {sorted(supported_heads)}.")
+        if head in {"hbp", "hbp_mlp", "gap_hbp_fusion"} and len(out_indices) != 3:
+            raise ValueError("out_indices untuk head berbasis HBP harus tepat 3 indeks.")
 
         self.backbone_name = backbone
         self.encoder = timm.create_model(
@@ -146,6 +202,15 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head == "hbp":
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "hbp_mlp":
+            self.pool = ProjectedHBP(channels, projection_dim, hbp_mlp_dim)
+        elif head == "gap_hbp_fusion":
+            self.pool = GAPHBPFeatureFusion(
+                channels,
+                projection_dim,
+                fusion_hbp_dim,
+                fusion_gap_dim,
+            )
         elif head == "bilinear":
             self.pool = FactorizedBilinearPooling(
                 channels[-1], projection_dim, bilinear_output_dim
@@ -193,6 +258,9 @@ def build_model(cfg: dict) -> AdaptationModel:
             if cfg.get("bilinear_output_dim") is not None
             else None
         ),
+        hbp_mlp_dim=int(cfg.get("hbp_mlp_dim", 672)),
+        fusion_hbp_dim=int(cfg.get("fusion_hbp_dim", 512)),
+        fusion_gap_dim=int(cfg.get("fusion_gap_dim", 256)),
         dropout=float(cfg.get("dropout", 0.2)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),

@@ -1,0 +1,11 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap_hbp_fusion
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  fusion_hbp_dim: 512
+  fusion_gap_dim: 256
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/M1f_mobilenetv3_gap_hbp_fusion_source

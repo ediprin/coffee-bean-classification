@@ -197,14 +197,56 @@ diambil sekitar 10% dari keseluruhan data, dan sisanya menjadi train. Setiap
 identitas muncul pada outer test tepat satu kali. Runner menggabungkan lima
 test fold menjadi 979 out-of-fold predictions sebelum menghitung metrik akhir.
 
+## Hasil clean grouped 5-fold
+
+Agregasi 979 out-of-fold predictions mengonfirmasi kenaikan agregat HBP, tetapi
+juga memperjelas trade-off pada kelas terburuk.
+
+| Metrik | GAP (%) | HBP (%) | Delta HBP (poin) |
+|---|---:|---:|---:|
+| Macro-F1 | 82,42 | 84,41 | +1,99 |
+| Hard-class F1 | 74,59 | 77,37 | +2,78 |
+| Worst-class F1 | 56,84 | 54,12 | -2,72 |
+
+Audit pasangan prediksi menemukan 66 sampel yang hanya benar oleh HBP dan 45
+yang hanya benar oleh GAP. Sebanyak 106 sampel salah oleh keduanya. Oracle yang
+memilih prediksi benar menggunakan label mencapai akurasi 89,17%; angka ini
+hanya batas atas, bukan model yang sah.
+
+Ensemble probabilitas dengan satu alpha yang dipilih pada validation setiap
+fold tidak memanfaatkan batas atas tersebut. Macro-F1 ensemble 83,48% dan
+hard-class F1 75,56%, keduanya di bawah HBP. Worst-class F1 pulih menjadi
+56,84%. Alpha antar-fold `[0,30; 1,00; 0,00; 0,55; 0,15]` menunjukkan bahwa
+satu bobot global tidak stabil dan tidak cukup untuk komplementaritas yang
+bergantung pada kelas/sampel.
+
+## Eksperimen feature fusion yang dipraregistrasikan
+
+Dua model baru diuji lebih dulu pada holdout dengan seed 42, 123, dan 2026:
+
+| Kode | Representasi | Peran kausal |
+|---|---|---|
+| M1 | HBP 1536-D + classifier linear | baseline HBP |
+| M1c | HBP + proyeksi nonlinear | kontrol tambahan kapasitas |
+| M1f | proyeksi HBP + proyeksi GAP, lalu konkatenasi | uji informasi GAP |
+
+M1c dan M1f berbeda kurang dari 0,1% parameter. Karena itu perbandingan primer
+untuk klaim fusion adalah **M1f vs M1c**, bukan hanya M1f vs M1. Fusion dianggap
+layak dibawa ke grouped 5-fold bila mean macro-F1 dan hard-class F1 mengungguli
+M1c serta delta macro-F1 positif pada minimal dua dari tiga seed. Worst-class
+F1 tetap dilaporkan sebagai constraint; peningkatan agregat tidak boleh disebut
+solusi worst class jika metrik tersebut turun.
+
 ## Status komponen
 
 | Komponen | Status saat ini |
 |---|---|
 | MobileNetV3 | Baseline tervalidasi |
-| HBP | Kandidat didukung empiris awal |
+| HBP | Didukung untuk Macro/Hard OOF; tidak untuk Worst-F1 |
 | LMMD | Belum diuji dalam hasil ini |
 | HBP + LMMD | Belum boleh diklaim sinergis |
-| M0b single-layer bilinear | Kontrol sudah disetarakan; eksperimen belum dijalankan |
-| Clean grouped 5-fold | Konfirmasi utama wajib |
+| M0b single-layer bilinear | Screening selesai; tidak mengungguli HBP secara umum |
+| GAP-HBP probability ensemble | Selesai; kalah dari HBP pada Macro/Hard-F1 |
+| M1c/M1f feature fusion | Dipraregistrasikan; menunggu screening tiga seed |
+| Clean grouped 5-fold | Selesai untuk GAP dan HBP |
 | XAI | Tahap analisis pola kelas setelah konfirmasi |
