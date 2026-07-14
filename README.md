@@ -92,6 +92,37 @@ Setelah proses ini, baseline `source_only` B0-B4 dan M0-M1 dapat langsung
 dijalankan. M2-M5 tetap membutuhkan `data/coffee/target/train` dan
 `data/coffee/target/val` dari domain pengambilan gambar lain.
 
+### Benchmark domain sintetis terkontrol
+
+Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat
+shift sintetis: illumination, sensor-quality, background, dan gabungan ketiganya.
+Generator mempertahankan split asli, membuat transformasi deterministik, dan
+menulis resep per gambar agar eksperimen dapat diaudit.
+
+Screening hemat komputasi memakai domain `combined` dan satu seed:
+
+```powershell
+python -u -m bilinear_lmmd.run_synthetic_benchmark `
+  --source-root data/coffee_clean/folds/fold_1/source `
+  --data-root data/coffee_synthetic `
+  --output-root outputs/synthetic_screen `
+  --domains combined `
+  --models M0 M1 M2 M3 M5 `
+  --seeds 123 `
+  --source-checkpoints `
+    M0:123=/kaggle/working/finegrained-results/outputs/M0_seed123/best.pt `
+    M1:123=/kaggle/working/finegrained-results/outputs/M1_seed123/best.pt
+```
+
+Perintah aman dilanjutkan setelah interupsi dan menampilkan ringkasan GAP/HBP,
+MMD, serta LMMD. Hasil berada di `reports/summary.json` dan `summary.csv`.
+`--source-checkpoints` bersifat opsional dan mencegah training ulang baseline
+source-only yang seed serta arsitekturnya sudah cocok.
+Eksperimen ini hanya mendukung klaim **controlled synthetic robustness/UDA
+sanity-check**, bukan ketahanan dunia nyata. Protokol lengkap dan perintah
+konfirmasi empat domain x tiga seed tersedia di
+[docs/SYNTHETIC_DOMAIN_PROTOCOL.md](docs/SYNTHETIC_DOMAIN_PROTOCOL.md).
+
 ## Instalasi dan training
 
 ```powershell
