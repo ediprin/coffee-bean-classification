@@ -64,19 +64,21 @@ def test_arcface_model_uses_margin_for_training_and_cosine_for_inference():
 
 
 @pytest.mark.parametrize(
-    ("config_path", "head", "classifier"),
+    ("config_path", "head", "classifier", "image_size"),
     [
-        ("configs/F0_mobilenetv3_gap_320_ce_source.yaml", "gap", "linear"),
-        ("configs/F1_mobilenetv3_hbp_320_ce_source.yaml", "hbp", "linear"),
-        ("configs/F2_mobilenetv3_gap_320_arcface_source.yaml", "gap", "arcface"),
-        ("configs/F3_mobilenetv3_hbp_320_arcface_source.yaml", "hbp", "arcface"),
+        ("configs/A2_mobilenetv3_gap_224_arcface_source.yaml", "gap", "arcface", 224),
+        ("configs/A3_mobilenetv3_hbp_224_arcface_source.yaml", "hbp", "arcface", 224),
+        ("configs/F0_mobilenetv3_gap_320_ce_source.yaml", "gap", "linear", 320),
+        ("configs/F1_mobilenetv3_hbp_320_ce_source.yaml", "hbp", "linear", 320),
+        ("configs/F2_mobilenetv3_gap_320_arcface_source.yaml", "gap", "arcface", 320),
+        ("configs/F3_mobilenetv3_hbp_320_arcface_source.yaml", "hbp", "arcface", 320),
     ],
 )
 def test_finegrained_configs_form_controlled_ablation(
-    config_path, head, classifier
+    config_path, head, classifier, image_size
 ):
     cfg = load_config(config_path)
-    assert cfg["data"]["image_size"] == 320
+    assert cfg["data"]["image_size"] == image_size
     assert cfg["model"]["head"] == head
     assert cfg["model"]["classifier"] == classifier
     assert cfg["adaptation"]["method"] == "source_only"

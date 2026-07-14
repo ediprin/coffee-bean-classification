@@ -390,25 +390,22 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
   --seeds 123
 ```
 
-Tahap ini membandingkan M1 (HBP 224 + CE) dengan F1 (HBP 320 + CE). Jika 320
-layak, jalankan ablation terkontrol pada resolusi yang sama:
+Tahap ini membandingkan M1 (HBP 224 + CE) dengan F1 (HBP 320 + CE). Pada clean
+fold 1 seed 123, resolusi 320 menurunkan Macro-F1 sebesar 3,49 poin,
+Hard-F1 4,40 poin, dan Worst-F1 6,06 poin. Karena itu eksperimen utama diteruskan
+pada 224 dengan matrix GAP/HBP x CE/ArcFace:
 
 ```powershell
 python -u -m bilinear_lmmd.run_finegrained_screening `
   --data-root data/coffee_clean/folds/fold_1 `
   --output-root outputs/finegrained_screen `
-  --stage ablation `
+  --stage arcface224 `
   --seeds 123
 ```
 
-Kode eksperimen:
-
-| Kode | Pooling | Classifier | Input |
-|---|---|---|---:|
-| F0 | GAP | linear + CE | 320 |
-| F1 | HBP | linear + CE | 320 |
-| F2 | GAP | ArcFace | 320 |
-| F3 | HBP | ArcFace | 320 |
+Kode A2 adalah GAP 224 + ArcFace dan A3 adalah HBP 224 + ArcFace. M0 dan M1
+akan dilewati otomatis jika hasil lengkapnya sudah berada pada output root yang
+sama.
 
 Runner menampilkan progres epoch langsung, melewati hasil yang sudah lengkap,
 dan meneruskan training dari `last.pt` setelah interupsi untuk checkpoint baru.
@@ -418,12 +415,13 @@ Setelah maksimal dua kandidat dipilih, jalankan grouped OOF bersih, misalnya:
 python -u -m bilinear_lmmd.run_grouped_cv `
   --data-root data/coffee_clean/folds `
   --output-root outputs/finegrained_grouped5fold `
-  --models F1 F3 `
+  --models M1 A3 `
   --seed 123 `
   --expected-count 965
 ```
 
-Rancangan hipotesis dan aturan keputusan dicatat di
+Ganti `M1 A3` dengan dua kandidat yang benar-benar menang screening. Rancangan
+hipotesis dan aturan keputusan dicatat di
 `docs/FINEGRAINED_HBP_ARCFACE.md`.
 
 ## Catatan implementasi HBP dan LMMD

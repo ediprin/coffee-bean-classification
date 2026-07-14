@@ -30,7 +30,33 @@ ke SNI 2907:2008, tetapi target utama tetap taksonomi 17 kelas dari dataset.
 Gunakan satu clean fold dan seed 123. Resolusi 320 diterima jika Macro-F1 atau
 Hard-F1 membaik tanpa penurunan Worst-F1 yang material.
 
-### Ablation 2 x 2 pada 320
+Hasil screening clean fold 1 seed 123:
+
+| Metrik | HBP 224 | HBP 320 | Delta |
+|---|---:|---:|---:|
+| Macro-F1 | 90.57% | 87.08% | -3.49% |
+| Hard-F1 | 87.94% | 83.54% | -4.40% |
+| Worst-F1 | 72.73% | 66.67% | -6.06% |
+
+Keputusan: H1 ditolak pada screening dan eksperimen utama memakai input 224.
+
+### Ablation 2 x 2 pada 224
+
+| Kode | Pooling | Classifier |
+|---|---|---|
+| M0 | GAP | linear + CE |
+| M1 | HBP | linear + CE |
+| A2 | GAP | ArcFace, scale 30, margin 0.3 |
+| A3 | HBP | ArcFace, scale 30, margin 0.3 |
+
+Perbandingan utama setelah keputusan resolusi:
+
+- M1 - M0: efek HBP di bawah CE.
+- A2 - M0: efek ArcFace di bawah GAP.
+- A3 - M1: efek ArcFace di bawah HBP.
+- A3 - A2: efek HBP di bawah ArcFace.
+
+### Matrix 2 x 2 pada 320 (tidak dilanjutkan)
 
 | Kode | Pooling | Classifier |
 |---|---|---|
@@ -45,6 +71,9 @@ Perbandingan yang diinterpretasikan:
 - F2 - F0: efek ArcFace di bawah GAP.
 - F3 - F1: efek ArcFace di bawah HBP.
 - F3 - F2: efek HBP di bawah ArcFace.
+
+Konfigurasi dipertahankan untuk audit, tetapi tidak dijalankan setelah resolusi
+320 gagal pada ketiga metrik screening.
 
 ArcFace mengganti linear softmax selama training dan menggunakan scaled cosine
 logits saat inferensi. Model tetap melakukan klasifikasi 17 kelas secara
@@ -63,4 +92,3 @@ Laporkan accuracy, balanced accuracy, Macro-F1, Hard-F1, Worst-F1, F1 per kelas,
 confusion matrix, delta berpasangan, dan konsistensi lintas seed. Klaim metode
 diterima hanya jika peningkatan tidak bergantung pada satu seed dan tidak hanya
 berasal dari accuracy agregat.
-

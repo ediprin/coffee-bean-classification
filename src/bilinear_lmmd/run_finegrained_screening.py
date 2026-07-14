@@ -14,6 +14,8 @@ from .models import build_model
 MODEL_CONFIGS = {
     "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
     "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
+    "A2": Path("configs/A2_mobilenetv3_gap_224_arcface_source.yaml"),
+    "A3": Path("configs/A3_mobilenetv3_hbp_224_arcface_source.yaml"),
     "F0": Path("configs/F0_mobilenetv3_gap_320_ce_source.yaml"),
     "F1": Path("configs/F1_mobilenetv3_hbp_320_ce_source.yaml"),
     "F2": Path("configs/F2_mobilenetv3_gap_320_arcface_source.yaml"),
@@ -22,12 +24,16 @@ MODEL_CONFIGS = {
 
 STAGE_MODELS = {
     "resolution": ["M1", "F1"],
+    "arcface224": ["M0", "M1", "A2", "A3"],
     "ablation": ["F0", "F1", "F2", "F3"],
-    "all": ["M0", "M1", "F0", "F1", "F2", "F3"],
+    "all": ["M0", "M1", "A2", "A3", "F0", "F1", "F2", "F3"],
 }
 
 COMPARISONS = (
     ("M0", "M1", "efek HBP pada 224"),
+    ("M0", "A2", "efek ArcFace pada GAP 224"),
+    ("M1", "A3", "efek ArcFace pada HBP 224"),
+    ("A2", "A3", "efek HBP pada 224 + ArcFace"),
     ("M1", "F1", "efek resolusi HBP 224 -> 320"),
     ("F0", "F1", "efek HBP pada 320 + CE"),
     ("F0", "F2", "efek ArcFace pada GAP 320"),
@@ -203,7 +209,10 @@ def main() -> None:
         "--stage",
         choices=tuple(STAGE_MODELS),
         default="resolution",
-        help="resolution=M1/F1, ablation=F0-F3, all=semuanya.",
+        help=(
+            "resolution=M1/F1, arcface224=M0/M1/A2/A3, "
+            "ablation=F0-F3, all=semuanya."
+        ),
     )
     parser.add_argument(
         "--models",
