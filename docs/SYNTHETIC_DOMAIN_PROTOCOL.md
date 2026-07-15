@@ -133,3 +133,23 @@ Runner melatih M1 dan M5w01 secara fresh untuk setiap seed, dapat di-resume,
 dan menyimpan keputusan di `reports/confirmation.json`. Konfirmasi lulus hanya
 jika kedua seed mempertahankan source dalam batas 5 poin, menaikkan target
 macro-F1, dan memiliki worst-class F1 lebih besar dari nol.
+
+Setelah held-out seeds illumination lulus, konfigurasi yang sama diuji pada
+shift `sensor` dan `background` tanpa tuning. Checkpoint M1 illumination dapat
+dipakai ulang karena source identik; runner memverifikasi jumlah file dan hash
+SHA-256 source sebelum reuse. Hanya empat model M5w01 domain-specific yang
+dilatih:
+
+```bash
+python -u -m bilinear_lmmd.run_lmmd_cross_shift_confirmation \
+  --data-root /kaggle/working/coffee-synthetic-components \
+  --baseline-output-root /kaggle/working/lmmd-rescue-confirmation \
+  --output-root /kaggle/working/lmmd-cross-shift-confirmation \
+  --domains sensor background \
+  --seeds 42 2026
+```
+
+Keputusan disimpan di `reports/cross_shift_confirmation.json`. Setiap domain
+lulus hanya jika kedua seed lulus seluruh kriteria; cross-shift lulus hanya jika
+kedua domain lulus. Kegagalan salah satu shift tetap dilaporkan sebagai batas
+berlakunya metode.

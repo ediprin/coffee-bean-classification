@@ -134,6 +134,19 @@ python -u -m bilinear_lmmd.run_lmmd_rescue_confirmation `
   --seeds 42 2026
 ```
 
+Jika konfirmasi illumination lulus, uji konfigurasi yang sudah dibekukan pada
+sensor dan background dengan reuse checkpoint M1 yang diverifikasi melalui
+fingerprint source:
+
+```powershell
+python -u -m bilinear_lmmd.run_lmmd_cross_shift_confirmation `
+  --data-root data/coffee_synthetic_components `
+  --baseline-output-root outputs/lmmd_rescue_confirmation `
+  --output-root outputs/lmmd_cross_shift_confirmation `
+  --domains sensor background `
+  --seeds 42 2026
+```
+
 ## Instalasi dan training
 
 ```powershell
