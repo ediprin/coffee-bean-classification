@@ -676,6 +676,14 @@ Hasil P0/P1 bukan pengganti hasil clean M0/M1. Asumsi yang tidak dilaporkan
 paper dan aturan interpretasi dicatat di
 [`docs/PAPER_REPRODUCTION_PROTOCOL.md`](docs/PAPER_REPRODUCTION_PROTOCOL.md).
 
+Hasil test terkunci tiga seed menunjukkan P1 mengungguli P0 pada seluruh seed:
+Accuracy +6,41 ± 2,26 poin, Macro-F1 +6,61 ± 2,33 poin, Hard-F1 +7,58 ± 2,59
+poin, dan Worst-class F1 +15,98 ± 6,13 poin. Karena variant rotasi dibuat
+sebelum split, angka ini hanya bukti keterbandingan paper-style. Hasil clean
+grouped M0/M1 tetap bukti utama. Ringkasan lengkap tersedia di
+[`docs/PAPER_REPRODUCTION_PROTOCOL.md`](docs/PAPER_REPRODUCTION_PROTOCOL.md)
+dan [`docs/PAPER_REPRODUCTION_RESULTS.json`](docs/PAPER_REPRODUCTION_RESULTS.json).
+
 ## Screening preservasi spasial HBP
 
 M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada

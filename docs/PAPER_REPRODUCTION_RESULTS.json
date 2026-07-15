@@ -1,0 +1,61 @@
+{
+  "status": "locked",
+  "date": "2026-07-16",
+  "protocol": "Arwatchananukul et al. paper-style reproduction",
+  "claim_scope": "comparability_only_leakage_prone",
+  "evaluation_split": "test",
+  "seeds": [42, 123, 2026],
+  "units": {
+    "model_metrics": "percent",
+    "paired_delta": "percentage_points"
+  },
+  "models": {
+    "P0": "frozen MobileNetV3-Large + GAP + CE",
+    "P1": "frozen MobileNetV3-Large + HBP + CE"
+  },
+  "aggregate": {
+    "accuracy": {
+      "P0_mean": 87.51,
+      "P1_mean": 93.93,
+      "paired_delta_mean": 6.41,
+      "paired_delta_sample_std": 2.26,
+      "improved_seeds": 3,
+      "total_seeds": 3
+    },
+    "macro_f1": {
+      "P0_mean": 87.07,
+      "P1_mean": 93.68,
+      "paired_delta_mean": 6.61,
+      "paired_delta_sample_std": 2.33,
+      "improved_seeds": 3,
+      "total_seeds": 3
+    },
+    "hard_class_f1": {
+      "P0_mean": 83.42,
+      "P1_mean": 91.00,
+      "paired_delta_mean": 7.58,
+      "paired_delta_sample_std": 2.59,
+      "improved_seeds": 3,
+      "total_seeds": 3
+    },
+    "worst_class_f1": {
+      "P0_mean": 65.43,
+      "P1_mean": 81.41,
+      "paired_delta_mean": 15.98,
+      "paired_delta_sample_std": 6.13,
+      "improved_seeds": 3,
+      "total_seeds": 3
+    }
+  },
+  "paper_reference": {
+    "accuracy": 88.63,
+    "macro_f1": 89.04
+  },
+  "clean_grouped_corroboration": {
+    "macro_f1_paired_delta_mean": 1.32,
+    "hard_class_f1_paired_delta_mean": 2.48,
+    "worst_class_f1_paired_delta_mean": 7.64
+  },
+  "interpretation": "HBP improves every aggregate metric in all three paper-style seeds and has its largest effect on the weakest class. The clean grouped protocol shows the same directional pattern with smaller gains and remains the primary evidence.",
+  "limitation": "Rotated variants are created before splitting, so source-image identities can overlap across train, validation, and test. Paper-style magnitudes may be optimistic and must not be presented as clean generalization."
+}

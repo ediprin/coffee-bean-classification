@@ -69,6 +69,26 @@ kelas yang terpisah, MobileNetV3-GAP memperoleh Macro-F1 validation 95,65%,
 sedangkan MobileNetV3-HBP 94,77%. Hasil tersebut mencegah klaim bahwa HBP
 universal; manfaatnya bergantung pada karakter fine-grained dataset.
 
+## Dukungan dari reproduksi protokol paper
+
+Sebagai eksperimen keterbandingan, P0/P1 mengikuti protokol Arwatchananukul et
+al. sejauh informasi paper memungkinkan: enam rotasi dibuat sebelum split
+70/20/10, backbone dibekukan, LR 0,01, dan training tiga epoch. Pada tiga seed,
+P1 HBP mengungguli P0 GAP secara konsisten:
+
+| Metrik test | P0 GAP (%) | P1 HBP (%) | Delta berpasangan (poin) | Seed membaik |
+|---|---:|---:|---:|---:|
+| Accuracy | 87,51 | **93,93** | **+6,41 ± 2,26** | 3/3 |
+| Macro-F1 | 87,07 | **93,68** | **+6,61 ± 2,33** | 3/3 |
+| Hard-class F1 | 83,42 | **91,00** | **+7,58 ± 2,59** | 3/3 |
+| Worst-class F1 | 65,43 | **81,41** | **+15,98 ± 6,13** | 3/3 |
+
+Temuan ini menguatkan arah hasil clean M0/M1: HBP terutama membantu kelas
+terlemah. Besarnya gain paper-style tidak dijadikan bukti utama karena rotasi
+sebelum split memungkinkan identity leakage. Protokol clean grouped di bagian
+awal tetap menjadi estimasi generalisasi yang dipakai untuk keputusan model.
+Detail asumsi dan batas klaim ada di `docs/PAPER_REPRODUCTION_PROTOCOL.md`.
+
 ## Ablasi SPPF-Attention
 
 Ablasi validation faktorial menghasilkan:

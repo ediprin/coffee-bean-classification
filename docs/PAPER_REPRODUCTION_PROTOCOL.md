@@ -78,3 +78,46 @@ Runner otomatis:
 - P1 tidak > P0 tetapi M1 > M0: HBP membantu generalisasi asli, bukan memorisasi
   variant rotasi.
 - Keduanya gagal: HBP tidak didukung sebagai kontribusi utama.
+
+## Hasil terkunci tiga seed
+
+Eksperimen test dijalankan pada seed 42, 123, dan 2026. Angka delta adalah
+mean dan sample standard deviation dari selisih berpasangan P1-P0 per seed.
+
+| Metrik | P0 GAP (%) | P1 HBP (%) | Delta P1-P0 (poin) | Seed membaik |
+|---|---:|---:|---:|---:|
+| Accuracy | 87,51 | **93,93** | **+6,41 ± 2,26** | **3/3** |
+| Macro-F1 | 87,07 | **93,68** | **+6,61 ± 2,33** | **3/3** |
+| Hard-class F1 | 83,42 | **91,00** | **+7,58 ± 2,59** | **3/3** |
+| Worst-class F1 | 65,43 | **81,41** | **+15,98 ± 6,13** | **3/3** |
+
+P1 mengungguli P0 pada semua metrik dan pada ketiga seed. Dampak terbesar
+terlihat pada Worst-class F1, sehingga temuan utamanya adalah HBP membantu
+kelas cacat yang paling lemah, bukan hanya menaikkan akurasi rata-rata.
+
+Sebagai pemeriksaan kewajaran reproduksi, P0 memperoleh accuracy 87,51% dan
+Macro-F1 87,07%, dekat dengan laporan paper sebesar 88,63% dan 89,04%.
+Selisih tetap wajar karena optimizer, batch size, ukuran input, varian
+MobileNetV3, dan detail implementasi lain tidak dilaporkan paper dan harus
+ditetapkan sebagai asumsi operasional di atas.
+
+Hasil P1 tidak boleh disebut sebagai perbandingan identik dengan angka paper.
+Protokol ini membuat variant rotasi sebelum split sehingga identitas gambar
+asli dapat muncul lintas train, validation, dan test. Akibatnya, besarnya gain
+paper-style mungkin optimistis dan bukan estimasi generalisasi ke biji baru.
+
+## Penemuan lintas protokol
+
+| Protokol | Delta Macro-F1 | Delta Hard-F1 | Delta Worst-F1 |
+|---|---:|---:|---:|
+| Paper-style P1-P0 | +6,61 | +7,58 | +15,98 |
+| Clean grouped M1-M0 | +1,32 | +2,48 | +7,64 |
+
+Arah peningkatan HBP sama pada kedua protokol dan paling besar pada metrik
+kelas terburuk. Namun, magnitude pada paper-style jauh lebih besar. Kesimpulan
+yang diizinkan adalah bahwa dukungan terhadap HBP muncul pada dua rancangan
+evaluasi, sementara protokol clean grouped tetap menjadi bukti utama. Hasil ini
+tidak membuktikan HBP selalu unggul pada semua dataset atau setiap seed.
+
+Ringkasan terstruktur hasil ini disimpan di
+`docs/PAPER_REPRODUCTION_RESULTS.json`.
