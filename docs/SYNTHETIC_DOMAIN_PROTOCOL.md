@@ -117,3 +117,19 @@ Kriteria screening ditetapkan sebelum training:
 Jika kontrol ini gagal, kombinasi langsung HBP-LMMD tidak diteruskan ke
 multiseed. Hasilnya dilaporkan sebagai interaksi negatif, bukan disembunyikan
 dengan pemilihan seed atau hyperparameter setelah melihat test set.
+
+Jika seed screening 123 lulus, bobot 0,1 dibekukan dan dikonfirmasi pada seed
+42 serta 2026. Seed 123 tidak dimasukkan ke keputusan konfirmasi karena dipakai
+untuk memilih bobot. Jalankan:
+
+```bash
+python -u -m bilinear_lmmd.run_lmmd_rescue_confirmation \
+  --data-root /kaggle/working/coffee-synthetic-components/illumination \
+  --output-root /kaggle/working/lmmd-rescue-confirmation \
+  --seeds 42 2026
+```
+
+Runner melatih M1 dan M5w01 secara fresh untuk setiap seed, dapat di-resume,
+dan menyimpan keputusan di `reports/confirmation.json`. Konfirmasi lulus hanya
+jika kedua seed mempertahankan source dalam batas 5 poin, menaikkan target
+macro-F1, dan memiliki worst-class F1 lebih besar dari nol.

@@ -124,6 +124,16 @@ sanity-check**, bukan ketahanan dunia nyata. Protokol lengkap dan perintah
 konfirmasi empat domain x tiga seed tersedia di
 [docs/SYNTHETIC_DOMAIN_PROTOCOL.md](docs/SYNTHETIC_DOMAIN_PROTOCOL.md).
 
+Setelah rescue control M5w01 lulus pada seed screening 123, konfirmasi tanpa
+tuning tambahan pada held-out seeds 42 dan 2026 dijalankan dengan:
+
+```powershell
+python -u -m bilinear_lmmd.run_lmmd_rescue_confirmation `
+  --data-root data/coffee_synthetic_components/illumination `
+  --output-root outputs/lmmd_rescue_confirmation `
+  --seeds 42 2026
+```
+
 ## Instalasi dan training
 
 ```powershell
