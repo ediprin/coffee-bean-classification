@@ -147,6 +147,30 @@ python -u -m bilinear_lmmd.run_lmmd_cross_shift_confirmation `
   --seeds 42 2026
 ```
 
+### Diagnosis XAI setelah konfirmasi
+
+Setelah semua checkpoint dan `predictions.csv` tersedia, bandingkan M1 dengan
+M5w01 memakai multilayer LayerCAM dan Finer-CAM. Runner ini tidak melakukan
+training baru, dapat dilanjutkan setelah interupsi, serta memeriksa target gain
+dan source forgetting pada sampel `rescued`, `negative_transfer`,
+`both_correct`, dan `both_wrong`.
+
+```bash
+python -u -m bilinear_lmmd.run_xai_analysis \
+  --data-root /kaggle/working/coffee-synthetic-components \
+  --illumination-root /kaggle/working/lmmd-rescue-confirmation \
+  --cross-shift-root /kaggle/working/lmmd-cross-shift-confirmation \
+  --output-root /kaggle/working/xai-results \
+  --domains illumination sensor background \
+  --evaluation-domains target source \
+  --seeds 42 2026
+```
+
+Output mencakup panel heatmap, foreground-attention terhadap mask biji,
+background leakage, dan relative confidence drop setelah penghapusan 5% piksel
+terkuat. Protokol dan batas interpretasi tersedia di
+[docs/XAI_PROTOCOL.md](docs/XAI_PROTOCOL.md).
+
 ## Instalasi dan training
 
 ```powershell
