@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PIL import Image
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 from .prepare_coffee17 import EXPECTED_COUNTS, discover_directory_samples
 
@@ -110,7 +111,12 @@ def prepare_paper_protocol(
     output_root.mkdir(parents=True)
     source_root = output_root / "source"
     for split, split_records in splits.items():
-        for index, (class_name, source, angle) in enumerate(split_records):
+        progress = tqdm(
+            split_records,
+            desc=f"prepare paper {split}",
+            unit="img",
+        )
+        for index, (class_name, source, angle) in enumerate(progress):
             filename = f"{index:05d}__{source.stem}__rot{angle:03d}.jpg"
             _write_variant(
                 source,
