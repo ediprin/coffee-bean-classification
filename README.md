@@ -383,6 +383,24 @@ Output utama `gallery_seed42.png` menampilkan input, heatmap mentah, dan overlay
 M0/M1. XAI adalah diagnosis post-hoc pada sampel terpilih dan bukan bukti kausal
 atau estimasi seluruh populasi test.
 
+### Screening stabilisasi HBP dengan EMA
+
+M1e mempertahankan arsitektur, loss, optimizer, dan inferensi M1. EMA decay
+`0.995` dimulai setelah lima epoch penuh dan hanya mengubah bobot checkpoint
+yang dievaluasi. Gunakan fold baru; test final fold 1 tidak boleh dipakai lagi:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee17_hierarchy_clean/folds/fold_2 `
+  --output-root outputs/hbp-ema-fold2 `
+  --stage ema `
+  --seeds 42 123 2026 `
+  --evaluation-split val
+```
+
+Kriteria keputusan dan batas test leakage tersedia di
+[docs/EMA_HBP_PROTOCOL.md](docs/EMA_HBP_PROTOCOL.md).
+
 ## Urutan eksperimen yang disarankan
 
 1. Jalankan B0–B4 minimal tiga seed dengan split, augmentasi, resolusi,

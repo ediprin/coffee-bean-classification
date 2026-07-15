@@ -59,6 +59,8 @@ DEFAULTS: dict[str, Any] = {
         "lr": 0.0003,
         "weight_decay": 0.0001,
         "label_smoothing": 0.1,
+        "ema_decay": 0.0,
+        "ema_start_epoch": 0,
         "expert_aux_weight": 0.3,
         "expert_diversity_weight": 0.05,
         "output_dir": "outputs/default",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import random
@@ -69,6 +70,35 @@ def load_resume_checkpoint(
             flush=True,
         )
         return None
+
+
+class ExponentialMovingAverage:
+    """EMA of trainable parameters with current model buffers.
+
+    BatchNorm running statistics are copied rather than averaged. This avoids
+    applying floating-point EMA arithmetic to integer tracking buffers and
+    keeps evaluation statistics aligned with the current training trajectory.
+    """
+
+    def __init__(self, model: nn.Module, decay: float):
+        if not 0.0 < decay < 1.0:
+            raise ValueError("EMA decay harus berada di antara 0 dan 1.")
+        self.decay = float(decay)
+        self.model = copy.deepcopy(model).eval()
+        self.model.requires_grad_(False)
+
+    @torch.no_grad()
+    def copy_from(self, model: nn.Module) -> None:
+        self.model.load_state_dict(model.state_dict())
+        self.model.eval()
+
+    @torch.no_grad()
+    def update(self, model: nn.Module) -> None:
+        for averaged, current in zip(self.model.parameters(), model.parameters()):
+            averaged.mul_(self.decay).add_(current.detach(), alpha=1.0 - self.decay)
+        for averaged, current in zip(self.model.buffers(), model.buffers()):
+            averaged.copy_(current.detach())
+        self.model.eval()
 
 
 def adaptation_schedule(epoch: int, epochs: int, warmup_epochs: int) -> float:
@@ -261,6 +291,14 @@ def train(
     classification_loss = nn.CrossEntropyLoss(
         label_smoothing=float(training_cfg.get("label_smoothing", 0.0))
     )
+    ema_decay = float(training_cfg.get("ema_decay", 0.0))
+    ema_start_epoch = int(training_cfg.get("ema_start_epoch", 0))
+    if ema_decay < 0.0 or ema_decay >= 1.0:
+        raise ValueError("training.ema_decay harus berada pada [0, 1).")
+    if ema_start_epoch < 0:
+        raise ValueError("training.ema_start_epoch tidak boleh negatif.")
+    ema = ExponentialMovingAverage(model, ema_decay) if ema_decay > 0.0 else None
+    ema_started = False
     mmd_loss = MMDLoss(
         kernel_mul=float(adaptation_cfg["kernel_mul"]),
         kernel_num=int(adaptation_cfg["kernel_num"]),
@@ -283,6 +321,8 @@ def train(
         json.dumps(cfg, indent=2), encoding="utf-8"
     )
     epochs = int(training_cfg["epochs"])
+    if ema is not None and ema_start_epoch >= epochs:
+        raise ValueError("training.ema_start_epoch harus lebih kecil dari epochs.")
     best_f1 = -1.0
     history = []
     start_epoch = 0
@@ -293,6 +333,8 @@ def train(
         checkpoint = load_resume_checkpoint(last_checkpoint, device)
         if checkpoint is not None:
             required_state = {"optimizer", "scheduler", "history", "best_f1"}
+            if ema is not None:
+                required_state.update({"ema_model", "ema_started"})
             missing_state = sorted(required_state.difference(checkpoint))
             if missing_state:
                 print(
@@ -306,6 +348,12 @@ def train(
                 model.load_state_dict(checkpoint["model"])
                 optimizer.load_state_dict(checkpoint["optimizer"])
                 scheduler.load_state_dict(checkpoint["scheduler"])
+                if ema is not None:
+                    ema_started = bool(checkpoint["ema_started"])
+                    if ema_started:
+                        if checkpoint["ema_model"] is None:
+                            raise ValueError("Checkpoint EMA aktif tanpa ema_model.")
+                        ema.model.load_state_dict(checkpoint["ema_model"])
                 history = checkpoint["history"]
                 best_f1 = float(checkpoint["best_f1"])
                 start_epoch = int(checkpoint["epoch"])
@@ -389,6 +437,12 @@ def train(
 
             loss.backward()
             optimizer.step()
+            if ema is not None and epoch >= ema_start_epoch:
+                if ema_started:
+                    ema.update(model)
+                else:
+                    ema.copy_from(model)
+                    ema_started = True
             running_loss += loss.item()
             for name, value in supervised_components.items():
                 running_components[name] = running_components.get(name, 0.0) + value.item()
@@ -400,13 +454,29 @@ def train(
             progress.set_postfix(**postfix)
 
         scheduler.step()
-        source_metrics = evaluate(
+        source_metrics_raw = evaluate(
             model, loaders.source_val, device, loaders.classes, hard_groups
         )
-        target_metrics = (
+        target_metrics_raw = (
             evaluate(model, loaders.target_val, device, loaders.classes, hard_groups)
             if loaders.target_val is not None
             else None
+        )
+        source_metrics_ema = (
+            evaluate(ema.model, loaders.source_val, device, loaders.classes, hard_groups)
+            if ema is not None and ema_started
+            else None
+        )
+        target_metrics_ema = (
+            evaluate(ema.model, loaders.target_val, device, loaders.classes, hard_groups)
+            if ema is not None and ema_started and loaders.target_val is not None
+            else None
+        )
+        source_metrics = source_metrics_ema or source_metrics_raw
+        target_metrics = (
+            target_metrics_ema
+            if source_metrics_ema is not None
+            else target_metrics_raw
         )
         record = {
             "epoch": epoch + 1,
@@ -414,6 +484,12 @@ def train(
             "source": source_metrics,
             "target": target_metrics,
         }
+        if ema is not None:
+            record["source_raw"] = source_metrics_raw
+            record["source_ema"] = source_metrics_ema
+            record["target_raw"] = target_metrics_raw
+            record["target_ema"] = target_metrics_ema
+            record["selection_weights"] = "ema" if source_metrics_ema is not None else "raw"
         if running_components:
             record["loss_components"] = {
                 name: value / max(len(loaders.source_train), 1)
@@ -434,6 +510,15 @@ def train(
                         for key, value in source_metrics.items()
                         if key != "per_class"
                     },
+                    "source_raw": (
+                        {
+                            key: value
+                            for key, value in source_metrics_raw.items()
+                            if key != "per_class"
+                        }
+                        if ema is not None
+                        else None
+                    ),
                     "target": (
                         {
                             key: value
@@ -448,7 +533,8 @@ def train(
         )
 
         selection_metrics = source_metrics
-        is_best = selection_metrics["macro_f1"] > best_f1
+        selection_ready = ema is None or ema_started
+        is_best = selection_ready and selection_metrics["macro_f1"] > best_f1
         if is_best:
             best_f1 = selection_metrics["macro_f1"]
 
@@ -463,6 +549,9 @@ def train(
             "history": history,
             "best_f1": best_f1,
         }
+        if ema is not None:
+            checkpoint["ema_model"] = ema.model.state_dict() if ema_started else None
+            checkpoint["ema_started"] = ema_started
         atomic_torch_save(checkpoint, output_dir / "last.pt")
         # Target labels are evaluation-only in unsupervised domain adaptation.
         # Checkpoint selection must not use target metrics.
@@ -478,6 +567,13 @@ def train(
                     "best_f1",
                 )
             }
+            if ema is not None and ema_started:
+                best_checkpoint["model"] = ema.model.state_dict()
+                best_checkpoint["weights"] = "ema"
+                best_checkpoint["ema_decay"] = ema_decay
+                best_checkpoint["ema_start_epoch"] = ema_start_epoch
+            else:
+                best_checkpoint["weights"] = "raw"
             atomic_torch_save(best_checkpoint, output_dir / "best.pt")
         (output_dir / "history.json").write_text(
             json.dumps(history, indent=2), encoding="utf-8"

@@ -361,6 +361,21 @@ def test_sppf_attention_hbp_config_is_controlled_against_hbp():
     assert baseline["adaptation"] == candidate["adaptation"]
 
 
+def test_ema_hbp_config_changes_only_ema_training_settings():
+    baseline = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    candidate = load_config("configs/M1e_mobilenetv3_hbp_ema_source.yaml")
+
+    assert baseline["training"]["ema_decay"] == 0.0
+    assert candidate["training"]["ema_decay"] == 0.995
+    assert candidate["training"]["ema_start_epoch"] == 5
+    assert baseline["model"] == candidate["model"]
+    assert baseline["data"] == candidate["data"]
+    assert baseline["adaptation"] == candidate["adaptation"]
+    for key, value in baseline["training"].items():
+        if key not in {"ema_decay", "ema_start_epoch", "output_dir"}:
+            assert candidate["training"][key] == value
+
+
 def test_pointwise_capacity_control_preserves_shape_and_backpropagates():
     module = PointwiseResidualCapacity(channels=16, hidden_channels=21)
     feature = torch.randn(2, 16, 9, 9, requires_grad=True)
