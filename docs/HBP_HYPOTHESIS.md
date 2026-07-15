@@ -279,10 +279,16 @@ dari M1 asli pada endpoint primer.
 
 ## Status komponen
 
+> Pembaruan 16 Juli 2026: hasil test content-clean tiga seed dan keputusan model
+> final tersedia di [FINAL_HBP_RESULTS.md](FINAL_HBP_RESULTS.md). Hasil final
+> tersebut menjadi acuan utama jika bertentangan dengan screening/OOF lama di
+> bawah.
+
 | Komponen | Status saat ini |
 |---|---|
 | MobileNetV3 | Baseline tervalidasi |
-| HBP | Didukung untuk Macro/Hard OOF; tidak untuk Worst-F1 |
+| HBP | Diterima: mean test Macro +1,32; Hard +2,48; Worst +7,64 poin vs GAP |
+| SPPF-Attention + HBP | Ditolak: seluruh metrik utama turun pada test |
 | LMMD | Belum diuji dalam hasil ini |
 | HBP + LMMD | Belum boleh diklaim sinergis |
 | M0b single-layer bilinear | Screening selesai; tidak mengungguli HBP secara umum |

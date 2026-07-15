@@ -52,3 +52,15 @@ pada seed yang sama.
 4. Jika gagal, S1 dihentikan tanpa tuning reduction atau bobot loss.
 5. Jika lolos, konfirmasi seed 42, 123, dan 2026 dilakukan sebelum test dibuka.
 6. Test hanya dievaluasi sekali setelah kandidat dan capacity control dikunci.
+
+## Hasil dan keputusan final
+
+Pada agregasi validation tiga seed, S1 terhadap M1 mengubah Macro-F1 -0,14
+poin, Hard-F1 +0,71 poin, dan Worst-F1 +4,24 poin. Ablasi S0 menunjukkan bahwa
+SPPF-Attention tanpa HBP juga menaikkan Worst-F1 validation, tetapi menurunkan
+Macro-F1 dan Hard-F1.
+
+Keuntungan validation tersebut tidak bertahan pada test. Dibanding M1, S1
+menurunkan Macro-F1 1,53 poin, Hard-F1 0,72 poin, dan Worst-F1 6,20 poin.
+S1 karena itu ditolak dan tidak dituning ulang menggunakan test. Angka lengkap
+dan keputusan model dicatat di [FINAL_HBP_RESULTS.md](FINAL_HBP_RESULTS.md).

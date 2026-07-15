@@ -11,6 +11,9 @@ Dataset source yang digunakan adalah [Coffee Green Bean with 17 Defects
 dan referensi baseline-nya adalah Arwatchananukul et al. (2024), DOI
 [10.1016/j.atech.2024.100680](https://doi.org/10.1016/j.atech.2024.100680).
 Catatan protokol rinci tersedia di [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md).
+Hasil test M0/M1 tiga seed yang telah dikunci, keputusan model, batas klaim,
+dan benchmark efisiensi dicatat di
+[docs/FINAL_HBP_RESULTS.md](docs/FINAL_HBP_RESULTS.md).
 
 ## Desain eksperimen
 
