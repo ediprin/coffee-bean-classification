@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from .config import load_config
 from .data import build_loaders
+from .hierarchy import build_parent_hierarchy
 from .losses import LMMDLoss, MMDLoss, NonTargetExpertDiversityLoss
 from .models import build_model
 
@@ -56,10 +57,21 @@ def supervised_objective(
     diversity_loss: nn.Module,
     auxiliary_weight: float,
     diversity_weight: float,
+    parent_mapping: torch.Tensor | None = None,
+    hierarchy_weight: float = 0.0,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     fused_ce = classification_loss(output.logits, labels)
     components = {"fused_ce": fused_ce}
     total = fused_ce
+    if output.parent_logits is not None:
+        if parent_mapping is None or hierarchy_weight <= 0.0:
+            raise ValueError(
+                "Model menghasilkan parent logits tetapi hierarchy training belum valid."
+            )
+        parent_labels = parent_mapping[labels]
+        parent_ce = classification_loss(output.parent_logits, parent_labels)
+        total = total + hierarchy_weight * parent_ce
+        components["parent_ce"] = parent_ce
     if output.expert_logits is not None:
         global_ce = classification_loss(output.expert_logits["hbp_global"], labels)
         local_ce = classification_loss(output.expert_logits["local_gmp"], labels)
@@ -170,6 +182,36 @@ def train(
             f"{cfg['model']['num_classes']}."
         )
 
+    hierarchy_cfg = cfg.get("hierarchy", {})
+    hierarchy_enabled = bool(hierarchy_cfg.get("enabled", False))
+    parent_mapping: torch.Tensor | None = None
+    hierarchy_weight = 0.0
+    if hierarchy_enabled:
+        hierarchy = build_parent_hierarchy(
+            loaders.classes, hierarchy_cfg.get("groups", {})
+        )
+        configured_parents = int(cfg["model"].get("hierarchy_num_parents", 0))
+        if configured_parents != len(hierarchy.parent_names):
+            raise ValueError(
+                "model.hierarchy_num_parents tidak cocok dengan hierarchy.groups: "
+                f"{configured_parents} != {len(hierarchy.parent_names)}"
+            )
+        hierarchy_weight = float(hierarchy_cfg.get("weight", 0.0))
+        if hierarchy_weight <= 0.0:
+            raise ValueError("hierarchy.weight harus lebih besar dari nol.")
+        parent_mapping = torch.tensor(
+            hierarchy.fine_to_parent, dtype=torch.long, device=device
+        )
+        print(
+            f"HIERARCHY: {len(loaders.classes)} fine -> "
+            f"{len(hierarchy.parent_names)} parent | weight={hierarchy_weight:.3f}",
+            flush=True,
+        )
+    elif int(cfg["model"].get("hierarchy_num_parents", 0)):
+        raise ValueError(
+            "Model memiliki parent classifier tetapi hierarchy.enabled=false."
+        )
+
     model = build_model(cfg["model"]).to(device)
     training_cfg = cfg["training"]
     if method not in {"source_only", "mmd", "lmmd", "dann"}:
@@ -270,6 +312,8 @@ def train(
                     expert_diversity_loss,
                     expert_aux_weight,
                     expert_diversity_weight,
+                    parent_mapping,
+                    hierarchy_weight,
                 )
             else:
                 target_images, _ = next(target_batches)
@@ -288,6 +332,8 @@ def train(
                     expert_diversity_loss,
                     expert_aux_weight,
                     expert_diversity_weight,
+                    parent_mapping,
+                    hierarchy_weight,
                 )
 
                 if method == "mmd":

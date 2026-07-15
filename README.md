@@ -140,9 +140,28 @@ python -u -m bilinear_lmmd.run_roast_hbp_screening `
 ```
 
 Runner mempertahankan test bawaan, membuat validation hanya dari train bila
-perlu, serta berhenti saat menemukan exact duplicate lintas split. Protokol dan
+perlu, serta membuang salinan exact duplicate lintas split dengan prioritas
+mempertahankan test. Protokol dan
 batas klaim tersedia di
 [docs/ROAST_HBP_PROTOCOL.md](docs/ROAST_HBP_PROTOCOL.md).
+
+### Screening hierarchical HBP pada Coffee17
+
+H1 mempertahankan MobileNetV3-HBP dan classifier fine 17 kelas milik M1, lalu
+menambahkan auxiliary parent loss untuk pasangan Black, Sour, dan Insect
+Damage. Screening terkontrol dijalankan pada validation:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee_clean_for_synthetic/folds/fold_1 `
+  --output-root outputs/hierarchical-hbp `
+  --stage hierarchy `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+Pemetaan kelas, bobot loss yang dikunci, dan kriteria keputusan tersedia di
+[docs/HIERARCHICAL_HBP_PROTOCOL.md](docs/HIERARCHICAL_HBP_PROTOCOL.md).
 
 ### Benchmark domain sintetis terkontrol
 

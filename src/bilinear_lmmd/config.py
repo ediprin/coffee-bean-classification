@@ -43,6 +43,7 @@ DEFAULTS: dict[str, Any] = {
         "arcface_scale": 30.0,
         "arcface_margin": 0.3,
         "enable_domain_classifier": False,
+        "hierarchy_num_parents": 0,
     },
     "adaptation": {
         "method": "lmmd",
@@ -60,6 +61,11 @@ DEFAULTS: dict[str, Any] = {
         "expert_aux_weight": 0.3,
         "expert_diversity_weight": 0.05,
         "output_dir": "outputs/default",
+    },
+    "hierarchy": {
+        "enabled": False,
+        "weight": 0.0,
+        "groups": {},
     },
     "evaluation": {
         "hard_groups": {

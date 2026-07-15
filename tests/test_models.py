@@ -190,6 +190,66 @@ def test_sp_hbp_config_is_controlled_against_hbp():
     assert baseline_cfg["adaptation"] == candidate_cfg["adaptation"]
 
 
+def test_hierarchical_hbp_adds_only_parent_head_and_backpropagates():
+    model = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="hbp",
+        out_indices=(1, 3, 4),
+        projection_dim=32,
+        hierarchy_num_parents=2,
+        pretrained=False,
+    )
+    output = model(torch.randn(2, 3, 96, 96))
+
+    assert output.logits.shape == (2, 4)
+    assert output.parent_logits.shape == (2, 2)
+    output.parent_logits.sum().backward()
+    assert model.parent_classifier.weight.grad is not None
+    assert model.pool.projections[0][0].weight.grad is not None
+
+
+def test_hierarchical_hbp_preserves_same_seed_core_initialization():
+    kwargs = {
+        "backbone": "mobilenetv3_small_050",
+        "num_classes": 4,
+        "head": "hbp",
+        "out_indices": (1, 3, 4),
+        "projection_dim": 32,
+        "pretrained": False,
+    }
+    torch.manual_seed(23)
+    baseline = AdaptationModel(**kwargs)
+    baseline_rng = torch.random.get_rng_state()
+    torch.manual_seed(23)
+    candidate = AdaptationModel(hierarchy_num_parents=2, **kwargs)
+
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.encoder.parameters(), candidate.encoder.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.pool.parameters(), candidate.pool.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    assert torch.equal(baseline.classifier.weight, candidate.classifier.weight)
+    assert torch.equal(baseline.classifier.bias, candidate.classifier.bias)
+    assert torch.equal(baseline_rng, torch.random.get_rng_state())
+
+
+def test_hierarchical_config_is_controlled_against_hbp():
+    baseline = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    candidate = load_config("configs/H1_mobilenetv3_hbp_hierarchical_source.yaml")
+
+    assert candidate["hierarchy"]["enabled"] is True
+    assert candidate["hierarchy"]["weight"] == 0.2
+    assert candidate["model"]["hierarchy_num_parents"] == 14
+    for key in ("backbone", "head", "out_indices", "projection_dim", "classifier", "dropout"):
+        assert baseline["model"][key] == candidate["model"][key]
+    assert baseline["data"] == candidate["data"]
+    assert baseline["adaptation"] == candidate["adaptation"]
+
+
 def test_hbp_moe_outputs_experts_gate_and_backpropagates():
     model = AdaptationModel(
         backbone="mobilenetv3_small_050",

@@ -452,6 +452,7 @@ class ModelOutput:
     logits: Tensor
     embedding: Tensor
     domain_logits: Tensor | None = None
+    parent_logits: Tensor | None = None
     expert_logits: dict[str, Tensor] | None = None
     gate_weights: Tensor | None = None
 
@@ -481,6 +482,7 @@ class AdaptationModel(nn.Module):
         arcface_margin: float = 0.3,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
+        hierarchy_num_parents: int = 0,
     ):
         super().__init__()
         supported_heads = {
@@ -577,6 +579,21 @@ class AdaptationModel(nn.Module):
             raise ValueError("model.classifier harus 'linear' atau 'arcface'.")
         self.classifier_type = classifier
 
+        if hierarchy_num_parents < 0:
+            raise ValueError("hierarchy_num_parents tidak boleh negatif.")
+        if hierarchy_num_parents and classifier != "linear":
+            raise ValueError("Hierarchical supervision saat ini membutuhkan classifier linear.")
+        self.parent_classifier: nn.Linear | None = None
+        if hierarchy_num_parents:
+            # Auxiliary-head initialization must not alter the global RNG state,
+            # so same-seed M1 and H1 retain identical backbone/HBP/fine-head
+            # initialization and data-loader shuffling.
+            rng_state = torch.random.get_rng_state()
+            self.parent_classifier = nn.Linear(
+                self.pool.output_dim, hierarchy_num_parents
+            )
+            torch.random.set_rng_state(rng_state)
+
         self.local_expert: LocalMaxExpert | None = None
         self.local_classifier: nn.Linear | None = None
         self.expert_gate: nn.Sequential | None = None
@@ -624,8 +641,15 @@ class AdaptationModel(nn.Module):
         embedding = self.pool(features)
         if self.classifier_type == "arcface":
             logits = self.classifier(embedding, labels)
+            classifier_embedding = embedding
         else:
-            logits = self.classifier(self.dropout(embedding))
+            classifier_embedding = self.dropout(embedding)
+            logits = self.classifier(classifier_embedding)
+        parent_logits = (
+            self.parent_classifier(classifier_embedding)
+            if self.parent_classifier is not None
+            else None
+        )
         expert_logits = None
         gate_weights = None
         if self.head == "hbp_moe":
@@ -657,6 +681,7 @@ class AdaptationModel(nn.Module):
             logits=logits,
             embedding=embedding,
             domain_logits=domain_logits,
+            parent_logits=parent_logits,
             expert_logits=expert_logits,
             gate_weights=gate_weights,
         )
@@ -690,4 +715,5 @@ def build_model(cfg: dict) -> AdaptationModel:
         arcface_margin=float(cfg.get("arcface_margin", 0.3)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
+        hierarchy_num_parents=int(cfg.get("hierarchy_num_parents", 0)),
     )
