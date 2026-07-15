@@ -5,7 +5,10 @@ import csv
 import hashlib
 import json
 import statistics
+import time
 from pathlib import Path
+
+from tqdm import tqdm
 
 from .xai import (
     analyze_explanation,
@@ -355,10 +358,24 @@ def run_xai_analysis(
                     f"{len(pending)}/{len(selected)} sampel pending",
                     flush=True,
                 )
+                print("  Memuat checkpoint M1 dan M5w01...", flush=True)
+                load_started = time.perf_counter()
                 loaded = {
                     model: load_checkpoint_model(path, device_name=device)
                     for model, path in checkpoints.items()
                 }
+                devices = sorted({str(model_device) for _, _, model_device in loaded.values()})
+                print(
+                    f"  Checkpoint siap dalam {time.perf_counter() - load_started:.1f}s "
+                    f"| device={','.join(devices)}",
+                    flush=True,
+                )
+                if devices == ["cpu"]:
+                    print(
+                        "  WARNING: XAI berjalan di CPU; backward pass per sampel "
+                        "akan jauh lebih lambat. Aktifkan GPU Kaggle.",
+                        flush=True,
+                    )
                 image_sizes = {
                     int(cfg["data"]["image_size"])
                     for _, cfg, _ in loaded.values()
@@ -367,11 +384,16 @@ def run_xai_analysis(
                     raise ValueError("Resolusi checkpoint M1 dan M5w01 berbeda.")
                 image_size = image_sizes.pop()
 
-                for index, (row, base) in enumerate(pending, start=1):
-                    print(
-                        f"  [{index}/{len(pending)}] {row['outcome']}: "
-                        f"{row['actual']}/{row['filename']}",
-                        flush=True,
+                progress = tqdm(
+                    pending,
+                    desc=f"{domain}/{evaluation_domain}/seed{seed}",
+                    unit="sample",
+                    dynamic_ncols=True,
+                )
+                for row, base in progress:
+                    sample_started = time.perf_counter()
+                    progress.set_postfix_str(
+                        f"{row['outcome']} | menyiapkan gambar", refresh=True
                     )
                     image_path, source_path = _image_paths(
                         domain_root,
@@ -386,6 +408,11 @@ def run_xai_analysis(
                     explanations = {}
                     model_results = {}
                     for model_name in MODELS:
+                        model_started = time.perf_counter()
+                        progress.set_postfix_str(
+                            f"{row['outcome']} | {model_name}: CAM+deletion",
+                            refresh=True,
+                        )
                         model, _, model_device = loaded[model_name]
                         explanation, metrics = analyze_explanation(
                             model,
@@ -416,6 +443,10 @@ def run_xai_analysis(
                             ],
                             "metrics": metrics,
                         }
+                        tqdm.write(
+                            f"    {model_name} selesai: "
+                            f"{time.perf_counter() - model_started:.1f}s"
+                        )
                     result = {
                         "domain": domain,
                         "evaluation_domain": evaluation_domain,
@@ -440,6 +471,10 @@ def run_xai_analysis(
                     # JSON is the completion marker and is deliberately written last.
                     base.with_suffix(".json").write_text(
                         json.dumps(result, indent=2), encoding="utf-8"
+                    )
+                    progress.set_postfix_str(
+                        f"tersimpan | {time.perf_counter() - sample_started:.1f}s",
+                        refresh=True,
                     )
                 del loaded
 

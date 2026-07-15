@@ -95,6 +95,9 @@ python -u -m bilinear_lmmd.run_xai_analysis \
 Runner aman dilanjutkan setelah notebook berhenti. Satu sampel dianggap lengkap
 hanya jika JSON dan panel PNG sudah ada. Protokol disimpan di `protocol.json`;
 runner menolak mencampur hasil jika gamma, seed, atau aturan sampling berubah.
+Progress bar menampilkan sampel aktif dan tahap M1/M5w01. Runner juga mencetak
+device yang dipakai; jika tertulis `device=cpu`, aktifkan GPU pada Kaggle karena
+setiap penjelasan membutuhkan beberapa backward pass.
 
 Artefak utama:
 
