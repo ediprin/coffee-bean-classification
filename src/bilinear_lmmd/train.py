@@ -38,6 +38,39 @@ def resolve_device(name: str) -> torch.device:
     return torch.device(name)
 
 
+def atomic_torch_save(payload: dict, destination: Path) -> None:
+    """Write a checkpoint completely before replacing the visible file."""
+
+    temporary = destination.with_name(f"{destination.name}.tmp")
+    try:
+        torch.save(payload, temporary)
+        temporary.replace(destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def load_resume_checkpoint(
+    checkpoint_path: Path,
+    device: torch.device,
+) -> dict | None:
+    """Return None for an interrupted/corrupt checkpoint instead of crashing."""
+
+    try:
+        return torch.load(
+            checkpoint_path,
+            map_location=device,
+            weights_only=False,
+        )
+    except Exception as exc:  # torch raises several backend-specific errors
+        print(
+            f"WARNING: checkpoint resume rusak/tidak lengkap ({checkpoint_path}): "
+            f"{type(exc).__name__}: {exc}. Training dimulai ulang.",
+            flush=True,
+        )
+        return None
+
+
 def adaptation_schedule(epoch: int, epochs: int, warmup_epochs: int) -> float:
     if epoch < warmup_epochs:
         return 0.0
@@ -257,32 +290,29 @@ def train(
 
     last_checkpoint = output_dir / "last.pt"
     if resume and last_checkpoint.is_file():
-        checkpoint = torch.load(
-            last_checkpoint,
-            map_location=device,
-            weights_only=False,
-        )
-        required_state = {"optimizer", "scheduler", "history", "best_f1"}
-        missing_state = sorted(required_state.difference(checkpoint))
-        if missing_state:
-            print(
-                "Checkpoint lama tidak memiliki state resume lengkap "
-                f"({', '.join(missing_state)}); training dimulai ulang.",
-                flush=True,
-            )
-        else:
-            if checkpoint.get("classes") != loaders.classes:
-                raise ValueError("Urutan kelas checkpoint resume berbeda dari dataset.")
-            model.load_state_dict(checkpoint["model"])
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            scheduler.load_state_dict(checkpoint["scheduler"])
-            history = checkpoint["history"]
-            best_f1 = float(checkpoint["best_f1"])
-            start_epoch = int(checkpoint["epoch"])
-            print(
-                f"RESUME: melanjutkan dari epoch {start_epoch + 1}/{epochs}",
-                flush=True,
-            )
+        checkpoint = load_resume_checkpoint(last_checkpoint, device)
+        if checkpoint is not None:
+            required_state = {"optimizer", "scheduler", "history", "best_f1"}
+            missing_state = sorted(required_state.difference(checkpoint))
+            if missing_state:
+                print(
+                    "Checkpoint lama tidak memiliki state resume lengkap "
+                    f"({', '.join(missing_state)}); training dimulai ulang.",
+                    flush=True,
+                )
+            else:
+                if checkpoint.get("classes") != loaders.classes:
+                    raise ValueError("Urutan kelas checkpoint resume berbeda dari dataset.")
+                model.load_state_dict(checkpoint["model"])
+                optimizer.load_state_dict(checkpoint["optimizer"])
+                scheduler.load_state_dict(checkpoint["scheduler"])
+                history = checkpoint["history"]
+                best_f1 = float(checkpoint["best_f1"])
+                start_epoch = int(checkpoint["epoch"])
+                print(
+                    f"RESUME: melanjutkan dari epoch {start_epoch + 1}/{epochs}",
+                    flush=True,
+                )
 
     for epoch in range(start_epoch, epochs):
         model.train()
@@ -433,7 +463,7 @@ def train(
             "history": history,
             "best_f1": best_f1,
         }
-        torch.save(checkpoint, output_dir / "last.pt")
+        atomic_torch_save(checkpoint, output_dir / "last.pt")
         # Target labels are evaluation-only in unsupervised domain adaptation.
         # Checkpoint selection must not use target metrics.
         if is_best:
@@ -448,7 +478,7 @@ def train(
                     "best_f1",
                 )
             }
-            torch.save(best_checkpoint, output_dir / "best.pt")
+            atomic_torch_save(best_checkpoint, output_dir / "best.pt")
         (output_dir / "history.json").write_text(
             json.dumps(history, indent=2), encoding="utf-8"
         )
