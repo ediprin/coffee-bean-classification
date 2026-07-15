@@ -219,6 +219,25 @@ class SpatiallyPreservedHBP(HierarchicalBilinearPooling):
         return torch.cat(pairwise, dim=1)
 
 
+class LocalMaxExpert(nn.Module):
+    """Compact local-detail expert over an intermediate feature map."""
+
+    def __init__(self, channels: int, output_dim: int):
+        super().__init__()
+        if output_dim <= 0:
+            raise ValueError("moe_local_dim harus lebih besar dari nol.")
+        self.projector = nn.Sequential(
+            nn.Conv2d(channels, output_dim, kernel_size=1, bias=False),
+            nn.BatchNorm2d(output_dim),
+            nn.ReLU(inplace=True),
+        )
+        self.output_dim = output_dim
+
+    def forward(self, feature: Tensor) -> Tensor:
+        feature = self.projector(feature)
+        return F.adaptive_max_pool2d(feature, 1).flatten(1)
+
+
 class CBAMAttentionPaths(nn.Module):
     """Channel-then-spatial attention paths used by the paper's equations 8-9."""
 
@@ -433,6 +452,8 @@ class ModelOutput:
     logits: Tensor
     embedding: Tensor
     domain_logits: Tensor | None = None
+    expert_logits: dict[str, Tensor] | None = None
+    gate_weights: Tensor | None = None
 
 
 class AdaptationModel(nn.Module):
@@ -451,6 +472,9 @@ class AdaptationModel(nn.Module):
         residual_control_dim: int = 80,
         residual_gap_dim: int = 128,
         attention_reduction: int = 16,
+        moe_local_dim: int = 256,
+        moe_gate_hidden: int = 32,
+        moe_hbp_prior: float = 0.8,
         dropout: float = 0.2,
         classifier: str = "linear",
         arcface_scale: float = 30.0,
@@ -463,6 +487,7 @@ class AdaptationModel(nn.Module):
             "gap",
             "bilinear",
             "hbp",
+            "hbp_moe",
             "sp_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
@@ -475,6 +500,7 @@ class AdaptationModel(nn.Module):
             raise ValueError(f"head harus salah satu dari {sorted(supported_heads)}.")
         hbp_heads = {
             "hbp",
+            "hbp_moe",
             "sp_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
@@ -485,6 +511,7 @@ class AdaptationModel(nn.Module):
             raise ValueError("out_indices untuk head berbasis HBP harus tepat 3 indeks.")
 
         self.backbone_name = backbone
+        self.head = head
         self.encoder = timm.create_model(
             backbone,
             pretrained=pretrained,
@@ -492,7 +519,7 @@ class AdaptationModel(nn.Module):
             out_indices=out_indices,
         )
         channels = list(self.encoder.feature_info.channels())
-        if head == "hbp":
+        if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
         elif head == "sp_hbp":
             self.pool = SpatiallyPreservedHBP(
@@ -549,6 +576,32 @@ class AdaptationModel(nn.Module):
         else:
             raise ValueError("model.classifier harus 'linear' atau 'arcface'.")
         self.classifier_type = classifier
+
+        self.local_expert: LocalMaxExpert | None = None
+        self.local_classifier: nn.Linear | None = None
+        self.expert_gate: nn.Sequential | None = None
+        if head == "hbp_moe":
+            if classifier != "linear":
+                raise ValueError("hbp_moe saat ini hanya mendukung classifier linear.")
+            if not 0.0 < moe_hbp_prior < 1.0:
+                raise ValueError("moe_hbp_prior harus berada di antara 0 dan 1.")
+            if moe_gate_hidden <= 0:
+                raise ValueError("moe_gate_hidden harus lebih besar dari nol.")
+            self.local_expert = LocalMaxExpert(channels[1], moe_local_dim)
+            self.local_classifier = nn.Linear(moe_local_dim, num_classes)
+            self.expert_gate = nn.Sequential(
+                nn.Linear(num_classes * 2, moe_gate_hidden),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+                nn.Linear(moe_gate_hidden, 2),
+            )
+            nn.init.zeros_(self.expert_gate[-1].weight)
+            nn.init.constant_(
+                self.expert_gate[-1].bias[0], math.log(moe_hbp_prior)
+            )
+            nn.init.constant_(
+                self.expert_gate[-1].bias[1], math.log(1.0 - moe_hbp_prior)
+            )
         hidden = min(1024, max(128, self.pool.output_dim // 2))
         self.domain_classifier = (
             nn.Sequential(
@@ -567,11 +620,30 @@ class AdaptationModel(nn.Module):
         labels: Tensor | None = None,
         domain_strength: float | None = None,
     ) -> ModelOutput:
-        embedding = self.pool(self.encoder(x))
+        features = self.encoder(x)
+        embedding = self.pool(features)
         if self.classifier_type == "arcface":
             logits = self.classifier(embedding, labels)
         else:
             logits = self.classifier(self.dropout(embedding))
+        expert_logits = None
+        gate_weights = None
+        if self.head == "hbp_moe":
+            if self.local_expert is None or self.local_classifier is None or self.expert_gate is None:
+                raise RuntimeError("Komponen hbp_moe belum diinisialisasi.")
+            local_embedding = self.local_expert(features[1])
+            local_logits = self.local_classifier(self.dropout(local_embedding))
+            gate_weights = torch.softmax(
+                self.expert_gate(torch.cat((logits, local_logits), dim=1)), dim=1
+            )
+            expert_logits = {
+                "hbp_global": logits,
+                "local_gmp": local_logits,
+            }
+            logits = (
+                gate_weights[:, :1] * logits
+                + gate_weights[:, 1:] * local_logits
+            )
         domain_logits = None
         if domain_strength is not None:
             if self.domain_classifier is None:
@@ -581,7 +653,13 @@ class AdaptationModel(nn.Module):
             domain_logits = self.domain_classifier(
                 gradient_reverse(embedding, domain_strength)
             )
-        return ModelOutput(logits=logits, embedding=embedding, domain_logits=domain_logits)
+        return ModelOutput(
+            logits=logits,
+            embedding=embedding,
+            domain_logits=domain_logits,
+            expert_logits=expert_logits,
+            gate_weights=gate_weights,
+        )
 
 
 def build_model(cfg: dict) -> AdaptationModel:
@@ -603,6 +681,9 @@ def build_model(cfg: dict) -> AdaptationModel:
         residual_control_dim=int(cfg.get("residual_control_dim", 80)),
         residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
         attention_reduction=int(cfg.get("attention_reduction", 16)),
+        moe_local_dim=int(cfg.get("moe_local_dim", 256)),
+        moe_gate_hidden=int(cfg.get("moe_gate_hidden", 32)),
+        moe_hbp_prior=float(cfg.get("moe_hbp_prior", 0.8)),
         dropout=float(cfg.get("dropout", 0.2)),
         classifier=str(cfg.get("classifier", "linear")),
         arcface_scale=float(cfg.get("arcface_scale", 30.0)),

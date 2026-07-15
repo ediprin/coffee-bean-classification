@@ -32,6 +32,7 @@ Tahap B menguji kontribusi metode:
 | M0b | MobileNetV3 + factorized bilinear, source-only | kontrol orde kedua satu lapis |
 | M1 | MobileNetV3 + HBP, source-only | kontribusi HBP |
 | M1s | MobileNetV3 + spatially preserved HBP 14x14 + CE | preservasi detail spasial tanpa tambahan parameter |
+| E1 | MobileNetV3 + HBP global/local MoE + CE | komplementaritas konteks global dan detail lokal |
 | M1c | MobileNetV3 + HBP + nonlinear projection | kontrol kapasitas fusion |
 | M1f | MobileNetV3 + GAP-HBP feature fusion | komplementaritas orde pertama-kedua |
 | M1rc | HBP utuh + auxiliary HBP kecil | kontrol kapasitas residual fusion |
@@ -488,6 +489,30 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
   --seeds 42 123 2026 `
   --evaluation-split test
 ```
+
+## Screening global-local HBP mixture-of-experts
+
+E1 mempertahankan HBP M1 sebagai expert global dan menambahkan expert lokal
+ringan dari feature map tengah 14 x 14. Gate per sampel menggabungkan logit
+keduanya dan mulai dari bobot 0,8/0,2 untuk global/lokal. Implementasi ini
+terinspirasi MGE-CNN (Zhang et al., ICCV 2019), tetapi merupakan adaptasi
+ringan dengan satu shared backbone dan tanpa Grad-CAM crop; bukan reproduksi
+arsitektur paper tersebut.
+
+Screening validation M1 vs E1:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee_clean/folds/fold_1 `
+  --output-root outputs/hbp_moe_screen `
+  --stage moe `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+`metrics.json` E1 memuat mean gate, fraksi pemilihan expert, dan entropy gate;
+`history.json` memuat loss tiap expert. Protokol dan batas klaim lengkap ada di
+`docs/HBP_MOE_PROTOCOL.md`.
 
 ## Screening fine-grained: resolusi, HBP, dan ArcFace
 

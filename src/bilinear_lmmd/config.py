@@ -35,6 +35,9 @@ DEFAULTS: dict[str, Any] = {
         "residual_control_dim": 80,
         "residual_gap_dim": 128,
         "attention_reduction": 16,
+        "moe_local_dim": 256,
+        "moe_gate_hidden": 32,
+        "moe_hbp_prior": 0.8,
         "dropout": 0.2,
         "classifier": "linear",
         "arcface_scale": 30.0,
@@ -54,6 +57,8 @@ DEFAULTS: dict[str, Any] = {
         "lr": 0.0003,
         "weight_decay": 0.0001,
         "label_smoothing": 0.1,
+        "expert_aux_weight": 0.3,
+        "expert_diversity_weight": 0.05,
         "output_dir": "outputs/default",
     },
     "evaluation": {

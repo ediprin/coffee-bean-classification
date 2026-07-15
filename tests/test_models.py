@@ -91,6 +91,7 @@ def test_finegrained_configs_form_controlled_ablation(
         "gap",
         "bilinear",
         "hbp",
+        "hbp_moe",
         "sp_hbp",
         "hbp_mlp",
         "gap_hbp_fusion",
@@ -187,6 +188,73 @@ def test_sp_hbp_config_is_controlled_against_hbp():
         assert baseline_cfg["model"][key] == candidate_cfg["model"][key]
     assert baseline_cfg["data"] == candidate_cfg["data"]
     assert baseline_cfg["adaptation"] == candidate_cfg["adaptation"]
+
+
+def test_hbp_moe_outputs_experts_gate_and_backpropagates():
+    model = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="hbp_moe",
+        out_indices=(1, 3, 4),
+        projection_dim=32,
+        moe_local_dim=16,
+        moe_gate_hidden=8,
+        moe_hbp_prior=0.8,
+        pretrained=False,
+    )
+    model.eval()
+    output = model(torch.randn(2, 3, 96, 96))
+
+    assert output.expert_logits is not None
+    assert set(output.expert_logits) == {"hbp_global", "local_gmp"}
+    assert output.gate_weights is not None
+    assert output.gate_weights.shape == (2, 2)
+    assert torch.allclose(
+        output.gate_weights,
+        torch.tensor([[0.8, 0.2], [0.8, 0.2]]),
+    )
+    assert torch.allclose(output.gate_weights.sum(dim=1), torch.ones(2))
+
+    output.logits.sum().backward()
+    assert model.pool.projections[0][0].weight.grad is not None
+    assert model.local_expert.projector[0].weight.grad is not None
+    assert model.expert_gate[-1].weight.grad is not None
+
+
+def test_hbp_moe_preserves_same_seed_hbp_and_classifier_initialization():
+    kwargs = {
+        "backbone": "mobilenetv3_small_050",
+        "num_classes": 4,
+        "out_indices": (1, 3, 4),
+        "projection_dim": 32,
+        "pretrained": False,
+    }
+    torch.manual_seed(19)
+    baseline = AdaptationModel(head="hbp", **kwargs)
+    torch.manual_seed(19)
+    candidate = AdaptationModel(head="hbp_moe", **kwargs)
+
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.encoder.parameters(), candidate.encoder.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.pool.parameters(), candidate.pool.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    assert torch.equal(baseline.classifier.weight, candidate.classifier.weight)
+    assert torch.equal(baseline.classifier.bias, candidate.classifier.bias)
+
+
+def test_hbp_moe_config_is_controlled_against_hbp():
+    baseline = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    candidate = load_config("configs/E1_mobilenetv3_hbp_local_moe_source.yaml")
+
+    assert candidate["model"]["head"] == "hbp_moe"
+    for key in ("backbone", "out_indices", "projection_dim", "classifier", "dropout"):
+        assert baseline["model"][key] == candidate["model"][key]
+    assert baseline["data"] == candidate["data"]
+    assert baseline["adaptation"] == candidate["adaptation"]
 
 
 def test_hbp_mlp_and_gap_hbp_fusion_have_matched_capacity():

@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from .config import load_config
 from .data import build_loaders
-from .losses import LMMDLoss, MMDLoss
+from .losses import LMMDLoss, MMDLoss, NonTargetExpertDiversityLoss
 from .models import build_model
 
 
@@ -47,6 +47,39 @@ def adaptation_schedule(epoch: int, epochs: int, warmup_epochs: int) -> float:
 def repeat_loader(loader):
     while True:
         yield from loader
+
+
+def supervised_objective(
+    output,
+    labels: torch.Tensor,
+    classification_loss: nn.Module,
+    diversity_loss: nn.Module,
+    auxiliary_weight: float,
+    diversity_weight: float,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    fused_ce = classification_loss(output.logits, labels)
+    components = {"fused_ce": fused_ce}
+    total = fused_ce
+    if output.expert_logits is not None:
+        global_ce = classification_loss(output.expert_logits["hbp_global"], labels)
+        local_ce = classification_loss(output.expert_logits["local_gmp"], labels)
+        diversity = diversity_loss(
+            output.expert_logits["hbp_global"],
+            output.expert_logits["local_gmp"],
+        )
+        total = (
+            total
+            + auxiliary_weight * (global_ce + local_ce)
+            + diversity_weight * diversity
+        )
+        components.update(
+            {
+                "hbp_global_ce": global_ce,
+                "local_gmp_ce": local_ce,
+                "expert_diversity": diversity,
+            }
+        )
+    return total, components
 
 
 def classification_metrics(
@@ -163,6 +196,11 @@ def train(
         kernel_num=int(adaptation_cfg["kernel_num"]),
         confidence_threshold=float(adaptation_cfg.get("confidence_threshold", 0.0)),
     )
+    expert_diversity_loss = NonTargetExpertDiversityLoss()
+    expert_aux_weight = float(training_cfg.get("expert_aux_weight", 0.3))
+    expert_diversity_weight = float(
+        training_cfg.get("expert_diversity_weight", 0.05)
+    )
 
     output_dir = Path(training_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -214,6 +252,9 @@ def train(
             repeat_loader(loaders.target_train) if loaders.target_train is not None else None
         )
         running_loss = 0.0
+        running_components: dict[str, float] = {}
+        gate_sum = torch.zeros(2)
+        gate_count = 0
 
         progress = tqdm(loaders.source_train, desc=f"epoch {epoch + 1}/{epochs}")
         for source_batch in progress:
@@ -222,7 +263,14 @@ def train(
 
             if method == "source_only":
                 source_output = model(source_images, labels=source_labels)
-                loss = classification_loss(source_output.logits, source_labels)
+                loss, supervised_components = supervised_objective(
+                    source_output,
+                    source_labels,
+                    classification_loss,
+                    expert_diversity_loss,
+                    expert_aux_weight,
+                    expert_diversity_weight,
+                )
             else:
                 target_images, _ = next(target_batches)
                 target_images = target_images.to(device)
@@ -233,7 +281,14 @@ def train(
                     domain_strength=domain_strength,
                 )
                 target_output = model(target_images, domain_strength=domain_strength)
-                cls_loss = classification_loss(source_output.logits, source_labels)
+                cls_loss, supervised_components = supervised_objective(
+                    source_output,
+                    source_labels,
+                    classification_loss,
+                    expert_diversity_loss,
+                    expert_aux_weight,
+                    expert_diversity_weight,
+                )
 
                 if method == "mmd":
                     adapt_loss = mmd_loss(source_output.embedding, target_output.embedding)
@@ -259,7 +314,14 @@ def train(
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-            progress.set_postfix(loss=f"{loss.item():.4f}", adapt=f"{adapt_weight:.3f}")
+            for name, value in supervised_components.items():
+                running_components[name] = running_components.get(name, 0.0) + value.item()
+            postfix = {"loss": f"{loss.item():.4f}", "adapt": f"{adapt_weight:.3f}"}
+            if source_output.gate_weights is not None:
+                gate_sum += source_output.gate_weights.detach().sum(dim=0).cpu()
+                gate_count += source_output.gate_weights.shape[0]
+                postfix["gate_hbp"] = f"{(gate_sum[0] / gate_count).item():.3f}"
+            progress.set_postfix(**postfix)
 
         scheduler.step()
         source_metrics = evaluate(
@@ -276,12 +338,21 @@ def train(
             "source": source_metrics,
             "target": target_metrics,
         }
+        if running_components:
+            record["loss_components"] = {
+                name: value / max(len(loaders.source_train), 1)
+                for name, value in running_components.items()
+            }
+        if gate_count:
+            record["gate_mean"] = (gate_sum / gate_count).tolist()
         history.append(record)
         print(
             json.dumps(
                 {
                     "epoch": record["epoch"],
                     "loss": record["loss"],
+                    "loss_components": record.get("loss_components"),
+                    "gate_mean": record.get("gate_mean"),
                     "source": {
                         key: value
                         for key, value in source_metrics.items()

@@ -23,6 +23,7 @@ class CheckpointPredictions:
     probabilities: torch.Tensor
     paths: list[str]
     hard_groups: dict[str, list[str]]
+    gate_weights: torch.Tensor | None = None
 
     @property
     def predictions(self) -> list[int]:
@@ -54,11 +55,15 @@ def collect_checkpoint_predictions(
     model.eval()
     labels: list[int] = []
     probabilities: list[torch.Tensor] = []
+    gate_weights: list[torch.Tensor] = []
     batches = tqdm(loader, desc=progress_desc, leave=False) if progress_desc else loader
     for images, targets in batches:
-        logits = model(images.to(device)).logits
+        output = model(images.to(device))
+        logits = output.logits
         labels.extend(targets.tolist())
         probabilities.append(logits.softmax(1).cpu())
+        if output.gate_weights is not None:
+            gate_weights.append(output.gate_weights.cpu())
 
     paths = [sample[0] for sample in loader.dataset.samples]
     if len(paths) != len(labels):
@@ -71,6 +76,7 @@ def collect_checkpoint_predictions(
         probabilities=torch.cat(probabilities),
         paths=paths,
         hard_groups=cfg.get("evaluation", {}).get("hard_groups", {}),
+        gate_weights=(torch.cat(gate_weights) if gate_weights else None),
     )
 
 
@@ -101,6 +107,17 @@ def evaluate_checkpoint(
             "classes": bundle.classes,
         }
     )
+    if bundle.gate_weights is not None:
+        weights = bundle.gate_weights
+        entropy = -(weights * weights.clamp_min(1e-8).log()).sum(dim=1)
+        selected = weights.argmax(dim=1)
+        metrics["gate"] = {
+            "mean_hbp_global": float(weights[:, 0].mean()),
+            "mean_local_gmp": float(weights[:, 1].mean()),
+            "hbp_selected_fraction": float((selected == 0).float().mean()),
+            "local_selected_fraction": float((selected == 1).float().mean()),
+            "mean_entropy": float(entropy.mean()),
+        }
     matrix = confusion_matrix(
         bundle.labels, predictions, labels=list(range(len(bundle.classes)))
     )
@@ -121,11 +138,26 @@ def evaluate_checkpoint(
     ) as handle:
         writer = csv.writer(handle)
         probability_columns = [f"prob::{name}" for name in bundle.classes]
-        writer.writerow(
-            ["path", "actual", "predicted", "correct", *probability_columns]
+        gate_columns = (
+            ["gate::hbp_global", "gate::local_gmp"]
+            if bundle.gate_weights is not None
+            else []
         )
-        for path, actual, predicted, probabilities in zip(
-            bundle.paths, bundle.labels, predictions, bundle.probabilities.tolist()
+        writer.writerow([
+            "path", "actual", "predicted", "correct",
+            *probability_columns, *gate_columns,
+        ])
+        gates = (
+            bundle.gate_weights.tolist()
+            if bundle.gate_weights is not None
+            else [[] for _ in bundle.labels]
+        )
+        for path, actual, predicted, probabilities, gate in zip(
+            bundle.paths,
+            bundle.labels,
+            predictions,
+            bundle.probabilities.tolist(),
+            gates,
         ):
             writer.writerow(
                 [
@@ -134,6 +166,7 @@ def evaluate_checkpoint(
                     bundle.classes[predicted],
                     int(actual == predicted),
                     *probabilities,
+                    *gate,
                 ]
             )
     print(json.dumps({key: value for key, value in metrics.items() if key != "per_class"}, indent=2))
