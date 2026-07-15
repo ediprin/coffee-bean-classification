@@ -103,3 +103,16 @@ Runner `python -m bilinear_lmmd.run_final_hbp_report` menghasilkan:
 
 Report per kelas dan confusion matrix harus tetap disertakan pada lampiran tesis;
 angka agregat di dokumen ini tidak menggantikannya.
+
+## XAI model final
+
+Runner `python -m bilinear_lmmd.run_final_hbp_xai` membandingkan M0 dan M1 pada
+sampel test yang dipilih deterministik dari empat outcome: `rescued_by_hbp`,
+`harmed_by_hbp`, `both_correct`, dan `both_wrong`. Setiap panel memuat input,
+raw LayerCAM heatmap, overlay LayerCAM, raw Finer-LayerCAM heatmap, dan overlay
+Finer-LayerCAM untuk kedua model. Target penjelasan adalah kelas aktual.
+
+XAI hanya dipakai setelah model dikunci. Heatmap tidak digunakan untuk memilih
+checkpoint atau tuning. Interpretasi wajib menyandingkan visual dengan
+foreground mass, background leakage, dan relative confidence drop; visual yang
+menarik saja tidak membuktikan model memakai fitur secara kausal.

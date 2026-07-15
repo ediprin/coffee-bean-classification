@@ -366,6 +366,23 @@ Runner menulis `final_summary.json`, `per_seed.csv`, `per_class.csv`, dan
 M0/M1 pada perangkat yang sama. Benchmark memakai bobot acak karena efisiensi
 arsitektur tidak bergantung pada nilai checkpoint dan tidak mengakses test data.
 
+Visualisasikan bukti kelas model final M0/M1 dengan raw LayerCAM heatmap,
+overlay, dan Finer-LayerCAM. Sampel dipilih deterministik berdasarkan outcome
+prediksi, bukan dipilih manual setelah heatmap terlihat:
+
+```powershell
+python -u -m bilinear_lmmd.run_final_hbp_xai `
+  --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
+  --experiment-root outputs/hierarchical-hbp-results `
+  --output-root outputs/final-hbp-xai `
+  --seeds 42 `
+  --samples-per-outcome 1
+```
+
+Output utama `gallery_seed42.png` menampilkan input, heatmap mentah, dan overlay
+M0/M1. XAI adalah diagnosis post-hoc pada sampel terpilih dan bukan bukti kausal
+atau estimasi seluruh populasi test.
+
 ## Urutan eksperimen yang disarankan
 
 1. Jalankan B0–B4 minimal tiga seed dengan split, augmentasi, resolusi,

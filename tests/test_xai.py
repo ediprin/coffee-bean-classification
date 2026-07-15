@@ -13,9 +13,14 @@ from bilinear_lmmd.run_xai_analysis import (
     pair_prediction_rows,
     select_rows,
 )
+from bilinear_lmmd.run_final_hbp_xai import (
+    pair_final_predictions,
+    select_final_xai_rows,
+)
 from bilinear_lmmd.xai import (
     analyze_explanation,
     attention_overlap,
+    colorize_cam,
     explain_tensor,
 )
 
@@ -168,3 +173,45 @@ def test_xai_aggregate_preserves_outcome_paired_model_delta():
     assert aggregate["delta_M5w01_vs_M1"]["finer_layercam"][
         "foreground_mass"
     ] == pytest.approx(0.3)
+
+
+def test_cam_heatmap_is_rgb_and_preserves_spatial_size():
+    heatmap = colorize_cam(np.linspace(0, 1, 35).reshape(5, 7))
+    assert heatmap.mode == "RGB"
+    assert heatmap.size == (7, 5)
+
+
+def test_final_hbp_pairing_and_selection_are_deterministic(tmp_path):
+    m0 = tmp_path / "m0.csv"
+    m1 = tmp_path / "m1.csv"
+    _write_predictions(
+        m0,
+        [
+            ["/old/a.jpg", "A", "B", 0, 0.2, 0.8],
+            ["/old/b.jpg", "A", "A", 1, 0.8, 0.2],
+            ["/old/c.jpg", "A", "A", 1, 0.8, 0.2],
+            ["/old/d.jpg", "A", "B", 0, 0.2, 0.8],
+        ],
+    )
+    _write_predictions(
+        m1,
+        [
+            ["/new/a.jpg", "A", "A", 1, 0.8, 0.2],
+            ["/new/b.jpg", "A", "B", 0, 0.2, 0.8],
+            ["/new/c.jpg", "A", "A", 1, 0.8, 0.2],
+            ["/new/d.jpg", "A", "B", 0, 0.2, 0.8],
+        ],
+    )
+
+    classes, rows = pair_final_predictions(m0, m1)
+    first = select_final_xai_rows(rows, 1, 42)
+    second = select_final_xai_rows(rows, 1, 42)
+
+    assert classes == ["A", "B"]
+    assert {row["outcome"] for row in rows} == {
+        "rescued_by_hbp",
+        "harmed_by_hbp",
+        "both_correct",
+        "both_wrong",
+    }
+    assert first == second

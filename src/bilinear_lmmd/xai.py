@@ -302,6 +302,81 @@ def _overlay(display: np.ndarray, cam: np.ndarray, mask: np.ndarray) -> Image.Im
     return Image.fromarray(np.uint8(np.clip(blended, 0, 255)))
 
 
+def colorize_cam(cam: np.ndarray) -> Image.Image:
+    """Convert a normalized CAM to a dependency-free blue-to-red heatmap."""
+    values = np.clip(np.asarray(cam, dtype=np.float32), 0.0, 1.0)
+    stops = np.asarray(
+        [
+            [0, 24, 120],
+            [0, 190, 255],
+            [255, 230, 0],
+            [220, 0, 0],
+        ],
+        dtype=np.float32,
+    )
+    scaled = values * (len(stops) - 1)
+    lower = np.floor(scaled).astype(np.int64)
+    upper = np.clip(lower + 1, 0, len(stops) - 1)
+    weight = (scaled - lower)[..., None]
+    rgb = stops[lower] * (1.0 - weight) + stops[upper] * weight
+    return Image.fromarray(np.uint8(np.clip(rgb, 0, 255)))
+
+
+def render_cam_heatmap_panel(
+    destination: Path,
+    display: np.ndarray,
+    foreground_mask: np.ndarray,
+    classes: list[str],
+    actual: int,
+    outcome: str,
+    context: str,
+    explanations: dict[str, Explanation],
+) -> None:
+    """Render raw CAM heatmaps and overlays for an arbitrary model pair."""
+    tile_size = display.shape[1], display.shape[0]
+    tiles = [Image.fromarray(display)]
+    labels = ["INPUT"]
+    for model_name, explanation in explanations.items():
+        predicted = classes[explanation.prediction]
+        for method, cam in (
+            ("LayerCAM", explanation.layercam),
+            ("Finer-CAM", explanation.finer_layercam),
+        ):
+            tiles.extend(
+                [
+                    colorize_cam(cam),
+                    _overlay(display, cam, foreground_mask),
+                ]
+            )
+            labels.extend(
+                [
+                    f"{model_name} {method} heatmap",
+                    f"{model_name} {method} overlay | pred={predicted}",
+                ]
+            )
+
+    title_height = 58
+    label_height = 44
+    panel = Image.new(
+        "RGB",
+        (tile_size[0] * len(tiles), title_height + tile_size[1] + label_height),
+        "white",
+    )
+    draw = ImageDraw.Draw(panel)
+    draw.text((8, 7), f"{context} | {outcome}", fill="black")
+    draw.text(
+        (8, 29),
+        f"actual={classes[actual]} | heatmap: blue=low, red=high | green=bean boundary",
+        fill="black",
+    )
+    for index, (tile, label) in enumerate(zip(tiles, labels)):
+        x = index * tile_size[0]
+        panel.paste(tile, (x, title_height))
+        draw.text((x + 5, title_height + tile_size[1] + 8), label, fill="black")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    panel.save(destination)
+
+
 def render_comparison_panel(
     destination: Path,
     display: np.ndarray,
