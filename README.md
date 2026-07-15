@@ -348,6 +348,21 @@ Output berisi jumlah parameter, estimasi ukuran bobot FP32, serta latency batch
 1. Pengukuran memori GPU sebaiknya ditambahkan saat eksperimen dijalankan pada
 CUDA karena lingkungan CPU tidak memberikan peak CUDA memory.
 
+Setelah report test M0/M1 tiga seed terkunci, buat paket pelaporan final tanpa
+melatih ulang atau mengubah checkpoint:
+
+```powershell
+python -u -m bilinear_lmmd.run_final_hbp_report `
+  --report-root outputs/hierarchical-hbp-results/reports `
+  --output-dir outputs/hierarchical-hbp-results/final_report `
+  --seeds 42 123 2026
+```
+
+Runner menulis `final_summary.json`, `per_seed.csv`, `per_class.csv`, dan
+`FINAL_HBP_REPORT.md`, serta mengukur parameter, ukuran FP32, dan latency batch-1
+M0/M1 pada perangkat yang sama. Benchmark memakai bobot acak karena efisiensi
+arsitektur tidak bergantung pada nilai checkpoint dan tidak mengakses test data.
+
 ## Urutan eksperimen yang disarankan
 
 1. Jalankan B0–B4 minimal tiga seed dengan split, augmentasi, resolusi,

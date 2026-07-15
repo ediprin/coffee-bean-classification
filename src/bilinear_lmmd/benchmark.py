@@ -13,6 +13,9 @@ from .train import resolve_device
 
 def benchmark(config_path: str, warmup: int, iterations: int) -> dict[str, float | str]:
     cfg = load_config(config_path)
+    # Efficiency depends on architecture, not pretrained values. Avoid an
+    # unnecessary Hub request so the benchmark is reproducible offline.
+    cfg["model"]["pretrained"] = False
     device = resolve_device(cfg["device"])
     model = build_model(cfg["model"]).to(device).eval()
     size = int(cfg["data"]["image_size"])
