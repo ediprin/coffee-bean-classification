@@ -89,6 +89,18 @@ stratified 70/20/10 dengan seed 42:
 python -m bilinear_lmmd.prepare_coffee17 --output data/coffee
 ```
 
+Jika dataset sudah ditambahkan sebagai Kaggle Input dan telah diekstrak,
+gunakan folder mount secara langsung tanpa download ulang:
+
+```powershell
+python -u -m bilinear_lmmd.prepare_coffee17 `
+  --raw-root /kaggle/input `
+  --output data/coffee
+```
+
+Hanya folder 17 kelas Coffee17 yang dikumpulkan; dataset lain di bawah
+`/kaggle/input` diabaikan. Jumlah setiap kelas tetap harus persis sesuai paper.
+
 Berbeda dari paper, rotasi dilakukan **sesudah split dan hanya secara online
 pada train**. Ini mencegah satu biji asli masuk ke train sementara versi
 rotasinya masuk ke validation/test. Sudut default tetap mengikuti paper:
