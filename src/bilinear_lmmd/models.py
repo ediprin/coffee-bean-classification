@@ -165,6 +165,91 @@ class HierarchicalBilinearPooling(nn.Module):
         return torch.cat(pairwise, dim=1)
 
 
+class SPPFAttention(nn.Module):
+    """SPPF with channel-spatial attention and a residual connection.
+
+    This follows Hong et al. (2026), equations 8-12: three sequential 5x5
+    max-pooling operations preserve spatial resolution; their outputs are
+    fused, recalibrated by channel and spatial attention, then added to the
+    original feature map.
+    """
+
+    def __init__(self, channels: int, reduction: int = 16):
+        super().__init__()
+        if channels <= 0:
+            raise ValueError("channels SPPF-Attention harus lebih besar dari nol.")
+        if reduction <= 0:
+            raise ValueError("reduction SPPF-Attention harus lebih besar dari nol.")
+        hidden_channels = max(1, channels // 2)
+        attention_hidden = max(1, channels // reduction)
+        self.reduce = nn.Sequential(
+            nn.Conv2d(channels, hidden_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(hidden_channels),
+            nn.SiLU(inplace=True),
+        )
+        self.pool = nn.MaxPool2d(kernel_size=5, stride=1, padding=2)
+        self.fuse = nn.Sequential(
+            nn.Conv2d(hidden_channels * 4, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.SiLU(inplace=True),
+        )
+        self.channel_mlp = nn.Sequential(
+            nn.Conv2d(channels, attention_hidden, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(attention_hidden, channels, kernel_size=1, bias=False),
+        )
+        self.spatial = nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False)
+
+    def forward(self, feature: Tensor) -> Tensor:
+        base = self.reduce(feature)
+        pooled_1 = self.pool(base)
+        pooled_2 = self.pool(pooled_1)
+        pooled_3 = self.pool(pooled_2)
+        fused = self.fuse(torch.cat((base, pooled_1, pooled_2, pooled_3), dim=1))
+
+        channel_attention = torch.sigmoid(
+            self.channel_mlp(F.adaptive_avg_pool2d(fused, 1))
+        )
+        channel_refined = fused * channel_attention
+        spatial_descriptor = torch.cat(
+            (
+                channel_refined.mean(dim=1, keepdim=True),
+                channel_refined.amax(dim=1, keepdim=True),
+            ),
+            dim=1,
+        )
+        spatial_attention = torch.sigmoid(self.spatial(spatial_descriptor))
+        return channel_refined * spatial_attention + feature
+
+
+class SPPFAttentionHBP(nn.Module):
+    """Refine only the deepest feature with SPPF-Attention before HBP."""
+
+    def __init__(
+        self,
+        channels: list[int],
+        projection_dim: int,
+        attention_reduction: int = 16,
+    ):
+        super().__init__()
+        self.hbp = HierarchicalBilinearPooling(channels, projection_dim)
+        # Keep M1's HBP, classifier, and subsequent RNG stream identical at
+        # the same seed. Only the new refinement branch receives extra weights.
+        rng_state = torch.random.get_rng_state()
+        self.attention = SPPFAttention(channels[-1], attention_reduction)
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = self.hbp.output_dim
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if len(features) != 3:
+            raise ValueError(
+                f"SPPF-Attention-HBP menerima 3 feature map, didapat {len(features)}."
+            )
+        refined = list(features)
+        refined[-1] = self.attention(refined[-1])
+        return self.hbp(refined)
+
+
 class SpatiallyPreservedHBP(HierarchicalBilinearPooling):
     """HBP with a fixed interaction grid that preserves intermediate detail.
 
@@ -491,6 +576,7 @@ class AdaptationModel(nn.Module):
             "hbp",
             "hbp_moe",
             "sp_hbp",
+            "sppf_attention_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
             "hbp_residual_control",
@@ -504,6 +590,7 @@ class AdaptationModel(nn.Module):
             "hbp",
             "hbp_moe",
             "sp_hbp",
+            "sppf_attention_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
             "hbp_residual_control",
@@ -523,6 +610,12 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "sppf_attention_hbp":
+            self.pool = SPPFAttentionHBP(
+                channels,
+                projection_dim,
+                attention_reduction,
+            )
         elif head == "sp_hbp":
             self.pool = SpatiallyPreservedHBP(
                 channels,

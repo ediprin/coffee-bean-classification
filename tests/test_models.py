@@ -9,6 +9,8 @@ from bilinear_lmmd.models import (
     ArcMarginClassifier,
     FixedFusionCBAM,
     LGFCBAM,
+    SPPFAttention,
+    SPPFAttentionHBP,
     SpatiallyPreservedHBP,
     build_model,
 )
@@ -93,6 +95,7 @@ def test_finegrained_configs_form_controlled_ablation(
         "hbp",
         "hbp_moe",
         "sp_hbp",
+        "sppf_attention_hbp",
         "hbp_mlp",
         "gap_hbp_fusion",
         "hbp_residual_control",
@@ -245,6 +248,60 @@ def test_hierarchical_config_is_controlled_against_hbp():
     assert candidate["hierarchy"]["weight"] == 0.2
     assert candidate["model"]["hierarchy_num_parents"] == 14
     for key in ("backbone", "head", "out_indices", "projection_dim", "classifier", "dropout"):
+        assert baseline["model"][key] == candidate["model"][key]
+    assert baseline["data"] == candidate["data"]
+    assert baseline["adaptation"] == candidate["adaptation"]
+
+
+def test_sppf_attention_preserves_shape_and_backpropagates():
+    module = SPPFAttention(channels=16, reduction=4)
+    feature = torch.randn(2, 16, 9, 9, requires_grad=True)
+
+    output = module(feature)
+    assert output.shape == feature.shape
+    output.square().mean().backward()
+    assert feature.grad is not None
+    assert module.reduce[0].weight.grad is not None
+    assert module.channel_mlp[0].weight.grad is not None
+    assert module.spatial.weight.grad is not None
+
+
+def test_sppf_attention_hbp_preserves_same_seed_core_initialization():
+    kwargs = {
+        "backbone": "mobilenetv3_small_050",
+        "num_classes": 4,
+        "out_indices": (1, 3, 4),
+        "projection_dim": 32,
+        "pretrained": False,
+    }
+    torch.manual_seed(29)
+    baseline = AdaptationModel(head="hbp", **kwargs)
+    baseline_rng = torch.random.get_rng_state()
+    torch.manual_seed(29)
+    candidate = AdaptationModel(head="sppf_attention_hbp", **kwargs)
+
+    assert isinstance(candidate.pool, SPPFAttentionHBP)
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.encoder.parameters(), candidate.encoder.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.pool.parameters(), candidate.pool.hbp.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    assert torch.equal(baseline.classifier.weight, candidate.classifier.weight)
+    assert torch.equal(baseline.classifier.bias, candidate.classifier.bias)
+    assert torch.equal(baseline_rng, torch.random.get_rng_state())
+
+
+def test_sppf_attention_hbp_config_is_controlled_against_hbp():
+    baseline = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    candidate = load_config(
+        "configs/S1_mobilenetv3_sppf_attention_hbp_source.yaml"
+    )
+
+    assert candidate["model"]["head"] == "sppf_attention_hbp"
+    for key in ("backbone", "out_indices", "projection_dim", "classifier", "dropout"):
         assert baseline["model"][key] == candidate["model"][key]
     assert baseline["data"] == candidate["data"]
     assert baseline["adaptation"] == candidate["adaptation"]

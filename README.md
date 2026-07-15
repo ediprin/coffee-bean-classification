@@ -175,6 +175,25 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
 Pemetaan kelas, bobot loss yang dikunci, dan kriteria keputusan tersedia di
 [docs/HIERARCHICAL_HBP_PROTOCOL.md](docs/HIERARCHICAL_HBP_PROTOCOL.md).
 
+### Screening SPPF-Attention sebelum HBP
+
+Adaptasi terkontrol dari Hong et al. (2026) memperbaiki feature map terdalam
+MobileNetV3 dengan pooling multi-skala serta channel-spatial attention sebelum
+HBP. Jalankan M1 versus S1 pada validation:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
+  --output-root outputs/sppf-attention-hbp `
+  --stage sppf `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+Formulasi modul, perbedaan terhadap detector Hong, dan kriteria penghentian
+tersedia di
+[docs/SPPF_ATTENTION_HBP_PROTOCOL.md](docs/SPPF_ATTENTION_HBP_PROTOCOL.md).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat
