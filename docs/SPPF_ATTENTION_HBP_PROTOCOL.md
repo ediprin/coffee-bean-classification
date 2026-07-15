@@ -19,6 +19,7 @@ dan classifier 17 kelas tetap sama.
 |---|---|---|
 | M1 | MobileNetV3 -> HBP | CE |
 | C1 | MobileNetV3 -> capacity-matched pointwise residual -> HBP | CE |
+| S0 | MobileNetV3 -> SPPF-Attention pada deep feature -> GAP | CE |
 | S1 | MobileNetV3 -> SPPF-Attention pada deep feature -> HBP | CE |
 
 Backbone, pretrained weights, endpoint, dimensi HBP, classifier, dropout,
@@ -33,6 +34,12 @@ connection. Ia tidak memiliki spatial pooling, channel attention, atau spatial
 attention. Pada MobileNetV3-Large, C1 memiliki 5,984,023 parameter dan S1
 5,984,483 parameter (selisih 460 atau kurang dari 0.01%). Pointwise FLOPs pada
 grid deep `7 x 7` juga sebanding dengan dua proyeksi utama S1.
+
+S0 melengkapi ablasi faktorial `2 x 2`: M0/M1 mengisolasi efek HBP tanpa SPPF,
+M0/S0 mengisolasi efek SPPF sebelum GAP, M1/S1 mengisolasi efek SPPF sebelum
+HBP, dan S0/S1 mengisolasi efek HBP ketika SPPF aktif. S0 hanya memakai endpoint
+terdalam yang sama dengan M0; inisialisasi backbone dan classifier dijaga identik
+pada seed yang sama.
 
 ## Keputusan yang dikunci
 

@@ -222,6 +222,26 @@ class SPPFAttention(nn.Module):
         return channel_refined * spatial_attention + feature
 
 
+class SPPFAttentionGAP(nn.Module):
+    """Refine the deepest feature with SPPF-Attention before ordinary GAP."""
+
+    def __init__(self, channels: int, attention_reduction: int = 16):
+        super().__init__()
+        # Preserve the RNG stream used by the GAP baseline so the backbone and
+        # classifier remain paired at an identical seed. Only this new branch
+        # receives additional randomly initialized weights.
+        rng_state = torch.random.get_rng_state()
+        self.attention = SPPFAttention(channels, attention_reduction)
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = channels
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if not features:
+            raise ValueError("SPPF-Attention-GAP membutuhkan feature map.")
+        refined = self.attention(features[-1])
+        return F.adaptive_avg_pool2d(refined, 1).flatten(1)
+
+
 class SPPFAttentionHBP(nn.Module):
     """Refine only the deepest feature with SPPF-Attention before HBP."""
 
@@ -620,6 +640,7 @@ class AdaptationModel(nn.Module):
         super().__init__()
         supported_heads = {
             "gap",
+            "sppf_attention_gap",
             "bilinear",
             "hbp",
             "hbp_moe",
@@ -660,6 +681,11 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "sppf_attention_gap":
+            self.pool = SPPFAttentionGAP(
+                channels[-1],
+                attention_reduction,
+            )
         elif head == "sppf_attention_hbp":
             self.pool = SPPFAttentionHBP(
                 channels,

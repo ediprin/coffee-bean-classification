@@ -1,0 +1,9 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: sppf_attention_gap
+  out_indices: [4]
+  attention_reduction: 16
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/S0_mobilenetv3_sppf_attention_gap_source

@@ -12,6 +12,7 @@ from bilinear_lmmd.models import (
     PointwiseResidualCapacity,
     LGFCBAM,
     SPPFAttention,
+    SPPFAttentionGAP,
     SPPFAttentionHBP,
     SpatiallyPreservedHBP,
     build_model,
@@ -97,6 +98,7 @@ def test_finegrained_configs_form_controlled_ablation(
         "hbp",
         "hbp_moe",
         "sp_hbp",
+        "sppf_attention_gap",
         "sppf_attention_hbp",
         "capacity_residual_hbp",
         "hbp_mlp",
@@ -267,6 +269,55 @@ def test_sppf_attention_preserves_shape_and_backpropagates():
     assert module.reduce[0].weight.grad is not None
     assert module.channel_mlp[0].weight.grad is not None
     assert module.spatial.weight.grad is not None
+
+
+def test_sppf_attention_gap_pools_refined_deep_feature_and_backpropagates():
+    module = SPPFAttentionGAP(channels=16, attention_reduction=4)
+    feature = torch.randn(2, 16, 9, 9, requires_grad=True)
+
+    output = module([feature])
+    assert output.shape == (2, 16)
+    output.square().mean().backward()
+    assert feature.grad is not None
+    assert module.attention.reduce[0].weight.grad is not None
+
+
+def test_sppf_attention_gap_preserves_same_seed_gap_initialization():
+    kwargs = {
+        "backbone": "mobilenetv3_small_050",
+        "num_classes": 4,
+        "out_indices": (4,),
+        "pretrained": False,
+    }
+    torch.manual_seed(37)
+    baseline = AdaptationModel(head="gap", **kwargs)
+    baseline_rng = torch.random.get_rng_state()
+    torch.manual_seed(37)
+    candidate = AdaptationModel(head="sppf_attention_gap", **kwargs)
+
+    assert isinstance(candidate.pool, SPPFAttentionGAP)
+    for baseline_parameter, candidate_parameter in zip(
+        baseline.encoder.parameters(), candidate.encoder.parameters()
+    ):
+        assert torch.equal(baseline_parameter, candidate_parameter)
+    assert torch.equal(baseline.classifier.weight, candidate.classifier.weight)
+    assert torch.equal(baseline.classifier.bias, candidate.classifier.bias)
+    assert torch.equal(baseline_rng, torch.random.get_rng_state())
+
+
+def test_sppf_attention_gap_config_is_controlled_against_gap():
+    baseline = load_config("configs/M0_mobilenetv3_gap_source.yaml")
+    candidate = load_config(
+        "configs/S0_mobilenetv3_sppf_attention_gap_source.yaml"
+    )
+
+    assert baseline["model"]["head"] == "gap"
+    assert candidate["model"]["head"] == "sppf_attention_gap"
+    assert baseline["model"]["out_indices"] == candidate["model"]["out_indices"] == [4]
+    for key in ("backbone", "classifier", "dropout"):
+        assert baseline["model"][key] == candidate["model"][key]
+    assert baseline["data"] == candidate["data"]
+    assert baseline["adaptation"] == candidate["adaptation"]
 
 
 def test_sppf_attention_hbp_preserves_same_seed_core_initialization():

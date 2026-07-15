@@ -194,6 +194,18 @@ Formulasi modul, perbedaan terhadap detector Hong, dan kriteria penghentian
 tersedia di
 [docs/SPPF_ATTENTION_HBP_PROTOCOL.md](docs/SPPF_ATTENTION_HBP_PROTOCOL.md).
 
+Untuk membedakan efek SPPF dari efek HBP, jalankan ablasi faktorial
+M0/M1/S0/S1. S0 menempatkan SPPF-Attention sebelum GAP tanpa HBP:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
+  --output-root outputs/sppf-attention-hbp `
+  --stage sppf_factorial `
+  --seeds 42 123 2026 `
+  --evaluation-split val
+```
+
 Jika S1 lolos screening terhadap M1, isolasi efek kapasitas dengan:
 
 ```powershell
