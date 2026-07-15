@@ -20,6 +20,8 @@ DEFAULTS: dict[str, Any] = {
         "batch_size": 32,
         "workers": 4,
         "rotation_angles": [0, 45, 90, 135, 180, 225, 270],
+        "object_crop": False,
+        "object_crop_margin": 0.10,
     },
     "model": {
         "backbone": "mobilenetv3_large_100",

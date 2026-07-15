@@ -14,6 +14,8 @@ from .models import build_model
 MODEL_CONFIGS = {
     "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
     "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
+    "O0": Path("configs/O0_mobilenetv3_gap_object_crop_source.yaml"),
+    "O1": Path("configs/O1_mobilenetv3_hbp_object_crop_source.yaml"),
     "M1e": Path("configs/M1e_mobilenetv3_hbp_ema_source.yaml"),
     "H1": Path("configs/H1_mobilenetv3_hbp_hierarchical_source.yaml"),
     "S0": Path("configs/S0_mobilenetv3_sppf_attention_gap_source.yaml"),
@@ -31,6 +33,7 @@ MODEL_CONFIGS = {
 
 STAGE_MODELS = {
     "spatial": ["M1", "M1s"],
+    "object_crop": ["M0", "M1", "O0", "O1"],
     "hierarchy": ["M1", "H1"],
     "sppf": ["M1", "S1"],
     "sppf_factorial": ["M0", "M1", "S0", "S1"],
@@ -39,11 +42,14 @@ STAGE_MODELS = {
     "resolution": ["M1", "F1"],
     "arcface224": ["M0", "M1", "A2", "A3"],
     "ablation": ["F0", "F1", "F2", "F3"],
-    "all": ["M0", "M1", "H1", "C1", "S0", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
+    "all": ["M0", "M1", "O0", "O1", "H1", "C1", "S0", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
 }
 
 COMPARISONS = (
     ("M0", "M1", "efek HBP pada 224"),
+    ("M0", "O0", "efek object-centric crop pada GAP"),
+    ("M1", "O1", "efek object-centric crop pada HBP"),
+    ("O0", "O1", "efek HBP setelah object-centric crop"),
     ("M1", "M1e", "efek EMA pada HBP"),
     ("M1", "H1", "efek hierarchical coarse-to-fine supervision"),
     ("M1", "S1", "efek SPPF-Attention sebelum HBP"),
@@ -163,6 +169,7 @@ def run_finegrained_screening(
         count = _parameter_count(config_path)
         print(
             f"{code}: image={cfg['data']['image_size']} "
+            f"object_crop={cfg['data'].get('object_crop', False)} "
             f"head={cfg['model']['head']} "
             f"classifier={cfg['model'].get('classifier', 'linear')} "
             f"params={count:,}"
@@ -264,6 +271,7 @@ def main() -> None:
         default="spatial",
         help=(
             "spatial=M1/M1s, hierarchy=M1/H1, sppf=M1/S1, "
+            "object_crop=M0/M1/O0/O1, "
             "sppf_factorial=M0/M1/S0/S1, "
             "sppf_control=M1/C1/S1, "
             "moe=M1/E1, resolution=M1/F1, "

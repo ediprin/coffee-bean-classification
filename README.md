@@ -636,6 +636,28 @@ python -u -m bilinear_lmmd.run_grouped_cv `
   --expected-count 965
 ```
 
+## Ablation object-centric crop
+
+Preprocessing ala studi Jiao et al. diuji tanpa memasukkan mask ke CNN. Sistem
+mencari largest component biji pada background terang, mengambil crop RGB
+dengan margin 10%, lalu menjalankan pipeline training/evaluasi biasa.
+
+Factorial ablation membandingkan M0/M1 pada gambar asli dengan O0/O1 pada crop:
+
+```bash
+python -u -m bilinear_lmmd.run_finegrained_screening \
+  --data-root DATA_ROOT_SATU_FOLD \
+  --output-root outputs/object_crop \
+  --stage object_crop \
+  --seeds 123 \
+  --evaluation-split val
+```
+
+Konfigurasi preprocessing tersimpan di checkpoint sehingga inference dan
+evaluasi tidak membutuhkan mask manual. Definisi operasional, kontrol
+factorial, dan kriteria keputusan ada di
+[`docs/OBJECT_CROP_PROTOCOL.md`](docs/OBJECT_CROP_PROTOCOL.md).
+
 ## Screening preservasi spasial HBP
 
 M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada

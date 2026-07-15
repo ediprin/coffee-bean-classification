@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 import random
 
+import numpy as np
 from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.transforms import functional as TF
+
+from .attribute_features import segment_bean
 
 
 @dataclass(frozen=True)
@@ -29,10 +33,69 @@ class DiscreteRotation:
         return TF.rotate(image, random.choice(self.angles), fill=255)
 
 
-def _transforms(image_size: int, train: bool, rotation_angles: list[float]):
+class ObjectCentricCrop:
+    """Crop one bean from a light background without feeding a mask to CNN."""
+
+    def __init__(self, margin_fraction: float = 0.10, segmentation_size: int = 256):
+        if not 0.0 <= margin_fraction <= 1.0:
+            raise ValueError("object_crop_margin harus berada di rentang [0, 1].")
+        if segmentation_size < 32:
+            raise ValueError("segmentation_size minimal 32 piksel.")
+        self.margin_fraction = margin_fraction
+        self.segmentation_size = segmentation_size
+
+    @staticmethod
+    def _background_color(rgb: np.ndarray) -> tuple[int, int, int]:
+        border = np.concatenate(
+            (rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]), axis=0
+        )
+        return tuple(np.median(border, axis=0).round().astype(np.uint8))
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        image = image.convert("RGB")
+        rgb_uint8 = np.asarray(image)
+        segmentation_image = image.copy()
+        segmentation_image.thumbnail(
+            (self.segmentation_size, self.segmentation_size),
+            Image.Resampling.BILINEAR,
+        )
+        segmentation_rgb = np.asarray(segmentation_image, dtype=np.float32) / 255.0
+        mask = segment_bean(segmentation_rgb)
+        rows, columns = np.nonzero(mask)
+        scale_x = image.width / segmentation_image.width
+        scale_y = image.height / segmentation_image.height
+        top = math.floor(rows.min() * scale_y)
+        bottom = math.ceil((rows.max() + 1) * scale_y)
+        left = math.floor(columns.min() * scale_x)
+        right = math.ceil((columns.max() + 1) * scale_x)
+        margin = round(max(bottom - top, right - left) * self.margin_fraction)
+        left = max(0, left - margin)
+        top = max(0, top - margin)
+        right = min(image.width, right + margin)
+        bottom = min(image.height, bottom + margin)
+        crop = image.crop((left, top, right, bottom))
+
+        side = max(crop.size)
+        square = Image.new("RGB", (side, side), self._background_color(rgb_uint8))
+        offset = ((side - crop.width) // 2, (side - crop.height) // 2)
+        square.paste(crop, offset)
+        return square
+
+
+def _transforms(
+    image_size: int,
+    train: bool,
+    rotation_angles: list[float],
+    object_crop: bool = False,
+    object_crop_margin: float = 0.10,
+):
+    object_transforms = (
+        [ObjectCentricCrop(object_crop_margin)] if object_crop else []
+    )
     if train:
         return transforms.Compose(
-            [
+            object_transforms
+            + [
                 DiscreteRotation(rotation_angles),
                 transforms.RandomResizedCrop(image_size, scale=(0.75, 1.0)),
                 transforms.RandomHorizontalFlip(),
@@ -45,7 +108,8 @@ def _transforms(image_size: int, train: bool, rotation_angles: list[float]):
             ]
         )
     return transforms.Compose(
-        [
+        object_transforms
+        + [
             transforms.Resize(int(image_size * 256 / 224)),
             transforms.CenterCrop(image_size),
             transforms.ToTensor(),
@@ -84,6 +148,8 @@ def build_loaders(cfg: dict, require_target: bool = True) -> DomainLoaders:
     if target_exists:
         paths.update(target_paths)
     rotation_angles = [float(angle) for angle in cfg.get("rotation_angles", [0])]
+    object_crop = bool(cfg.get("object_crop", False))
+    object_crop_margin = float(cfg.get("object_crop_margin", 0.10))
     datasets_by_split = {
         name: datasets.ImageFolder(
             path,
@@ -91,6 +157,8 @@ def build_loaders(cfg: dict, require_target: bool = True) -> DomainLoaders:
                 image_size,
                 train=name.endswith("train"),
                 rotation_angles=rotation_angles,
+                object_crop=object_crop,
+                object_crop_margin=object_crop_margin,
             ),
         )
         for name, path in paths.items()

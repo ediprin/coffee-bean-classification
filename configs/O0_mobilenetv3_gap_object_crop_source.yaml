@@ -1,0 +1,11 @@
+data:
+  object_crop: true
+  object_crop_margin: 0.10
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/O0_mobilenetv3_gap_object_crop_source
