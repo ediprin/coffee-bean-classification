@@ -277,17 +277,29 @@ def train(
 
     model = build_model(cfg["model"]).to(device)
     training_cfg = cfg["training"]
+    freeze_backbone = bool(training_cfg.get("freeze_backbone", False))
+    if freeze_backbone:
+        model.encoder.requires_grad_(False)
+        print("TRANSFER LEARNING: backbone frozen; head saja dilatih.", flush=True)
     if method not in {"source_only", "mmd", "lmmd", "dann"}:
         raise ValueError("adaptation.method harus source_only, mmd, lmmd, atau dann.")
 
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        [parameter for parameter in model.parameters() if parameter.requires_grad],
         lr=float(training_cfg["lr"]),
         weight_decay=float(training_cfg["weight_decay"]),
     )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=int(training_cfg["epochs"])
-    )
+    scheduler_name = str(training_cfg.get("scheduler", "cosine")).lower()
+    if scheduler_name == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=int(training_cfg["epochs"])
+        )
+    elif scheduler_name == "constant":
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer, lr_lambda=lambda _: 1.0
+        )
+    else:
+        raise ValueError("training.scheduler harus 'cosine' atau 'constant'.")
     classification_loss = nn.CrossEntropyLoss(
         label_smoothing=float(training_cfg.get("label_smoothing", 0.0))
     )
@@ -369,6 +381,8 @@ def train(
 
     for epoch in range(start_epoch, epochs):
         model.train()
+        if freeze_backbone:
+            model.encoder.eval()
         factor = adaptation_schedule(
             epoch, epochs, int(adaptation_cfg.get("warmup_epochs", 0))
         )

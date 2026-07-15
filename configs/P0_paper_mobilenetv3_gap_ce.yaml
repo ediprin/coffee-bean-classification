@@ -1,0 +1,20 @@
+data:
+  image_size: 224
+  batch_size: 32
+  rotation_angles: [0]
+  augmentation_mode: paper
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 3
+  lr: 0.01
+  weight_decay: 0.0
+  label_smoothing: 0.0
+  freeze_backbone: true
+  scheduler: constant
+  output_dir: outputs/P0_paper_mobilenetv3_gap_ce

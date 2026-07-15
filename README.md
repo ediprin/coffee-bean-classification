@@ -658,6 +658,24 @@ evaluasi tidak membutuhkan mask manual. Definisi operasional, kontrol
 factorial, dan kriteria keputusan ada di
 [`docs/OBJECT_CROP_PROTOCOL.md`](docs/OBJECT_CROP_PROTOCOL.md).
 
+## Reproduksi paper Arwatchananukul et al.
+
+P0 dan P1 membandingkan GAP dengan HBP+CE pada protokol paper yang membuat enam
+rotasi sebelum split 70/20/10. Runner mempertahankan kelemahan tersebut hanya
+untuk keterbandingan dan mencetak audit identity leakage secara eksplisit:
+
+```bash
+python -u -m bilinear_lmmd.run_paper_reproduction \
+  --raw-root RAW_COFFEE17 \
+  --data-root data/coffee17_paper_protocol \
+  --output-root outputs/paper_reproduction \
+  --seeds 42
+```
+
+Hasil P0/P1 bukan pengganti hasil clean M0/M1. Asumsi yang tidak dilaporkan
+paper dan aturan interpretasi dicatat di
+[`docs/PAPER_REPRODUCTION_PROTOCOL.md`](docs/PAPER_REPRODUCTION_PROTOCOL.md).
+
 ## Screening preservasi spasial HBP
 
 M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada

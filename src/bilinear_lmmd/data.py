@@ -88,10 +88,26 @@ def _transforms(
     rotation_angles: list[float],
     object_crop: bool = False,
     object_crop_margin: float = 0.10,
+    augmentation_mode: str = "standard",
 ):
+    if augmentation_mode not in {"standard", "paper"}:
+        raise ValueError("augmentation_mode harus 'standard' atau 'paper'.")
     object_transforms = (
         [ObjectCentricCrop(object_crop_margin)] if object_crop else []
     )
+    normalize = transforms.Normalize(
+        mean=(0.485, 0.456, 0.406),
+        std=(0.229, 0.224, 0.225),
+    )
+    if augmentation_mode == "paper":
+        return transforms.Compose(
+            object_transforms
+            + [
+                transforms.Resize((image_size, image_size)),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
     if train:
         return transforms.Compose(
             object_transforms
@@ -101,10 +117,7 @@ def _transforms(
                 transforms.RandomHorizontalFlip(),
                 transforms.ColorJitter(0.2, 0.2, 0.2, 0.05),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=(0.485, 0.456, 0.406),
-                    std=(0.229, 0.224, 0.225),
-                ),
+                normalize,
             ]
         )
     return transforms.Compose(
@@ -113,10 +126,7 @@ def _transforms(
             transforms.Resize(int(image_size * 256 / 224)),
             transforms.CenterCrop(image_size),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=(0.485, 0.456, 0.406),
-                std=(0.229, 0.224, 0.225),
-            ),
+            normalize,
         ]
     )
 
@@ -150,6 +160,7 @@ def build_loaders(cfg: dict, require_target: bool = True) -> DomainLoaders:
     rotation_angles = [float(angle) for angle in cfg.get("rotation_angles", [0])]
     object_crop = bool(cfg.get("object_crop", False))
     object_crop_margin = float(cfg.get("object_crop_margin", 0.10))
+    augmentation_mode = str(cfg.get("augmentation_mode", "standard"))
     datasets_by_split = {
         name: datasets.ImageFolder(
             path,
@@ -159,6 +170,7 @@ def build_loaders(cfg: dict, require_target: bool = True) -> DomainLoaders:
                 rotation_angles=rotation_angles,
                 object_crop=object_crop,
                 object_crop_margin=object_crop_margin,
+                augmentation_mode=augmentation_mode,
             ),
         )
         for name, path in paths.items()
