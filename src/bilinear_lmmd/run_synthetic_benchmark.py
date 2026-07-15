@@ -96,6 +96,21 @@ def _validate_source_checkpoint(model: str, seed: int, checkpoint_path: Path) ->
             f"Seed checkpoint {checkpoint_path} adalah {observed_seed}, diminta {seed}."
         )
     expected_cfg = load_config(MODEL_CONFIGS[model])
+    expected_epochs = int(expected_cfg["training"]["epochs"])
+    history_path = checkpoint_path.parent / "history.json"
+    if not history_path.is_file():
+        raise ValueError(
+            f"Checkpoint reuse tidak memiliki history.json: {checkpoint_path.parent}"
+        )
+    try:
+        completed_epochs = len(json.loads(history_path.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError) as error:
+        raise ValueError(f"History checkpoint tidak valid: {history_path}") from error
+    if completed_epochs < expected_epochs:
+        raise ValueError(
+            f"Checkpoint {model} seed {seed} belum lengkap: "
+            f"{completed_epochs}/{expected_epochs} epoch. Gunakan --resume."
+        )
     if checkpoint_cfg.get("adaptation", {}).get("method") != "source_only":
         raise ValueError(f"Checkpoint {checkpoint_path} bukan source-only.")
     for key in ("backbone", "head", "classifier", "out_indices"):

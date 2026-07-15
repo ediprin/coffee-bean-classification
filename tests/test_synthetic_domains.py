@@ -119,6 +119,10 @@ def test_source_checkpoint_spec_and_validation_are_seed_aware(tmp_path):
     config = load_config("configs/M0_mobilenetv3_gap_source.yaml")
     config["seed"] = 123
     torch.save({"config": config}, checkpoint_path)
+    (checkpoint_path.parent / "history.json").write_text(
+        json.dumps([{"epoch": epoch + 1} for epoch in range(50)]),
+        encoding="utf-8",
+    )
 
     parsed = _parse_source_checkpoint_specs(
         [f"M0:123={checkpoint_path}"]
@@ -132,3 +136,18 @@ def test_source_checkpoint_spec_and_validation_are_seed_aware(tmp_path):
         _parse_source_checkpoint_specs([f"M3:123={checkpoint_path}"])
     with pytest.raises(ValueError, match="MODEL:SEED=PATH"):
         _parse_source_checkpoint_specs(["M0=missing-seed"])
+
+
+def test_source_checkpoint_validation_rejects_partial_history(tmp_path):
+    checkpoint_path = tmp_path / "M1_seed123" / "best.pt"
+    checkpoint_path.parent.mkdir()
+    config = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    config["seed"] = 123
+    torch.save({"config": config}, checkpoint_path)
+    (checkpoint_path.parent / "history.json").write_text(
+        json.dumps([{"epoch": 1}, {"epoch": 2}, {"epoch": 3}]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="3/50 epoch"):
+        _validate_source_checkpoint("M1", 123, checkpoint_path)
