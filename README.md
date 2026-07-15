@@ -194,6 +194,20 @@ Formulasi modul, perbedaan terhadap detector Hong, dan kriteria penghentian
 tersedia di
 [docs/SPPF_ATTENTION_HBP_PROTOCOL.md](docs/SPPF_ATTENTION_HBP_PROTOCOL.md).
 
+Jika S1 lolos screening terhadap M1, isolasi efek kapasitas dengan:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
+  --output-root outputs/sppf-attention-hbp `
+  --stage sppf_control `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+Runner memakai ulang M1/S1 yang sudah lengkap dan hanya melatih C1, yaitu
+pointwise residual control dengan parameter yang cocok terhadap S1.
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat

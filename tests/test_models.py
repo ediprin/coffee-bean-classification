@@ -8,6 +8,8 @@ from bilinear_lmmd.models import (
     AdaptationModel,
     ArcMarginClassifier,
     FixedFusionCBAM,
+    CapacityResidualHBP,
+    PointwiseResidualCapacity,
     LGFCBAM,
     SPPFAttention,
     SPPFAttentionHBP,
@@ -96,6 +98,7 @@ def test_finegrained_configs_form_controlled_ablation(
         "hbp_moe",
         "sp_hbp",
         "sppf_attention_hbp",
+        "capacity_residual_hbp",
         "hbp_mlp",
         "gap_hbp_fusion",
         "hbp_residual_control",
@@ -305,6 +308,73 @@ def test_sppf_attention_hbp_config_is_controlled_against_hbp():
         assert baseline["model"][key] == candidate["model"][key]
     assert baseline["data"] == candidate["data"]
     assert baseline["adaptation"] == candidate["adaptation"]
+
+
+def test_pointwise_capacity_control_preserves_shape_and_backpropagates():
+    module = PointwiseResidualCapacity(channels=16, hidden_channels=21)
+    feature = torch.randn(2, 16, 9, 9, requires_grad=True)
+
+    output = module(feature)
+    assert output.shape == feature.shape
+    output.square().mean().backward()
+    assert feature.grad is not None
+    assert module.refine[0].weight.grad is not None
+    assert module.refine[3].weight.grad is not None
+
+
+def test_capacity_control_matches_sppf_parameters_and_core_initialization():
+    baseline_cfg = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    control_cfg = load_config(
+        "configs/C1_mobilenetv3_capacity_residual_hbp_source.yaml"
+    )
+    candidate_cfg = load_config(
+        "configs/S1_mobilenetv3_sppf_attention_hbp_source.yaml"
+    )
+    for cfg in (baseline_cfg, control_cfg, candidate_cfg):
+        cfg["model"]["pretrained"] = False
+
+    torch.manual_seed(31)
+    baseline = build_model(baseline_cfg["model"])
+    baseline_rng = torch.random.get_rng_state()
+    torch.manual_seed(31)
+    control = build_model(control_cfg["model"])
+    torch.manual_seed(31)
+    candidate = build_model(candidate_cfg["model"])
+
+    assert isinstance(control.pool, CapacityResidualHBP)
+    for baseline_parameter, control_parameter in zip(
+        baseline.encoder.parameters(), control.encoder.parameters()
+    ):
+        assert torch.equal(baseline_parameter, control_parameter)
+    for baseline_parameter, control_parameter in zip(
+        baseline.pool.parameters(), control.pool.hbp.parameters()
+    ):
+        assert torch.equal(baseline_parameter, control_parameter)
+    assert torch.equal(baseline.classifier.weight, control.classifier.weight)
+    assert torch.equal(baseline.classifier.bias, control.classifier.bias)
+    assert torch.equal(baseline_rng, torch.random.get_rng_state())
+
+    control_parameters = sum(parameter.numel() for parameter in control.parameters())
+    candidate_parameters = sum(
+        parameter.numel() for parameter in candidate.parameters()
+    )
+    assert abs(control_parameters - candidate_parameters) / candidate_parameters < 0.0001
+
+
+def test_capacity_control_config_is_controlled_against_sppf():
+    control = load_config(
+        "configs/C1_mobilenetv3_capacity_residual_hbp_source.yaml"
+    )
+    candidate = load_config(
+        "configs/S1_mobilenetv3_sppf_attention_hbp_source.yaml"
+    )
+
+    assert control["model"]["head"] == "capacity_residual_hbp"
+    assert control["model"]["capacity_hidden_dim"] == 1259
+    for key in ("backbone", "out_indices", "projection_dim", "classifier", "dropout"):
+        assert control["model"][key] == candidate["model"][key]
+    assert control["data"] == candidate["data"]
+    assert control["adaptation"] == candidate["adaptation"]
 
 
 def test_hbp_moe_outputs_experts_gate_and_backpropagates():

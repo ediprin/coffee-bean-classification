@@ -16,6 +16,7 @@ MODEL_CONFIGS = {
     "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
     "H1": Path("configs/H1_mobilenetv3_hbp_hierarchical_source.yaml"),
     "S1": Path("configs/S1_mobilenetv3_sppf_attention_hbp_source.yaml"),
+    "C1": Path("configs/C1_mobilenetv3_capacity_residual_hbp_source.yaml"),
     "M1s": Path("configs/M1s_mobilenetv3_sp_hbp_source.yaml"),
     "E1": Path("configs/E1_mobilenetv3_hbp_local_moe_source.yaml"),
     "A2": Path("configs/A2_mobilenetv3_gap_224_arcface_source.yaml"),
@@ -30,17 +31,20 @@ STAGE_MODELS = {
     "spatial": ["M1", "M1s"],
     "hierarchy": ["M1", "H1"],
     "sppf": ["M1", "S1"],
+    "sppf_control": ["M1", "C1", "S1"],
     "moe": ["M1", "E1"],
     "resolution": ["M1", "F1"],
     "arcface224": ["M0", "M1", "A2", "A3"],
     "ablation": ["F0", "F1", "F2", "F3"],
-    "all": ["M0", "M1", "H1", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
+    "all": ["M0", "M1", "H1", "C1", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
 }
 
 COMPARISONS = (
     ("M0", "M1", "efek HBP pada 224"),
     ("M1", "H1", "efek hierarchical coarse-to-fine supervision"),
     ("M1", "S1", "efek SPPF-Attention sebelum HBP"),
+    ("M1", "C1", "efek capacity-matched deep residual refinement"),
+    ("C1", "S1", "SPPF-Attention vs capacity-matched control"),
     ("M1", "M1s", "efek preservasi grid HBP 7x7 -> 14x14"),
     ("M1", "E1", "efek global-local HBP mixture-of-experts"),
     ("M0", "A2", "efek ArcFace pada GAP 224"),
@@ -254,6 +258,7 @@ def main() -> None:
         default="spatial",
         help=(
             "spatial=M1/M1s, hierarchy=M1/H1, sppf=M1/S1, "
+            "sppf_control=M1/C1/S1, "
             "moe=M1/E1, resolution=M1/F1, "
             "arcface224=M0/M1/A2/A3, ablation=F0-F3, all=semuanya."
         ),

@@ -250,6 +250,53 @@ class SPPFAttentionHBP(nn.Module):
         return self.hbp(refined)
 
 
+class PointwiseResidualCapacity(nn.Module):
+    """Parameter-matched deep refinement without pooling or attention."""
+
+    def __init__(self, channels: int, hidden_channels: int):
+        super().__init__()
+        if channels <= 0 or hidden_channels <= 0:
+            raise ValueError("Channel capacity control harus lebih besar dari nol.")
+        self.refine = nn.Sequential(
+            nn.Conv2d(channels, hidden_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(hidden_channels),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(hidden_channels, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels),
+        )
+
+    def forward(self, feature: Tensor) -> Tensor:
+        return self.refine(feature) + feature
+
+
+class CapacityResidualHBP(nn.Module):
+    """Capacity control that refines the deepest feature before ordinary HBP."""
+
+    def __init__(
+        self,
+        channels: list[int],
+        projection_dim: int,
+        hidden_channels: int,
+    ):
+        super().__init__()
+        self.hbp = HierarchicalBilinearPooling(channels, projection_dim)
+        rng_state = torch.random.get_rng_state()
+        self.refinement = PointwiseResidualCapacity(
+            channels[-1], hidden_channels
+        )
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = self.hbp.output_dim
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if len(features) != 3:
+            raise ValueError(
+                f"Capacity-Residual-HBP menerima 3 feature map, didapat {len(features)}."
+            )
+        refined = list(features)
+        refined[-1] = self.refinement(refined[-1])
+        return self.hbp(refined)
+
+
 class SpatiallyPreservedHBP(HierarchicalBilinearPooling):
     """HBP with a fixed interaction grid that preserves intermediate detail.
 
@@ -558,6 +605,7 @@ class AdaptationModel(nn.Module):
         residual_control_dim: int = 80,
         residual_gap_dim: int = 128,
         attention_reduction: int = 16,
+        capacity_hidden_dim: int = 1259,
         moe_local_dim: int = 256,
         moe_gate_hidden: int = 32,
         moe_hbp_prior: float = 0.8,
@@ -577,6 +625,7 @@ class AdaptationModel(nn.Module):
             "hbp_moe",
             "sp_hbp",
             "sppf_attention_hbp",
+            "capacity_residual_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
             "hbp_residual_control",
@@ -591,6 +640,7 @@ class AdaptationModel(nn.Module):
             "hbp_moe",
             "sp_hbp",
             "sppf_attention_hbp",
+            "capacity_residual_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
             "hbp_residual_control",
@@ -615,6 +665,12 @@ class AdaptationModel(nn.Module):
                 channels,
                 projection_dim,
                 attention_reduction,
+            )
+        elif head == "capacity_residual_hbp":
+            self.pool = CapacityResidualHBP(
+                channels,
+                projection_dim,
+                capacity_hidden_dim,
             )
         elif head == "sp_hbp":
             self.pool = SpatiallyPreservedHBP(
@@ -799,6 +855,7 @@ def build_model(cfg: dict) -> AdaptationModel:
         residual_control_dim=int(cfg.get("residual_control_dim", 80)),
         residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
         attention_reduction=int(cfg.get("attention_reduction", 16)),
+        capacity_hidden_dim=int(cfg.get("capacity_hidden_dim", 1259)),
         moe_local_dim=int(cfg.get("moe_local_dim", 256)),
         moe_gate_hidden=int(cfg.get("moe_gate_hidden", 32)),
         moe_hbp_prior=float(cfg.get("moe_hbp_prior", 0.8)),

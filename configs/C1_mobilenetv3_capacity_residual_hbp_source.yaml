@@ -1,0 +1,10 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: capacity_residual_hbp
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  capacity_hidden_dim: 1259
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/C1_mobilenetv3_capacity_residual_hbp_source
