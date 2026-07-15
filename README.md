@@ -390,13 +390,16 @@ M1e mempertahankan arsitektur, loss, optimizer, dan inferensi M1. EMA decay
 yang dievaluasi. Gunakan fold baru; test final fold 1 tidak boleh dipakai lagi:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.run_ema_screening `
   --data-root data/coffee17_hierarchy_clean/folds/fold_2 `
   --output-root outputs/hbp-ema-fold2 `
-  --stage ema `
   --seeds 42 123 2026 `
   --evaluation-split val
 ```
+
+Satu trajectory per seed menghasilkan `best_raw.pt` (M1) dan `best.pt` (M1e),
+sehingga waktu training hampir separuh dan perbandingan bobot benar-benar
+berpasangan.
 
 Kriteria keputusan dan batas test leakage tersedia di
 [docs/EMA_HBP_PROTOCOL.md](docs/EMA_HBP_PROTOCOL.md).

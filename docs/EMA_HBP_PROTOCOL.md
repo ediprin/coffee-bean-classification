@@ -11,8 +11,8 @@ bobot HBP tanpa mengubah arsitektur atau biaya inferensi.
 
 | Kode | Training | Bobot evaluasi |
 |---|---|---|
-| M1 | MobileNetV3-HBP + CE | checkpoint biasa terbaik di validation |
-| M1e | MobileNetV3-HBP + CE, trajectory yang sama | checkpoint EMA terbaik di validation |
+| M1 | MobileNetV3-HBP + CE | `best_raw.pt`, terbaik di validation |
+| M1e | MobileNetV3-HBP + CE, trajectory yang sama | `best.pt`, EMA terbaik di validation |
 
 M1e memakai decay `0.995` dan mulai setelah lima epoch penuh. Saat EMA mulai,
 bobot disalin dari model aktif; update berikutnya memakai
@@ -22,6 +22,10 @@ backpropagation dan tidak mengubah RNG, optimizer, loss, atau urutan batch.
 
 M1 dan M1e memiliki parameter, ukuran deployment, FLOPs, dan latency yang sama.
 EMA hanya menambah memori selama training.
+
+Runner khusus melatih satu trajectory per seed dan menyimpan checkpoint raw
+serta EMA secara terpisah. Ini memangkas waktu dibanding dua training dan
+menghilangkan perbedaan trajectory sebagai confound.
 
 ## Larangan test leakage
 
@@ -44,3 +48,6 @@ Pada seed 42, 123, dan 2026, M1e lolos screening bila:
 Jika gagal, decay dan start epoch tidak dituning pada fold yang sama. EMA
 dicatat sebagai ablation negatif. Test lama tetap hanya melaporkan M1 yang sudah
 terkunci.
+
+Jalankan dengan `python -m bilinear_lmmd.run_ema_screening`; runner hanya
+mengizinkan evaluation split `val`.

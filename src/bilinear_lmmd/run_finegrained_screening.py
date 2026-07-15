@@ -33,14 +33,13 @@ STAGE_MODELS = {
     "spatial": ["M1", "M1s"],
     "hierarchy": ["M1", "H1"],
     "sppf": ["M1", "S1"],
-    "ema": ["M1", "M1e"],
     "sppf_factorial": ["M0", "M1", "S0", "S1"],
     "sppf_control": ["M1", "C1", "S1"],
     "moe": ["M1", "E1"],
     "resolution": ["M1", "F1"],
     "arcface224": ["M0", "M1", "A2", "A3"],
     "ablation": ["F0", "F1", "F2", "F3"],
-    "all": ["M0", "M1", "M1e", "H1", "C1", "S0", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
+    "all": ["M0", "M1", "H1", "C1", "S0", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
 }
 
 COMPARISONS = (
@@ -264,7 +263,7 @@ def main() -> None:
         choices=tuple(STAGE_MODELS),
         default="spatial",
         help=(
-            "spatial=M1/M1s, hierarchy=M1/H1, sppf=M1/S1, ema=M1/M1e, "
+            "spatial=M1/M1s, hierarchy=M1/H1, sppf=M1/S1, "
             "sppf_factorial=M0/M1/S0/S1, "
             "sppf_control=M1/C1/S1, "
             "moe=M1/E1, resolution=M1/F1, "

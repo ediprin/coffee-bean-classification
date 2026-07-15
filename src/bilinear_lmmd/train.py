@@ -324,6 +324,7 @@ def train(
     if ema is not None and ema_start_epoch >= epochs:
         raise ValueError("training.ema_start_epoch harus lebih kecil dari epochs.")
     best_f1 = -1.0
+    best_raw_f1 = -1.0
     history = []
     start_epoch = 0
     hard_groups = cfg.get("evaluation", {}).get("hard_groups", {})
@@ -334,7 +335,9 @@ def train(
         if checkpoint is not None:
             required_state = {"optimizer", "scheduler", "history", "best_f1"}
             if ema is not None:
-                required_state.update({"ema_model", "ema_started"})
+                required_state.update(
+                    {"ema_model", "ema_started", "best_raw_f1"}
+                )
             missing_state = sorted(required_state.difference(checkpoint))
             if missing_state:
                 print(
@@ -356,6 +359,8 @@ def train(
                         ema.model.load_state_dict(checkpoint["ema_model"])
                 history = checkpoint["history"]
                 best_f1 = float(checkpoint["best_f1"])
+                if ema is not None:
+                    best_raw_f1 = float(checkpoint["best_raw_f1"])
                 start_epoch = int(checkpoint["epoch"])
                 print(
                     f"RESUME: melanjutkan dari epoch {start_epoch + 1}/{epochs}",
@@ -537,6 +542,11 @@ def train(
         is_best = selection_ready and selection_metrics["macro_f1"] > best_f1
         if is_best:
             best_f1 = selection_metrics["macro_f1"]
+        raw_is_best = (
+            ema is not None and source_metrics_raw["macro_f1"] > best_raw_f1
+        )
+        if raw_is_best:
+            best_raw_f1 = source_metrics_raw["macro_f1"]
 
         checkpoint = {
             "model": model.state_dict(),
@@ -552,6 +562,7 @@ def train(
         if ema is not None:
             checkpoint["ema_model"] = ema.model.state_dict() if ema_started else None
             checkpoint["ema_started"] = ema_started
+            checkpoint["best_raw_f1"] = best_raw_f1
         atomic_torch_save(checkpoint, output_dir / "last.pt")
         # Target labels are evaluation-only in unsupervised domain adaptation.
         # Checkpoint selection must not use target metrics.
@@ -575,6 +586,17 @@ def train(
             else:
                 best_checkpoint["weights"] = "raw"
             atomic_torch_save(best_checkpoint, output_dir / "best.pt")
+        if raw_is_best:
+            raw_best_checkpoint = {
+                "model": model.state_dict(),
+                "classes": loaders.classes,
+                "config": cfg,
+                "epoch": epoch + 1,
+                "target_metrics": target_metrics_raw,
+                "best_f1": best_raw_f1,
+                "weights": "raw",
+            }
+            atomic_torch_save(raw_best_checkpoint, output_dir / "best_raw.pt")
         (output_dir / "history.json").write_text(
             json.dumps(history, indent=2), encoding="utf-8"
         )
