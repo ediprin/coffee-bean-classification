@@ -99,3 +99,21 @@ LMMD didukung sementara apabila peningkatan terhadap baseline pasangannya:
 Jika LMMD hanya menang pada `combined` atau satu seed, kesimpulannya adalah
 sensitif terhadap kondisi, bukan unggul secara umum. Validasi target nyata tetap
 diperlukan sebelum mengklaim ketahanan lapangan.
+
+## Rescue control HBP-LMMD
+
+Jika M5 dengan bobot LMMD 1,0 menaikkan target tetapi menurunkan source secara
+besar, jalankan `configs/M5w01_mobilenetv3_hbp_lmmd_w01.yaml`. Konfigurasi ini
+hanya mengubah `adaptation.weight` dari 1,0 menjadi 0,1; backbone, HBP, warmup,
+confidence threshold, optimizer, dan epoch tetap sama.
+
+Kriteria screening ditetapkan sebelum training:
+
+- source macro-F1 tidak turun lebih dari 5 poin terhadap M1;
+- target macro-F1 lebih tinggi daripada M1;
+- worst-class F1 lebih besar dari nol;
+- kelas yang sebelumnya runtuh tidak tetap bernilai nol.
+
+Jika kontrol ini gagal, kombinasi langsung HBP-LMMD tidak diteruskan ke
+multiseed. Hasilnya dilaporkan sebagai interaksi negatif, bukan disembunyikan
+dengan pemilihan seed atau hyperparameter setelah melihat test set.

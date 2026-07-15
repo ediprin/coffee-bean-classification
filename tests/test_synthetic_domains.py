@@ -151,3 +151,26 @@ def test_source_checkpoint_validation_rejects_partial_history(tmp_path):
 
     with pytest.raises(ValueError, match="3/50 epoch"):
         _validate_source_checkpoint("M1", 123, checkpoint_path)
+
+
+def test_m5w01_rescue_changes_only_adaptation_weight_and_output():
+    baseline = load_config("configs/M5_mobilenetv3_hbp_lmmd.yaml")
+    rescue = load_config("configs/M5w01_mobilenetv3_hbp_lmmd_w01.yaml")
+
+    assert rescue["model"] == baseline["model"]
+    assert rescue["adaptation"]["weight"] == pytest.approx(0.1)
+    assert baseline["adaptation"]["weight"] == pytest.approx(1.0)
+    assert {
+        key: value for key, value in rescue["adaptation"].items() if key != "weight"
+    } == {
+        key: value for key, value in baseline["adaptation"].items() if key != "weight"
+    }
+    assert {
+        key: value
+        for key, value in rescue["training"].items()
+        if key != "output_dir"
+    } == {
+        key: value
+        for key, value in baseline["training"].items()
+        if key != "output_dir"
+    }

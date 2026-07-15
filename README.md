@@ -39,6 +39,7 @@ Tahap B menguji kontribusi metode:
 | M3 | MobileNetV3 + GAP + LMMD | alignment class-wise |
 | M4 | MobileNetV3 + HBP + DANN | baseline adversarial |
 | M5 | MobileNetV3 + HBP + LMMD | model usulan |
+| M5w01 | M5 dengan bobot LMMD 0,1 | rescue control untuk source degradation |
 
 Model final tidak dikunci sebelum B0–B4 dibandingkan berdasarkan target
 macro-F1, parameter, ukuran FP32, latency, dan memori pada perangkat yang sama.
