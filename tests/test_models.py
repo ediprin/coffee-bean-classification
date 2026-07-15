@@ -9,6 +9,7 @@ from bilinear_lmmd.models import (
     ArcMarginClassifier,
     FixedFusionCBAM,
     LGFCBAM,
+    SpatiallyPreservedHBP,
     build_model,
 )
 
@@ -90,6 +91,7 @@ def test_finegrained_configs_form_controlled_ablation(
         "gap",
         "bilinear",
         "hbp",
+        "sp_hbp",
         "hbp_mlp",
         "gap_hbp_fusion",
         "hbp_residual_control",
@@ -129,6 +131,62 @@ def test_m0b_and_hbp_have_matched_embedding_classifier_and_capacity():
     bilinear_params = sum(parameter.numel() for parameter in bilinear.parameters())
     hbp_params = sum(parameter.numel() for parameter in hbp.parameters())
     assert abs(bilinear_params - hbp_params) / hbp_params < 0.01
+
+
+def test_sp_hbp_preserves_hbp_shape_capacity_and_backpropagates():
+    baseline = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="hbp",
+        out_indices=(1, 3, 4),
+        projection_dim=32,
+        pretrained=False,
+    )
+    candidate = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="sp_hbp",
+        out_indices=(1, 3, 4),
+        projection_dim=32,
+        hbp_spatial_size=14,
+        pretrained=False,
+    )
+
+    assert isinstance(candidate.pool, SpatiallyPreservedHBP)
+    assert candidate.pool.spatial_size == 14
+    assert candidate.pool.output_dim == baseline.pool.output_dim == 96
+    assert sum(p.numel() for p in candidate.parameters()) == sum(
+        p.numel() for p in baseline.parameters()
+    )
+
+    output = candidate(torch.randn(2, 3, 96, 96))
+    output.logits.sum().backward()
+    assert output.embedding.shape == (2, 96)
+    assert candidate.pool.projections[0][0].weight.grad is not None
+
+
+def test_sp_hbp_rejects_invalid_grid_size():
+    with pytest.raises(ValueError, match="lebih besar dari nol"):
+        SpatiallyPreservedHBP([8, 12, 16], projection_dim=4, spatial_size=0)
+
+
+def test_sp_hbp_config_is_controlled_against_hbp():
+    baseline_cfg = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
+    candidate_cfg = load_config("configs/M1s_mobilenetv3_sp_hbp_source.yaml")
+
+    assert baseline_cfg["model"]["head"] == "hbp"
+    assert candidate_cfg["model"]["head"] == "sp_hbp"
+    assert candidate_cfg["model"]["hbp_spatial_size"] == 14
+    for key in (
+        "backbone",
+        "out_indices",
+        "projection_dim",
+        "classifier",
+        "dropout",
+    ):
+        assert baseline_cfg["model"][key] == candidate_cfg["model"][key]
+    assert baseline_cfg["data"] == candidate_cfg["data"]
+    assert baseline_cfg["adaptation"] == candidate_cfg["adaptation"]
 
 
 def test_hbp_mlp_and_gap_hbp_fusion_have_matched_capacity():

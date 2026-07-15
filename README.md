@@ -31,6 +31,7 @@ Tahap B menguji kontribusi metode:
 | M0 | MobileNetV3 + GAP, source-only | baseline |
 | M0b | MobileNetV3 + factorized bilinear, source-only | kontrol orde kedua satu lapis |
 | M1 | MobileNetV3 + HBP, source-only | kontribusi HBP |
+| M1s | MobileNetV3 + spatially preserved HBP 14x14 + CE | preservasi detail spasial tanpa tambahan parameter |
 | M1c | MobileNetV3 + HBP + nonlinear projection | kontrol kapasitas fusion |
 | M1f | MobileNetV3 + GAP-HBP feature fusion | komplementaritas orde pertama-kedua |
 | M1rc | HBP utuh + auxiliary HBP kecil | kontrol kapasitas residual fusion |
@@ -451,6 +452,41 @@ python -u -m bilinear_lmmd.run_grouped_cv `
   --models M0 M1 `
   --seed 42 `
   --expected-count 965
+```
+
+## Screening preservasi spasial HBP
+
+M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada
+input 224, lalu menyelaraskan semuanya ke grid terdalam 7 x 7. M1s adalah
+ablasi terkendali yang menyelaraskan ketiganya ke grid tengah 14 x 14 sebelum
+interaksi bilinear. M1s mempertahankan embedding 1536-D dan jumlah parameter
+M1; biaya interaksi spasialnya lebih besar.
+
+Jalankan screening M1 vs M1s pada fold dan seed yang sama:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee_clean/folds/fold_1 `
+  --output-root outputs/sp_hbp_screen `
+  --stage spatial `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+Runner dapat dilanjutkan dengan perintah yang sama setelah interupsi. Batas
+klaim, kontrol eksperimen, dan kriteria keputusan tercatat di
+`docs/SP_HBP_PROTOCOL.md`. SP-HBP 14 x 14 adalah modifikasi penelitian ini;
+interaksi HBP lintas-layer mengacu pada Yu et al. (ECCV 2018).
+
+Jika kriteria validation lolos, jalankan seed konfirmasi dan evaluasi test:
+
+```powershell
+python -u -m bilinear_lmmd.run_finegrained_screening `
+  --data-root data/coffee_clean/folds/fold_1 `
+  --output-root outputs/sp_hbp_screen `
+  --stage spatial `
+  --seeds 42 123 2026 `
+  --evaluation-split test
 ```
 
 ## Screening fine-grained: resolusi, HBP, dan ArcFace

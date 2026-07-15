@@ -14,6 +14,7 @@ from .models import build_model
 MODEL_CONFIGS = {
     "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
     "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
+    "M1s": Path("configs/M1s_mobilenetv3_sp_hbp_source.yaml"),
     "A2": Path("configs/A2_mobilenetv3_gap_224_arcface_source.yaml"),
     "A3": Path("configs/A3_mobilenetv3_hbp_224_arcface_source.yaml"),
     "F0": Path("configs/F0_mobilenetv3_gap_320_ce_source.yaml"),
@@ -23,14 +24,16 @@ MODEL_CONFIGS = {
 }
 
 STAGE_MODELS = {
+    "spatial": ["M1", "M1s"],
     "resolution": ["M1", "F1"],
     "arcface224": ["M0", "M1", "A2", "A3"],
     "ablation": ["F0", "F1", "F2", "F3"],
-    "all": ["M0", "M1", "A2", "A3", "F0", "F1", "F2", "F3"],
+    "all": ["M0", "M1", "M1s", "A2", "A3", "F0", "F1", "F2", "F3"],
 }
 
 COMPARISONS = (
     ("M0", "M1", "efek HBP pada 224"),
+    ("M1", "M1s", "efek preservasi grid HBP 7x7 -> 14x14"),
     ("M0", "A2", "efek ArcFace pada GAP 224"),
     ("M1", "A3", "efek ArcFace pada HBP 224"),
     ("A2", "A3", "efek HBP pada 224 + ArcFace"),
@@ -65,9 +68,21 @@ def _parameter_count(config_path: Path) -> int:
     return sum(parameter.numel() for parameter in model.parameters())
 
 
-def _report_paths(output_root: Path, model: str, seeds: list[int]) -> list[Path]:
+def _report_root(output_root: Path, evaluation_split: str) -> Path:
+    if evaluation_split == "test":
+        return output_root / "reports"
+    return output_root / f"{evaluation_split}_reports"
+
+
+def _report_paths(
+    output_root: Path,
+    model: str,
+    seeds: list[int],
+    evaluation_split: str,
+) -> list[Path]:
+    root = _report_root(output_root, evaluation_split)
     return [
-        output_root / "reports" / f"{model}_seed{seed}" / "metrics.json"
+        root / f"{model}_seed{seed}" / "metrics.json"
         for seed in seeds
     ]
 
@@ -78,9 +93,14 @@ def _print_comparison(
     description: str,
     output_root: Path,
     seeds: list[int],
+    evaluation_split: str,
 ) -> None:
-    baseline_paths = _report_paths(output_root, baseline, seeds)
-    candidate_paths = _report_paths(output_root, candidate, seeds)
+    baseline_paths = _report_paths(
+        output_root, baseline, seeds, evaluation_split
+    )
+    candidate_paths = _report_paths(
+        output_root, candidate, seeds, evaluation_split
+    )
     missing = [
         str(path)
         for path in baseline_paths + candidate_paths
@@ -90,7 +110,10 @@ def _print_comparison(
         return
 
     result = aggregate(baseline_paths, candidate_paths)
-    destination = output_root / "reports" / f"{baseline}_vs_{candidate}_aggregate.json"
+    destination = (
+        _report_root(output_root, evaluation_split)
+        / f"{baseline}_vs_{candidate}_aggregate.json"
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"\n=== {baseline} vs {candidate}: {description} ===")
@@ -112,6 +135,7 @@ def run_finegrained_screening(
     output_root: Path,
     seeds: list[int],
     models: list[str],
+    evaluation_split: str = "test",
 ) -> None:
     print("=== RANCANGAN EKSPERIMEN ===")
     for code in models:
@@ -131,7 +155,10 @@ def run_finegrained_screening(
         for seed in seeds:
             label = f"{model_code} | seed {seed}"
             run_dir = output_root / "outputs" / f"{model_code}_seed{seed}"
-            report_dir = output_root / "reports" / f"{model_code}_seed{seed}"
+            report_dir = (
+                _report_root(output_root, evaluation_split)
+                / f"{model_code}_seed{seed}"
+            )
             if _training_complete(run_dir, epochs):
                 print(f"SKIP training lengkap: {label}", flush=True)
             else:
@@ -169,7 +196,7 @@ def run_finegrained_screening(
                         "--domain",
                         "source",
                         "--split",
-                        "test",
+                        evaluation_split,
                         "--data-root",
                         str(data_root),
                         "--output-dir",
@@ -186,6 +213,7 @@ def run_finegrained_screening(
                 description,
                 output_root,
                 seeds,
+                evaluation_split,
             )
     print(
         f"\nPASS: screening fine-grained {', '.join(models)} selesai.",
@@ -195,7 +223,7 @@ def run_finegrained_screening(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Screening resolusi dan ablation GAP/HBP x CE/ArcFace"
+        description="Screening resolusi, SP-HBP, dan ablation GAP/HBP x CE/ArcFace"
     )
     parser.add_argument(
         "--data-root",
@@ -206,12 +234,18 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--seeds", type=int, nargs="+", default=[123])
     parser.add_argument(
+        "--evaluation-split",
+        choices=("val", "test"),
+        default="test",
+        help="Gunakan val untuk screening; test hanya setelah kandidat dikunci.",
+    )
+    parser.add_argument(
         "--stage",
         choices=tuple(STAGE_MODELS),
-        default="resolution",
+        default="spatial",
         help=(
-            "resolution=M1/F1, arcface224=M0/M1/A2/A3, "
-            "ablation=F0-F3, all=semuanya."
+            "spatial=M1/M1s, resolution=M1/F1, arcface224=M0/M1/A2/A3, "
+            "ablation=F0-F3, all=semuanya termasuk M1s."
         ),
     )
     parser.add_argument(
@@ -227,6 +261,7 @@ def main() -> None:
         args.output_root,
         args.seeds,
         models,
+        args.evaluation_split,
     )
 
 

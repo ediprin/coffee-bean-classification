@@ -15,6 +15,7 @@ MODEL_CONFIGS = {
     "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
     "M0b": Path("configs/M0b_mobilenetv3_bilinear_source.yaml"),
     "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
+    "M1s": Path("configs/M1s_mobilenetv3_sp_hbp_source.yaml"),
     "A2": Path("configs/A2_mobilenetv3_gap_224_arcface_source.yaml"),
     "A3": Path("configs/A3_mobilenetv3_hbp_224_arcface_source.yaml"),
     "F0": Path("configs/F0_mobilenetv3_gap_320_ce_source.yaml"),
@@ -120,6 +121,7 @@ def run_grouped_cv(
     comparisons = (
         ("M0", "M0b"),
         ("M0", "M1"),
+        ("M1", "M1s"),
         ("M0", "A2"),
         ("M1", "A3"),
         ("A2", "A3"),

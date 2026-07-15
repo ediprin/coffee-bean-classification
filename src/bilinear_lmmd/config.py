@@ -28,6 +28,7 @@ DEFAULTS: dict[str, Any] = {
         "num_classes": 17,
         "out_indices": [1, 3, 4],
         "projection_dim": 512,
+        "hbp_spatial_size": 14,
         "hbp_mlp_dim": 672,
         "fusion_hbp_dim": 512,
         "fusion_gap_dim": 256,

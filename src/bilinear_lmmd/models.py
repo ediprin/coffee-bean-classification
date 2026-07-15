@@ -165,6 +165,60 @@ class HierarchicalBilinearPooling(nn.Module):
         return torch.cat(pairwise, dim=1)
 
 
+class SpatiallyPreservedHBP(HierarchicalBilinearPooling):
+    """HBP with a fixed interaction grid that preserves intermediate detail.
+
+    The baseline HBP aligns every projected feature map to the deepest feature
+    resolution.  MobileNetV3 endpoints ``(1, 3, 4)`` have reductions
+    ``(4, 16, 32)``, so a 224 px input is reduced from ``(56, 14, 7)`` to
+    ``7 x 7`` before the pairwise products.  This controlled variant aligns the
+    maps to a configurable intermediate grid instead.  It changes no trainable
+    parameter and retains the same pairwise products and normalization as HBP.
+    """
+
+    def __init__(
+        self,
+        channels: list[int],
+        projection_dim: int,
+        spatial_size: int = 14,
+    ):
+        super().__init__(channels, projection_dim)
+        if spatial_size <= 0:
+            raise ValueError("hbp_spatial_size harus lebih besar dari nol.")
+        self.spatial_size = int(spatial_size)
+
+    def _align(self, feature: Tensor) -> Tensor:
+        target_size = (self.spatial_size, self.spatial_size)
+        current_size = feature.shape[-2:]
+        if current_size == target_size:
+            return feature
+        if (
+            current_size[0] >= self.spatial_size
+            and current_size[1] >= self.spatial_size
+        ):
+            return F.adaptive_avg_pool2d(feature, target_size)
+        return F.interpolate(
+            feature,
+            size=target_size,
+            mode="bilinear",
+            align_corners=False,
+        )
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if len(features) != 3:
+            raise ValueError(f"SP-HBP menerima 3 feature map, didapat {len(features)}.")
+        projected = [
+            self._align(projection(feature))
+            for projection, feature in zip(self.projections, features)
+        ]
+
+        pairwise = []
+        for left, right in ((0, 1), (0, 2), (1, 2)):
+            interaction = (projected[left] * projected[right]).flatten(2).mean(-1)
+            pairwise.append(self._normalize(interaction))
+        return torch.cat(pairwise, dim=1)
+
+
 class CBAMAttentionPaths(nn.Module):
     """Channel-then-spatial attention paths used by the paper's equations 8-9."""
 
@@ -389,6 +443,7 @@ class AdaptationModel(nn.Module):
         head: str = "hbp",
         out_indices: tuple[int, ...] = (1, 3, 4),
         projection_dim: int = 512,
+        hbp_spatial_size: int = 14,
         bilinear_output_dim: int | None = None,
         hbp_mlp_dim: int = 672,
         fusion_hbp_dim: int = 512,
@@ -408,6 +463,7 @@ class AdaptationModel(nn.Module):
             "gap",
             "bilinear",
             "hbp",
+            "sp_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
             "hbp_residual_control",
@@ -419,6 +475,7 @@ class AdaptationModel(nn.Module):
             raise ValueError(f"head harus salah satu dari {sorted(supported_heads)}.")
         hbp_heads = {
             "hbp",
+            "sp_hbp",
             "hbp_mlp",
             "gap_hbp_fusion",
             "hbp_residual_control",
@@ -437,6 +494,12 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head == "hbp":
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "sp_hbp":
+            self.pool = SpatiallyPreservedHBP(
+                channels,
+                projection_dim,
+                hbp_spatial_size,
+            )
         elif head == "gap_fixed_cbam":
             self.pool = AttentionGAP(
                 channels[-1],
@@ -528,6 +591,7 @@ def build_model(cfg: dict) -> AdaptationModel:
         head=cfg.get("head", "hbp"),
         out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
         projection_dim=int(cfg.get("projection_dim", 512)),
+        hbp_spatial_size=int(cfg.get("hbp_spatial_size", 14)),
         bilinear_output_dim=(
             int(cfg["bilinear_output_dim"])
             if cfg.get("bilinear_output_dim") is not None
