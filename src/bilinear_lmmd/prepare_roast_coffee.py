@@ -24,6 +24,7 @@ SPLIT_ALIASES = {
     "test": "test",
     "testing": "test",
 }
+SPLIT_KEEP_PRIORITY = {"test": 0, "val": 1, "train": 2}
 
 
 @dataclass(frozen=True)
@@ -103,13 +104,23 @@ def _audit_and_deduplicate(
                 {"sha256": digest, "classes": classes, "splits": splits, "paths": paths}
             )
             continue
-        canonical = sorted(group, key=lambda sample: str(sample.path))[0]
+        # Saat salinan identik tersebar di beberapa split, pertahankan salinan
+        # pada split evaluasi. Dengan demikian test tidak dipindahkan ke train
+        # dan kebocoran dihilangkan dengan membuang salinan dari split lain.
+        canonical = sorted(
+            group,
+            key=lambda sample: (
+                SPLIT_KEEP_PRIORITY[sample.split],
+                str(sample.path),
+            ),
+        )[0]
         kept.append(canonical)
         if len(group) > 1:
             record = {
                 "sha256": digest,
                 "class": canonical.class_name,
                 "splits": splits,
+                "kept_split": canonical.split,
                 "kept": str(canonical.path),
                 "removed": [path for path in paths if path != str(canonical.path)],
             }
@@ -213,6 +224,7 @@ def prepare_roast_coffee(
             else f"preserved_test_train_to_val_{validation_ratio:.2f}"
         ),
         "seed": seed,
+        "deduplication_policy": "keep_test_then_val_then_train",
         "same_split_exact_duplicates": same_split,
         "cross_split_exact_duplicates": cross_split,
         "cross_class_exact_conflicts": conflicts,

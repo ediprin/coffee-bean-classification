@@ -64,6 +64,11 @@ def test_roast_preparer_reports_cross_split_exact_duplicate(tmp_path):
     audit = prepare_roast_coffee(raw, tmp_path / "prepared")
 
     assert len(audit["cross_split_exact_duplicates"]) == 1
+    record = audit["cross_split_exact_duplicates"][0]
+    assert record["kept_split"] == "test"
+    assert audit["deduplication_policy"] == "keep_test_then_val_then_train"
+    assert not list((tmp_path / "prepared" / "source" / "train" / "Dark").glob("*"))
+    assert len(list((tmp_path / "prepared" / "source" / "test" / "Dark").glob("*"))) == 2
 
 
 def test_roast_discovery_ignores_images_outside_known_split(tmp_path):

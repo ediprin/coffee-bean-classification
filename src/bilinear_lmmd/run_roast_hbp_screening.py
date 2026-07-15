@@ -56,10 +56,12 @@ def _ensure_data(raw_root: Path | None, data_root: Path, seed: int) -> dict:
     if not audit_path.is_file():
         raise FileNotFoundError(f"Audit dataset tidak ditemukan: {audit_path}")
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
-    if audit.get("cross_split_exact_duplicates"):
-        raise RuntimeError(
-            "Exact duplicate ditemukan lintas train/val/test. "
-            "Hasil tidak aman; periksa audit.json."
+    cross_split = audit.get("cross_split_exact_duplicates", [])
+    if cross_split:
+        print(
+            f"INFO: {len(cross_split)} grup duplikat lintas split sudah "
+            "dideduplikasi; salinan test/val diprioritaskan.",
+            flush=True,
         )
     if audit.get("cross_class_exact_conflicts"):
         raise RuntimeError(
