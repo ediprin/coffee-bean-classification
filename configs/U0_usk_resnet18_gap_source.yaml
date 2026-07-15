@@ -1,0 +1,20 @@
+data:
+  image_size: 256
+  batch_size: 32
+  rotation_angles: [0]
+model:
+  backbone: resnet18
+  pretrained: true
+  head: gap
+  num_classes: 4
+  out_indices: [4]
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 25
+  label_smoothing: 0.0
+  output_dir: outputs/U0_usk_resnet18_gap_source
+evaluation:
+  hard_groups:
+    peaberry_premium: [Peaberry, Premium]

@@ -74,7 +74,9 @@ DEFAULTS: dict[str, Any] = {
 def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     result = deepcopy(base)
     for key, value in override.items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
+        if key == "hard_groups":
+            result[key] = deepcopy(value)
+        elif isinstance(value, dict) and isinstance(result.get(key), dict):
             result[key] = _merge(result[key], value)
         else:
             result[key] = value

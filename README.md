@@ -43,6 +43,9 @@ Tahap B menguji kontribusi metode:
 | M5 | MobileNetV3 + HBP + LMMD | model usulan |
 | M5w01 | M5 dengan bobot LMMD 0,1 | rescue control untuk source degradation |
 
+Eksperimen lintas-dataset USK-Coffee memakai kode U0-U3; lihat bagian
+"Benchmark USK-Coffee" dan `docs/USK_COFFEE_PROTOCOL.md`.
+
 Model final tidak dikunci sebelum B0–B4 dibandingkan berdasarkan target
 macro-F1, parameter, ukuran FP32, latency, dan memori pada perangkat yang sama.
 
@@ -94,6 +97,32 @@ rotasinya masuk ke validation/test. Sudut default tetap mengikuti paper:
 Setelah proses ini, baseline `source_only` B0-B4 dan M0-M1 dapat langsung
 dijalankan. M2-M5 tetap membutuhkan `data/coffee/target/train` dan
 `data/coffee/target/val` dari domain pengambilan gambar lain.
+
+### Benchmark USK-Coffee
+
+USK-Coffee diperlakukan sebagai task empat kelas terpisah, bukan digabungkan
+dengan label Coffee17. Runner menemukan folder kelas secara rekursif,
+mempertahankan split arsip jika ada, menghapus exact duplicate, dan mengaudit
+pasangan sisi biji berdasarkan filename.
+
+Screening awal membandingkan MobileNetV2 paper, MobileNetV3-GAP, dan
+MobileNetV3-HBP pada validation seed 42:
+
+```powershell
+python -u -m bilinear_lmmd.run_usk_screening `
+  --raw-root /kaggle/input/usk-coffee `
+  --data-root /kaggle/working/usk-coffee-prepared `
+  --output-root /kaggle/working/usk-results `
+  --stage quick `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+Perintah yang sama dapat dijalankan ulang; dataset, training lengkap, dan
+report lengkap akan dilewati. Jika audit mendeteksi pasangan depan-belakang
+lintas split, runner berhenti sebelum training. Batas perbandingan terhadap
+test accuracy paper 81,31% dan protokol konfirmasi tersedia di
+[docs/USK_COFFEE_PROTOCOL.md](docs/USK_COFFEE_PROTOCOL.md).
 
 ### Benchmark domain sintetis terkontrol
 

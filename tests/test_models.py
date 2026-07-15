@@ -400,3 +400,28 @@ def test_attention_gap_configs_use_only_deepest_feature(config_path):
     assert tuple(cfg["model"]["out_indices"]) == (4,)
     assert output.logits.shape == (2, 17)
     assert output.embedding.shape[1] == model.pool.output_dim
+
+
+@pytest.mark.parametrize(
+    ("config_path", "backbone", "head"),
+    [
+        ("configs/U0_usk_resnet18_gap_source.yaml", "resnet18", "gap"),
+        ("configs/U1_usk_mobilenetv2_gap_source.yaml", "mobilenetv2_100", "gap"),
+        ("configs/U2_usk_mobilenetv3_gap_source.yaml", "mobilenetv3_large_100", "gap"),
+        ("configs/U3_usk_mobilenetv3_hbp_source.yaml", "mobilenetv3_large_100", "hbp"),
+    ],
+)
+def test_usk_configs_use_controlled_four_class_protocol(
+    config_path, backbone, head
+):
+    cfg = load_config(config_path)
+    assert cfg["model"]["backbone"] == backbone
+    assert cfg["model"]["head"] == head
+    assert cfg["model"]["num_classes"] == 4
+    assert cfg["data"]["image_size"] == 256
+    assert cfg["data"]["rotation_angles"] == [0]
+    assert cfg["training"]["epochs"] == 25
+    assert cfg["adaptation"]["method"] == "source_only"
+    assert cfg["evaluation"]["hard_groups"] == {
+        "peaberry_premium": ["Peaberry", "Premium"]
+    }

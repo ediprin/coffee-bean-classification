@@ -1,0 +1,21 @@
+data:
+  image_size: 256
+  batch_size: 32
+  rotation_angles: [0]
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: hbp
+  num_classes: 4
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 25
+  label_smoothing: 0.0
+  output_dir: outputs/U3_usk_mobilenetv3_hbp_source
+evaluation:
+  hard_groups:
+    peaberry_premium: [Peaberry, Premium]
