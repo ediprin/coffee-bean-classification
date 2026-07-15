@@ -425,3 +425,22 @@ def test_usk_configs_use_controlled_four_class_protocol(
     assert cfg["evaluation"]["hard_groups"] == {
         "peaberry_premium": ["Peaberry", "Premium"]
     }
+
+
+@pytest.mark.parametrize(
+    ("config_path", "head"),
+    [
+        ("configs/R0_roast_mobilenetv3_gap_source.yaml", "gap"),
+        ("configs/R1_roast_mobilenetv3_hbp_source.yaml", "hbp"),
+    ],
+)
+def test_roast_configs_isolate_hbp_effect(config_path, head):
+    cfg = load_config(config_path)
+    assert cfg["model"]["backbone"] == "mobilenetv3_large_100"
+    assert cfg["model"]["head"] == head
+    assert cfg["model"]["num_classes"] == 4
+    assert cfg["data"]["image_size"] == 224
+    assert cfg["adaptation"]["method"] == "source_only"
+    assert cfg["evaluation"]["hard_groups"] == {
+        "light_medium": ["Light", "Medium"]
+    }

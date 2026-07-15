@@ -1,0 +1,18 @@
+data:
+  image_size: 224
+  batch_size: 32
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: gap
+  num_classes: 4
+  out_indices: [4]
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  output_dir: outputs/R0_roast_mobilenetv3_gap_source
+evaluation:
+  hard_groups:
+    light_medium: [Light, Medium]

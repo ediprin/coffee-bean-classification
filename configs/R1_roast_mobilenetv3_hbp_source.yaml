@@ -1,0 +1,19 @@
+data:
+  image_size: 224
+  batch_size: 32
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: hbp
+  num_classes: 4
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  output_dir: outputs/R1_roast_mobilenetv3_hbp_source
+evaluation:
+  hard_groups:
+    light_medium: [Light, Medium]

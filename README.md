@@ -124,6 +124,26 @@ lintas split, runner berhenti sebelum training. Batas perbandingan terhadap
 test accuracy paper 81,31% dan protokol konfirmasi tersedia di
 [docs/USK_COFFEE_PROTOCOL.md](docs/USK_COFFEE_PROTOCOL.md).
 
+### Screening HBP pada dataset coffee roast
+
+Dataset publik tambahan dari Jiao et al. memiliki empat kelas roast-level,
+bukan kelas cacat. Uji minimal R0 (MobileNetV3-GAP) versus R1
+(MobileNetV3-HBP) dijalankan dengan:
+
+```powershell
+python -u -m bilinear_lmmd.run_roast_hbp_screening `
+  --raw-root /kaggle/input/coffee-bean-dataset-resized-224-x-224 `
+  --data-root /kaggle/working/coffee-roast-prepared `
+  --output-root /kaggle/working/coffee-roast-hbp-results `
+  --seeds 42 `
+  --evaluation-split val
+```
+
+Runner mempertahankan test bawaan, membuat validation hanya dari train bila
+perlu, serta berhenti saat menemukan exact duplicate lintas split. Protokol dan
+batas klaim tersedia di
+[docs/ROAST_HBP_PROTOCOL.md](docs/ROAST_HBP_PROTOCOL.md).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat
