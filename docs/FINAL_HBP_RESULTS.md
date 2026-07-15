@@ -116,3 +116,66 @@ XAI hanya dipakai setelah model dikunci. Heatmap tidak digunakan untuk memilih
 checkpoint atau tuning. Interpretasi wajib menyandingkan visual dengan
 foreground mass, background leakage, dan relative confidence drop; visual yang
 menarik saja tidak membuktikan model memakai fitur secara kausal.
+
+### Hasil XAI terpilih lintas seed
+
+Analisis kuantitatif memakai 36 sampel test: tiga sampel per outcome pada
+masing-masing seed 42, 123, dan 2026. Dengan demikian setiap outcome memiliki
+sembilan sampel. Tabel berikut adalah mean delta M1-M0; nilai relative drop
+positif berarti penghapusan region CAM M1 lebih merusak bukti kelas aktual
+relatif terhadap kelas pembanding daripada penghapusan region CAM M0.
+
+| Metode | Delta foreground mass | Delta background leakage | Delta relative confidence drop |
+|---|---:|---:|---:|
+| LayerCAM | -2,62 poin | +2,62 poin | +0,1381 |
+| Finer-LayerCAM | -2,42 poin | +2,42 poin | +0,1345 |
+
+Secara agregat, M1 tidak menghasilkan perhatian yang lebih terkonsentrasi pada
+foreground. CAM M1 sedikit lebih menyebar dan memiliki background leakage lebih
+tinggi. Namun region yang dipilih M1 lebih berpengaruh terhadap pemisahan kelas,
+ditunjukkan oleh relative confidence drop yang positif pada kedua metode.
+
+### Hasil per outcome
+
+| Outcome (n=9 masing-masing) | Metode | Delta foreground | Delta leakage | Delta relative drop |
+|---|---|---:|---:|---:|
+| `rescued_by_hbp` | LayerCAM | -5,35 poin | +5,35 poin | +0,5458 |
+| `rescued_by_hbp` | Finer-LayerCAM | -5,22 poin | +5,22 poin | +0,6174 |
+| `harmed_by_hbp` | LayerCAM | +1,42 poin | -1,42 poin | -0,2295 |
+| `harmed_by_hbp` | Finer-LayerCAM | +1,46 poin | -1,46 poin | -0,2764 |
+| `both_correct` | LayerCAM | -2,04 poin | +2,04 poin | -0,0406 |
+| `both_correct` | Finer-LayerCAM | -1,20 poin | +1,20 poin | -0,0820 |
+| `both_wrong` | LayerCAM | -4,51 poin | +4,51 poin | +0,2767 |
+| `both_wrong` | Finer-LayerCAM | -4,72 poin | +4,72 poin | +0,2789 |
+
+Perbedaan paling jelas muncul antara sampel yang diselamatkan dan dirusak HBP.
+Pada Finer-LayerCAM, pemisahan relative drop keduanya adalah 0,8938
+(`+0,6174 - (-0,2764)`); pada LayerCAM nilainya 0,7753. Sebaliknya, foreground
+mass lebih tinggi pada outcome `harmed_by_hbp` dan lebih rendah pada
+`rescued_by_hbp`. Karena itu, konsentrasi perhatian di dalam biji saja bukan
+indikator keberhasilan. Temuan diagnostik mendukung interpretasi bahwa HBP
+membantu ketika fitur lokalnya menjadi lebih diskriminatif terhadap kelas
+pesaing, bukan karena HBP sekadar melihat lebih banyak foreground.
+
+Relative drop positif pada `both_wrong` hanya menunjukkan bahwa sebagian region
+membawa bukti bagi kelas aktual; bukti itu tetap tidak cukup membuat kelas
+aktual memperoleh logit tertinggi. Nilai tersebut bukan bukti bahwa prediksi
+model benar.
+
+Gallery berikut adalah contoh kualitatif seed 42 dengan satu sampel per outcome:
+
+![Gallery LayerCAM dan Finer-LayerCAM M0 vs M1](final_hbp_xai_seed42_gallery.png)
+
+### Batas klaim XAI
+
+- Sampel diseimbangkan 9/9/9/9 berdasarkan outcome dan tidak merepresentasikan
+  prevalensi alami outcome pada seluruh test.
+- Target CAM adalah kelas aktual, termasuk ketika model salah. CAM pada error
+  menjelaskan bukti untuk label benar, bukan secara langsung alasan model
+  memilih label prediksinya.
+- M0 menjelaskan satu feature map terdalam, sedangkan M1 menggabungkan tiga
+  kedalaman yang dipakai HBP. Perbedaan granularitas spasial karena itu sebagian
+  melekat pada desain model; sharpness heatmap tidak boleh dipakai sendirian
+  sebagai bukti superioritas.
+- Deletion metric lebih dekat ke uji faithfulness daripada inspeksi visual,
+  tetapi tetap merupakan perturbasi post-hoc dan bukan bukti kausal.
