@@ -168,13 +168,22 @@ def run_decoupled_screening(
     seeds: list[int],
     evaluation_split: str,
     preset: str = "coffee17",
+    models: list[str] | None = None,
 ) -> None:
     model_configs = PRESETS[preset]
     roles = PRESET_ROLES[preset]
+    selected_models = models or list(model_configs)
+    unknown = sorted(set(selected_models).difference(model_configs))
+    if unknown:
+        raise ValueError(
+            f"Model tidak tersedia untuk preset {preset}: {unknown}; "
+            f"pilihan={list(model_configs)}"
+        )
     report_root = _report_root(output_root, evaluation_split)
     report_root.mkdir(parents=True, exist_ok=True)
     print(f"=== RANCANGAN DECOUPLED GAP-HBP: {preset.upper()} ===")
-    for code, config_path in model_configs.items():
+    for code in selected_models:
+        config_path = model_configs[code]
         cfg = load_config(config_path)
         cfg["model"]["pretrained"] = False
         parameters = sum(
@@ -182,7 +191,8 @@ def run_decoupled_screening(
         )
         print(f"{code}: head={cfg['model']['head']} params={parameters:,}")
 
-    for code, config_path in model_configs.items():
+    for code in selected_models:
+        config_path = model_configs[code]
         epochs = int(load_config(config_path)["training"]["epochs"])
         for seed in seeds:
             run_dir = output_root / "outputs" / f"{code}_seed{seed}"
@@ -237,6 +247,7 @@ def run_decoupled_screening(
         (roles["gap"], roles["fixed"], "fixed fusion decoupled"),
         (roles["hbp"], roles["fixed"], "fixed fusion vs HBP"),
         (roles["fixed"], roles["learned"], "learned gate vs fixed fusion"),
+        (roles["hbp"], roles["learned"], "learned dual-branch vs HBP"),
         (
             roles["gap"],
             f"{roles['learned']}_detachable_gap",
@@ -245,18 +256,32 @@ def run_decoupled_screening(
     ):
         _compare(report_root, baseline, candidate, seeds, description)
 
-    audits = []
+    audit_path = report_root / "expert_complementarity.json"
+    existing_audits = []
+    if audit_path.is_file():
+        try:
+            existing_audits = json.loads(audit_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing_audits = []
+    audits_by_key = {
+        (row.get("model"), row.get("seed")): row
+        for row in existing_audits
+        if isinstance(row, dict)
+    }
     for model in (roles["fixed"], roles["learned"]):
         for seed in seeds:
             result = _complementarity(report_root, model, seed)
             if result is not None:
-                audits.append(result)
+                audits_by_key[(model, seed)] = result
                 print(
                     f"{model} seed {seed}: agreement={result['prediction_agreement']:.2%} "
                     f"GAP-only={result['gap_only']} HBP-only={result['hbp_only']} "
                     f"oracle={result['oracle_accuracy']:.2%}"
                 )
-    (report_root / "expert_complementarity.json").write_text(
+    audits = sorted(
+        audits_by_key.values(), key=lambda row: (str(row.get("model")), int(row.get("seed", 0)))
+    )
+    audit_path.write_text(
         json.dumps(audits, indent=2), encoding="utf-8"
     )
     print("\nSCREENING SELESAI. Jangan buka test sebelum kandidat validation dikunci.")
@@ -269,6 +294,11 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[123])
     parser.add_argument("--preset", choices=tuple(PRESETS), default="coffee17")
     parser.add_argument(
+        "--models",
+        nargs="+",
+        help="Subset kode model pada preset, misalnya CBD1 CBDD2.",
+    )
+    parser.add_argument(
         "--evaluation-split", choices=("val", "test"), default="val"
     )
     args = parser.parse_args()
@@ -278,6 +308,7 @@ def main() -> None:
         args.seeds,
         args.evaluation_split,
         args.preset,
+        args.models,
     )
 
 

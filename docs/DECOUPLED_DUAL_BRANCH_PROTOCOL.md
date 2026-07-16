@@ -133,6 +133,21 @@ subprocess.run([
 Preset CBD memakai kode CBD0, CBD1, CBDD1, dan CBDD2, `num_classes=8`, 25
 epoch, serta hard group tujuh kelas cacat. CBD bukan external test Coffee-17.
 
+Setelah screening seed 42 mengunci CBD1 dan CBDD2, confirmation validation
+tidak perlu melatih ulang kontrol yang gugur:
+
+```python
+subprocess.run([
+    sys.executable, "-u", "-m", "bilinear_lmmd.run_decoupled_screening",
+    "--preset", "cbd",
+    "--models", "CBD1", "CBDD2",
+    "--data-root", str(PREPARED_ROOT),
+    "--output-root", "/kaggle/working/cbd-decoupled-results",
+    "--seeds", "123", "2026",
+    "--evaluation-split", "val",
+], check=True, env=env)
+```
+
 ## Batas klaim
 
 - D1/D2 adalah sintesis eksperimental, bukan implementasi identik ONE atau
