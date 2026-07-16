@@ -101,3 +101,32 @@ python -u -m bilinear_lmmd.run_cbd_multiclassify_screening \
 Perintah dapat dijalankan ulang. Training CBD0/CBD1 yang sudah lengkap akan
 dilewati; setelah update runner hanya CBD2/CBD3 yang dilatih. Training yang
 memiliki `history.json` lengkap dan `best.pt` akan dilewati.
+
+## Konfirmasi logistic stacking
+
+Eksperimen seed 42 menunjukkan bahwa concatenated log-probability GAP/HBP yang
+diproses `StandardScaler` dan `LogisticRegression(C=1)` mengungguli GAP mentah
+serta kontrol kalibrasi single-model. Pipeline stacking kemudian dikunci tanpa
+tuning tambahan dan dikonfirmasi pada seed 42, 123, dan 2026.
+
+Untuk setiap seed, meta-model dilatih pada prediction validation dan dievaluasi
+sekali pada prediction test. Kontrol `GAP_CAL` dan `HBP_CAL` memakai meta-model
+yang sama tetapi hanya menerima log-probability satu model. Dengan demikian,
+keuntungan stacking di luar kontrol terbaik dapat diatribusikan pada fusion,
+bukan sekadar kalibrasi kelas.
+
+Kriteria PASS yang dikunci:
+
+1. mean Macro-F1 stacking minimal 0,3 poin di atas calibrated control terbaik;
+2. mean Worst-F1 tidak lebih rendah dari calibrated control terbaik;
+3. Macro-F1 stacking mengungguli masing-masing kontrol pada minimal 2/3 seed.
+
+```bash
+python -u -m bilinear_lmmd.run_cbd_stacking_confirmation \
+  --data-root /kaggle/working/cbd-multiclassify-prepared \
+  --output-root /kaggle/working/cbd-hbp-results \
+  --seeds 42 123 2026
+```
+
+Hasil tetap merupakan benchmark sekunder satu split dataset CBD, bukan bukti
+bahwa stacking atau HBP unggul universal.

@@ -707,6 +707,16 @@ efek HBP. Dataset ini tidak dicampur dengan Coffee-17 karena labelnya lebih
 kasar. Protokol dan batas klaim lengkap ada di
 [`docs/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/CBD_MULTICLASSIFY_PROTOCOL.md).
 
+Konfirmasi tiga seed untuk logistic stacking GAP-HBP dapat dilanjutkan tanpa
+mengulang run yang sudah lengkap:
+
+```bash
+python -u -m bilinear_lmmd.run_cbd_stacking_confirmation \
+  --data-root data/cbd_multiclassify_prepared \
+  --output-root outputs/cbd_hbp \
+  --seeds 42 123 2026
+```
+
 ## Screening preservasi spasial HBP
 
 M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada
