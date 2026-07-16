@@ -824,3 +824,23 @@ def test_roast_configs_isolate_hbp_effect(config_path, head):
     assert cfg["evaluation"]["hard_groups"] == {
         "light_medium": ["Light", "Medium"]
     }
+
+
+def test_cbd_capacity_control_matches_decoupled_parameter_count():
+    control = load_config(
+        "configs/CBDC1_mobilenetv3_capacity_residual_hbp_source.yaml"
+    )
+    candidate = load_config(
+        "configs/CBDD2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"
+    )
+    control["model"]["pretrained"] = False
+    candidate["model"]["pretrained"] = False
+    control_parameters = sum(
+        parameter.numel() for parameter in build_model(control["model"]).parameters()
+    )
+    candidate_parameters = sum(
+        parameter.numel() for parameter in build_model(candidate["model"]).parameters()
+    )
+    assert control["model"]["capacity_hidden_dim"] == 1137
+    assert abs(control_parameters - candidate_parameters) <= 528
+    assert abs(control_parameters - candidate_parameters) / candidate_parameters < 0.0001

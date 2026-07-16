@@ -130,7 +130,7 @@ subprocess.run([
 ], check=True, env=env)
 ```
 
-Preset CBD memakai kode CBD0, CBD1, CBDD1, dan CBDD2, `num_classes=8`, 25
+Preset CBD memakai kode CBD0, CBD1, CBDC1, CBDD1, dan CBDD2, `num_classes=8`, 25
 epoch, serta hard group tujuh kelas cacat. CBD bukan external test Coffee-17.
 
 Setelah screening seed 42 mengunci CBD1 dan CBDD2, confirmation validation
@@ -145,6 +145,37 @@ subprocess.run([
     "--output-root", "/kaggle/working/cbd-decoupled-results",
     "--seeds", "123", "2026",
     "--evaluation-split", "val",
+], check=True, env=env)
+```
+
+Setelah CBDD2 menang pada test yang telah dikunci, capacity audit diperlakukan
+sebagai analisis post-hoc. CBDC1 memakai ordinary HBP dengan residual pointwise
+block berdimensi 1137: 5.735.706 parameter versus 5.736.234 pada CBDD2
+(selisih 528; kurang dari 0,01%). Dimensi ini dikunci berdasarkan jumlah
+parameter, bukan performa.
+
+```python
+subprocess.run([
+    sys.executable, "-u", "-m", "bilinear_lmmd.run_decoupled_screening",
+    "--preset", "cbd",
+    "--models", "CBDC1",
+    "--data-root", str(DATA_ROOT),
+    "--output-root", str(OUTPUT_ROOT),
+    "--seeds", "42", "123", "2026",
+    "--evaluation-split", "val",
+], check=True, env=env)
+```
+
+Benchmark arsitektur dijalankan pada perangkat dan session yang sama:
+
+```python
+subprocess.run([
+    sys.executable, "-u", "-m", "bilinear_lmmd.run_decoupled_efficiency",
+    "--output", str(OUTPUT_ROOT / "efficiency.json"),
+    "--models", "CBD1", "CBDC1", "CBDD2",
+    "--batch-sizes", "1", "32",
+    "--warmup", "20",
+    "--iterations", "100",
 ], check=True, env=env)
 ```
 

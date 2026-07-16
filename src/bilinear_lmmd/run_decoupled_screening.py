@@ -22,6 +22,7 @@ PRESETS = {
     "cbd": {
         "CBD0": Path("configs/CBD0_mobilenetv3_gap_source.yaml"),
         "CBD1": Path("configs/CBD1_mobilenetv3_hbp_source.yaml"),
+        "CBDC1": Path("configs/CBDC1_mobilenetv3_capacity_residual_hbp_source.yaml"),
         "CBDD1": Path("configs/CBDD1_mobilenetv3_decoupled_gap_hbp_fixed_source.yaml"),
         "CBDD2": Path("configs/CBDD2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"),
     },
@@ -29,7 +30,13 @@ PRESETS = {
 
 PRESET_ROLES = {
     "coffee17": {"gap": "M0", "hbp": "M1", "fixed": "D1", "learned": "D2"},
-    "cbd": {"gap": "CBD0", "hbp": "CBD1", "fixed": "CBDD1", "learned": "CBDD2"},
+    "cbd": {
+        "gap": "CBD0",
+        "hbp": "CBD1",
+        "capacity": "CBDC1",
+        "fixed": "CBDD1",
+        "learned": "CBDD2",
+    },
 }
 
 
@@ -242,7 +249,7 @@ def run_decoupled_screening(
                 prediction_head="gap",
             )
 
-    for baseline, candidate, description in (
+    comparisons = [
         (roles["gap"], roles["hbp"], "kontrol efek HBP"),
         (roles["gap"], roles["fixed"], "fixed fusion decoupled"),
         (roles["hbp"], roles["fixed"], "fixed fusion vs HBP"),
@@ -253,7 +260,19 @@ def run_decoupled_screening(
             f"{roles['learned']}_detachable_gap",
             "HBP sebagai auxiliary training-only",
         ),
-    ):
+    ]
+    if "capacity" in roles:
+        comparisons.extend(
+            [
+                (roles["hbp"], roles["capacity"], "efek kapasitas tambahan pada HBP"),
+                (
+                    roles["capacity"],
+                    roles["learned"],
+                    "dual GAP-HBP vs capacity-matched HBP",
+                ),
+            ]
+        )
+    for baseline, candidate, description in comparisons:
         _compare(report_root, baseline, candidate, seeds, description)
 
     audit_path = report_root / "expert_complementarity.json"
