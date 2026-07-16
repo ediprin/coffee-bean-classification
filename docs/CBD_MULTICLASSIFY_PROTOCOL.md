@@ -130,3 +130,62 @@ python -u -m bilinear_lmmd.run_cbd_stacking_confirmation \
 
 Hasil tetap merupakan benchmark sekunder satu split dataset CBD, bukan bukti
 bahwa stacking atau HBP unggul universal.
+
+### Hasil konfirmasi stacking
+
+Konfirmasi test pada seed 42, 123, dan 2026 menghasilkan:
+
+| Model | Macro-F1 | Worst-F1 |
+|---|---:|---:|
+| GAP raw | 90,66% +/- 1,01% | 76,31% +/- 0,76% |
+| HBP raw | 90,44% +/- 0,26% | 75,47% +/- 1,46% |
+| GAP calibrated | 91,46% +/- 0,26% | 75,54% +/- 1,27% |
+| HBP calibrated | 90,85% +/- 0,77% | 77,03% +/- 0,30% |
+| GAP-HBP stacking | **92,32% +/- 0,21%** | **77,37% +/- 2,89%** |
+
+Fusion margin terhadap calibrated control terbaik adalah +0,86 poin
+Macro-F1 dan +0,34 poin Worst-F1, sehingga keputusan pra-registrasi adalah
+**PASS**. Secara teknis ini adalah *holdout probability stacking/blending*:
+meta-model dilatih dari validation prediction, bukan dari prediction
+out-of-fold seluruh training set. Worst-F1 stacking juga lebih bervariasi dan
+turun pada seed 2026; variasi ini tetap dilaporkan.
+
+## Knowledge distillation stacking ke satu CNN
+
+Karena stacking membutuhkan GAP CNN dan HBP CNN saat inference, tahap berikutnya
+menguji apakah soft target stacking dapat dipindahkan ke satu student
+MobileNetV3-GAP. Teacher tetap dibangun per seed dari checkpoint GAP/HBP dan
+logistic meta-model yang hanya di-fit pada validation prediction. Teacher dan
+student menerima augmentasi online yang sama pada training image. Test tidak
+dipakai untuk fitting atau pemilihan checkpoint.
+
+Konfigurasi dikunci sebelum hasil KD dilihat:
+
+- student: MobileNetV3-Large + GAP;
+- epoch dan augmentasi: sama dengan CBD0;
+- temperature: 2;
+- loss: `0.5 * CE + 0.5 * T^2 * KL`;
+- `GAP_KD_CONTROL`: distilasi dari GAP calibrated untuk mengontrol efek
+  kalibrasi;
+- `STACKING_KD`: distilasi dari GAP-HBP stacking untuk menguji transfer fusion;
+- inference student hanya memakai satu GAP CNN; kedua teacher CNN tidak dibawa
+  ke deployment.
+
+Kriteria konfirmasi tiga seed:
+
+1. mean Macro-F1 `STACKING_KD` minimal +0,3 poin atas GAP raw;
+2. mean Worst-F1 tidak lebih rendah dari GAP raw;
+3. mean Macro-F1 `STACKING_KD` lebih tinggi dari `GAP_KD_CONTROL`;
+4. Macro-F1 mengungguli GAP raw pada minimal 2/3 seed.
+
+Screening seed 42 dijalankan dahulu untuk menghemat GPU:
+
+```bash
+python -u -m bilinear_lmmd.run_cbd_kd_confirmation \
+  --data-root /kaggle/working/cbd-multiclassify-prepared \
+  --output-root /kaggle/working/cbd-hbp-results \
+  --seeds 42
+```
+
+Jika screening menjanjikan, konfirmasi dilanjutkan memakai perintah yang sama
+dengan `--seeds 42 123 2026`. Run seed 42 yang lengkap akan dilewati.

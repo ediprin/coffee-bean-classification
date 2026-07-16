@@ -717,6 +717,22 @@ python -u -m bilinear_lmmd.run_cbd_stacking_confirmation \
   --seeds 42 123 2026
 ```
 
+Setelah stacking tiga seed berstatus PASS, distilasi teacher GAP-HBP ke satu
+student GAP dapat disaring pada seed 42. CBD4 adalah kontrol KD dari GAP yang
+terkalibrasi, sedangkan CBD5 menerima teacher stacking:
+
+```bash
+python -u -m bilinear_lmmd.run_cbd_kd_confirmation \
+  --data-root data/cbd_multiclassify_prepared \
+  --output-root outputs/cbd_hbp \
+  --seeds 42
+```
+
+Jika hasil screening layak, ubah seed menjadi `42 123 2026`; artefak lengkap
+akan dilewati. Student hasil KD tetap satu MobileNetV3-GAP saat inference.
+Rancangan, kontrol kalibrasi, dan kriteria keputusan tercatat di
+[`docs/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/CBD_MULTICLASSIFY_PROTOCOL.md).
+
 ## Screening preservasi spasial HBP
 
 M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada

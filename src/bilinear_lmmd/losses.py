@@ -38,6 +38,52 @@ class BalancedSoftmaxLoss(nn.Module):
         )
 
 
+class KnowledgeDistillationLoss(nn.Module):
+    """Blend hard-label CE with temperature-scaled teacher KL divergence."""
+
+    def __init__(
+        self,
+        temperature: float = 2.0,
+        hard_weight: float = 0.5,
+        label_smoothing: float = 0.1,
+    ):
+        super().__init__()
+        if temperature <= 0.0:
+            raise ValueError("temperature harus lebih besar dari nol.")
+        if not 0.0 <= hard_weight <= 1.0:
+            raise ValueError("hard_weight harus berada pada [0, 1].")
+        if not 0.0 <= label_smoothing < 1.0:
+            raise ValueError("label_smoothing harus berada pada [0, 1).")
+        self.temperature = float(temperature)
+        self.hard_weight = float(hard_weight)
+        self.label_smoothing = float(label_smoothing)
+
+    def forward(
+        self,
+        student_logits: Tensor,
+        teacher_logits: Tensor,
+        labels: Tensor,
+    ) -> tuple[Tensor, dict[str, Tensor]]:
+        if student_logits.shape != teacher_logits.shape:
+            raise ValueError(
+                "Dimensi logits student dan teacher harus identik "
+                f"({student_logits.shape} vs {teacher_logits.shape})."
+            )
+        hard = F.cross_entropy(
+            student_logits,
+            labels,
+            label_smoothing=self.label_smoothing,
+        )
+        temperature = self.temperature
+        soft = F.kl_div(
+            F.log_softmax(student_logits / temperature, dim=1),
+            F.softmax(teacher_logits / temperature, dim=1),
+            reduction="batchmean",
+        ) * (temperature**2)
+        total = self.hard_weight * hard + (1.0 - self.hard_weight) * soft
+        return total, {"hard_ce": hard, "soft_kl": soft}
+
+
 def _multi_rbf_kernel(
     source: Tensor,
     target: Tensor,

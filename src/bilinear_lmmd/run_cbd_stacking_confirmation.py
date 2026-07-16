@@ -112,17 +112,24 @@ def _metrics(labels: np.ndarray, predictions: np.ndarray, classes: list[str]) ->
     }
 
 
-def _meta_predict(
+def fit_meta_model(
     train_features: np.ndarray,
     train_labels: np.ndarray,
-    test_features: np.ndarray,
-) -> np.ndarray:
+) -> object:
     model = make_pipeline(
         StandardScaler(),
         LogisticRegression(C=1.0, max_iter=2000, random_state=42),
     )
     model.fit(train_features, train_labels)
-    return model.predict(test_features)
+    return model
+
+
+def _meta_predict(
+    train_features: np.ndarray,
+    train_labels: np.ndarray,
+    test_features: np.ndarray,
+) -> np.ndarray:
+    return fit_meta_model(train_features, train_labels).predict(test_features)
 
 
 def stack_seed(

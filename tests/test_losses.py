@@ -2,6 +2,7 @@ import torch
 
 from bilinear_lmmd.losses import (
     BalancedSoftmaxLoss,
+    KnowledgeDistillationLoss,
     LMMDLoss,
     MMDLoss,
     NonTargetExpertDiversityLoss,
@@ -32,6 +33,34 @@ def test_balanced_softmax_rejects_empty_class():
         assert "lebih besar dari nol" in str(exc)
     else:
         raise AssertionError("Expected ValueError for zero class count")
+
+
+def test_knowledge_distillation_loss_backpropagates():
+    student = torch.tensor(
+        [[1.0, 0.0, -1.0], [0.0, 1.0, -1.0]], requires_grad=True
+    )
+    teacher = torch.tensor([[2.0, 0.0, -2.0], [0.0, 2.0, -2.0]])
+    labels = torch.tensor([0, 1])
+    criterion = KnowledgeDistillationLoss(temperature=2.0, hard_weight=0.5)
+    loss, components = criterion(student, teacher, labels)
+    loss.backward()
+    assert loss.item() > 0
+    assert set(components) == {"hard_ce", "soft_kl"}
+    assert student.grad is not None
+
+
+def test_knowledge_distillation_rejects_mismatched_logits():
+    criterion = KnowledgeDistillationLoss()
+    try:
+        criterion(
+            torch.zeros(2, 3),
+            torch.zeros(2, 4),
+            torch.zeros(2, dtype=torch.long),
+        )
+    except ValueError as exc:
+        assert "Dimensi logits" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for mismatched logits")
 
 
 def test_mmd_is_finite_and_near_zero_for_identical_features():
