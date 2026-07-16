@@ -684,6 +684,27 @@ grouped M0/M1 tetap bukti utama. Ringkasan lengkap tersedia di
 [`docs/PAPER_REPRODUCTION_PROTOCOL.md`](docs/PAPER_REPRODUCTION_PROTOCOL.md)
 dan [`docs/PAPER_REPRODUCTION_RESULTS.json`](docs/PAPER_REPRODUCTION_RESULTS.json).
 
+## Benchmark Roboflow CBD-Multiclassify
+
+Dataset publik `asdasd-zsar1/cbd-multiclassify` dipakai sebagai benchmark
+terpisah sepuluh kelas untuk menguji generalitas efek HBP. Runner mengeluarkan
+`Unlabeled`, melakukan exact deduplication, dan membuat split baru 60/20/20
+secara identity-grouped berdasarkan nama asli sebelum suffix `.rf.<hash>`:
+
+```bash
+python -u -m bilinear_lmmd.run_cbd_multiclassify_screening \
+  --raw-root RAW_CBD_MULTICLASSIFY \
+  --data-root data/cbd_multiclassify_prepared \
+  --output-root outputs/cbd_hbp \
+  --seeds 42 \
+  --evaluation-split val
+```
+
+CBD0 adalah MobileNetV3-GAP+CE dan CBD1 adalah MobileNetV3-HBP+CE. Dataset ini
+tidak dicampur dengan Coffee-17 karena labelnya lebih kasar. Protokol dan batas
+klaim lengkap ada di
+[`docs/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/CBD_MULTICLASSIFY_PROTOCOL.md).
+
 ## Screening preservasi spasial HBP
 
 M1 memakai endpoint MobileNetV3 berukuran 56 x 56, 14 x 14, dan 7 x 7 pada
