@@ -101,3 +101,26 @@ def test_aggregate_requires_consistent_fusion_gain():
     aggregate = aggregate_seed_results(seed_results)
     assert aggregate["pre_registered_decision"]["status"] == "PASS"
     assert aggregate["stacking_deltas"]["GAP_CAL"]["macro_f1"]["improved_seeds"] == 3
+
+
+def test_one_seed_stacking_is_screening_not_failure():
+    result = {
+        "models": {
+            name: {
+                "accuracy": value,
+                "macro_f1": value,
+                "defect_f1": value,
+                "worst_f1": value,
+                "worst_class": "Black",
+            }
+            for name, value in {
+                "GAP_RAW": 0.80,
+                "HBP_RAW": 0.81,
+                "GAP_CAL": 0.84,
+                "HBP_CAL": 0.83,
+                "STACKING": 0.85,
+            }.items()
+        }
+    }
+    aggregate = aggregate_seed_results({42: result})
+    assert aggregate["pre_registered_decision"]["status"] == "SCREEN_ONLY"

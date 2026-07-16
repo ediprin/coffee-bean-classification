@@ -240,7 +240,13 @@ def aggregate_seed_results(seed_results: dict[int, dict]) -> dict:
         deltas[control]["macro_f1"]["improved_seeds"] >= 2
         for control in ("GAP_CAL", "HBP_CAL")
     )
-    passed = macro_margin >= 0.003 and worst_margin >= 0.0 and consistent
+    full_confirmation = len(seed_results) >= 3
+    passed = (
+        full_confirmation
+        and macro_margin >= 0.003
+        and worst_margin >= 0.0
+        and consistent
+    )
     return {
         "seeds": list(seed_results),
         "models": models,
@@ -254,7 +260,9 @@ def aggregate_seed_results(seed_results: dict[int, dict]) -> dict:
                 "worst_margin_minimum": 0.0,
                 "minimum_improved_seeds_vs_each_control": 2,
             },
-            "status": "PASS" if passed else "FAIL",
+            "status": (
+                "PASS" if passed else ("FAIL" if full_confirmation else "SCREEN_ONLY")
+            ),
         },
     }
 

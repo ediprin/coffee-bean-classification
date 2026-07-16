@@ -134,8 +134,20 @@ def run_kd_confirmation(data_root: Path, output_root: Path, seeds: list[int]) ->
             f"{stacking_summary}"
         )
     stacking_aggregate = json.loads(stacking_summary.read_text(encoding="utf-8"))
-    if stacking_aggregate["pre_registered_decision"]["status"] != "PASS":
-        raise RuntimeError("KD dibatalkan karena teacher stacking belum PASS.")
+    stacking_status = stacking_aggregate["pre_registered_decision"]["status"]
+    available_seeds = set(stacking_aggregate.get("seeds", []))
+    if not set(seeds).issubset(available_seeds):
+        raise RuntimeError(
+            "Ringkasan stacking tidak memuat seluruh seed KD yang diminta."
+        )
+    if stacking_status != "PASS":
+        one_seed_screen = len(seeds) == 1 and stacking_status == "SCREEN_ONLY"
+        if not one_seed_screen:
+            raise RuntimeError("KD dibatalkan karena teacher stacking belum PASS.")
+        print(
+            "KD SCREENING: teacher stacking satu seed; hasil bukan konfirmasi.",
+            flush=True,
+        )
 
     for seed in seeds:
         gap_checkpoint = output_root / "outputs" / f"CBD0_seed{seed}" / "best.pt"
