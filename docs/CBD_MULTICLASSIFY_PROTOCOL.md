@@ -55,20 +55,32 @@ near-duplicate yang namanya telah berubah total.
 |---|---|
 | CBD0 | MobileNetV3-Large + GAP + CE |
 | CBD1 | MobileNetV3-Large + HBP + CE |
+| CBD2 | MobileNetV3-Large + GAP + Balanced Softmax |
+| CBD3 | MobileNetV3-Large + HBP + Balanced Softmax |
 
 Keduanya memakai input 224, 25 epoch, dan konfigurasi training yang sama.
 Budget 25 epoch dipilih untuk screening karena dataset ini jauh lebih besar
 daripada Coffee-17. `Defect-F1` adalah macro-F1 tujuh kelas selain `Good`;
-Macro-F1 dan Worst-class F1 tetap menjadi metrik utama.
+Macro-F1 dan Worst-class F1 tetap menjadi metrik utama. CBD2/CBD3 menerapkan
+Balanced Softmax dari Ren et al. (NeurIPS 2020): logit training ditambah log
+jumlah sampel kelas, sementara logit inference tidak diubah. Natural sampling
+tetap dipakai; tidak ada penghapusan kelas mayoritas atau oversampling fisik.
 
 ## Protokol keputusan
 
-1. Screening validation seed 42.
-2. Jika CBD1 tidak menaikkan Macro-F1 dan Worst-class F1, HBP tidak dilanjutkan
-   pada dataset ini.
-3. Jika lolos, jalankan seed 42, 123, dan 2026 pada test.
-4. Klaim akhir harus memuat mean, sample standard deviation delta berpasangan,
+1. Screening CE validation seed 42 menunjukkan CBD1 tidak mengungguli CBD0.
+2. Karena rasio `Good` terhadap `Floater` sekitar 24:1, dilakukan satu follow-up
+   faktorial terkontrol dengan Balanced Softmax pada seed/split yang sama.
+3. CBD3 harus menaikkan Macro-F1 dan Worst-class F1 terhadap CBD2 agar HBP
+   dinyatakan lolos di bawah penanganan imbalance.
+4. Jika salah satu tidak naik, eksperimen berhenti tanpa tiga seed test.
+5. Jika lolos, jalankan seed 42, 123, dan 2026 pada test.
+6. Klaim akhir harus memuat mean, sample standard deviation delta berpasangan,
    dan jumlah seed yang membaik.
+
+Referensi: Ren et al., *Balanced Meta-Softmax for Long-Tailed Visual
+Recognition*, NeurIPS 2020,
+https://papers.nips.cc/paper_files/paper/2020/hash/2ba61cc3a8f44143e1f2f13b2b729ab3-Abstract.html.
 
 Hasil ini menguji generalitas efek HBP pada dataset publik kedua, tetapi bukan
 external validation model Coffee-17 karena jumlah dan makna kelas berbeda.
@@ -86,5 +98,6 @@ python -u -m bilinear_lmmd.run_cbd_multiclassify_screening \
   --evaluation-split val
 ```
 
-Perintah dapat dijalankan ulang. Training yang memiliki `history.json` lengkap
-dan `best.pt` akan dilewati.
+Perintah dapat dijalankan ulang. Training CBD0/CBD1 yang sudah lengkap akan
+dilewati; setelah update runner hanya CBD2/CBD3 yang dilatih. Training yang
+memiliki `history.json` lengkap dan `best.pt` akan dilewati.

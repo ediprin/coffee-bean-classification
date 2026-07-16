@@ -5,6 +5,39 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 
 
+class BalancedSoftmaxLoss(nn.Module):
+    """Balanced Softmax for long-tailed single-label classification.
+
+    Training logits are adjusted by the log class frequency. Raw model logits
+    remain unchanged for validation and inference.
+    """
+
+    def __init__(self, class_counts: Tensor, label_smoothing: float = 0.0):
+        super().__init__()
+        counts = torch.as_tensor(class_counts, dtype=torch.float32)
+        if counts.ndim != 1 or counts.numel() < 2:
+            raise ValueError("class_counts harus berupa vektor dengan minimal dua kelas.")
+        if torch.any(counts <= 0):
+            raise ValueError("Semua class_counts harus lebih besar dari nol.")
+        if not 0.0 <= label_smoothing < 1.0:
+            raise ValueError("label_smoothing harus berada pada [0, 1).")
+        self.register_buffer("log_class_counts", counts.log())
+        self.label_smoothing = float(label_smoothing)
+
+    def forward(self, logits: Tensor, labels: Tensor) -> Tensor:
+        if logits.ndim != 2 or logits.shape[1] != self.log_class_counts.numel():
+            raise ValueError(
+                "Dimensi kelas logits tidak cocok dengan class_counts "
+                f"({logits.shape} vs {self.log_class_counts.numel()})."
+            )
+        adjusted_logits = logits + self.log_class_counts.to(dtype=logits.dtype)
+        return F.cross_entropy(
+            adjusted_logits,
+            labels,
+            label_smoothing=self.label_smoothing,
+        )
+
+
 def _multi_rbf_kernel(
     source: Tensor,
     target: Tensor,

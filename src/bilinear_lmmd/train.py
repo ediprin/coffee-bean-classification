@@ -21,7 +21,12 @@ from tqdm import tqdm
 from .config import load_config
 from .data import build_loaders
 from .hierarchy import build_parent_hierarchy
-from .losses import LMMDLoss, MMDLoss, NonTargetExpertDiversityLoss
+from .losses import (
+    BalancedSoftmaxLoss,
+    LMMDLoss,
+    MMDLoss,
+    NonTargetExpertDiversityLoss,
+)
 from .models import build_model
 
 
@@ -300,9 +305,39 @@ def train(
         )
     else:
         raise ValueError("training.scheduler harus 'cosine' atau 'constant'.")
-    classification_loss = nn.CrossEntropyLoss(
-        label_smoothing=float(training_cfg.get("label_smoothing", 0.0))
-    )
+    label_smoothing = float(training_cfg.get("label_smoothing", 0.0))
+    classification_loss_name = str(
+        training_cfg.get("classification_loss", "cross_entropy")
+    ).lower()
+    if classification_loss_name == "cross_entropy":
+        classification_loss = nn.CrossEntropyLoss(
+            label_smoothing=label_smoothing
+        )
+    elif classification_loss_name == "balanced_softmax":
+        train_targets = torch.as_tensor(
+            loaders.source_train.dataset.targets, dtype=torch.long
+        )
+        class_counts = torch.bincount(
+            train_targets, minlength=len(loaders.classes)
+        )
+        classification_loss = BalancedSoftmaxLoss(
+            class_counts,
+            label_smoothing=label_smoothing,
+        ).to(device)
+        training_cfg["resolved_class_counts"] = {
+            name: int(class_counts[index])
+            for index, name in enumerate(loaders.classes)
+        }
+        print(
+            "CLASSIFICATION LOSS: Balanced Softmax | "
+            f"counts={training_cfg['resolved_class_counts']}",
+            flush=True,
+        )
+    else:
+        raise ValueError(
+            "training.classification_loss harus 'cross_entropy' atau "
+            "'balanced_softmax'."
+        )
     ema_decay = float(training_cfg.get("ema_decay", 0.0))
     ema_start_epoch = int(training_cfg.get("ema_start_epoch", 0))
     if ema_decay < 0.0 or ema_decay >= 1.0:

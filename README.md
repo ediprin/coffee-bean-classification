@@ -701,9 +701,10 @@ python -u -m bilinear_lmmd.run_cbd_multiclassify_screening \
   --evaluation-split val
 ```
 
-CBD0 adalah MobileNetV3-GAP+CE dan CBD1 adalah MobileNetV3-HBP+CE. Dataset ini
-tidak dicampur dengan Coffee-17 karena labelnya lebih kasar. Protokol dan batas
-klaim lengkap ada di
+CBD0/CBD1 membandingkan GAP dan HBP dengan CE. CBD2/CBD3 mengulang faktorial
+head yang sama memakai Balanced Softmax untuk menguji apakah imbalance menutupi
+efek HBP. Dataset ini tidak dicampur dengan Coffee-17 karena labelnya lebih
+kasar. Protokol dan batas klaim lengkap ada di
 [`docs/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/CBD_MULTICLASSIFY_PROTOCOL.md).
 
 ## Screening preservasi spasial HBP

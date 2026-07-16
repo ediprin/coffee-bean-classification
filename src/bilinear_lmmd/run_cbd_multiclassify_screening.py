@@ -15,7 +15,15 @@ from .prepare_cbd_multiclassify import EXPECTED_CLASSES, prepare_cbd_multiclassi
 MODEL_CONFIGS = {
     "CBD0": Path("configs/CBD0_mobilenetv3_gap_source.yaml"),
     "CBD1": Path("configs/CBD1_mobilenetv3_hbp_source.yaml"),
+    "CBD2": Path("configs/CBD2_mobilenetv3_gap_balanced_softmax.yaml"),
+    "CBD3": Path("configs/CBD3_mobilenetv3_hbp_balanced_softmax.yaml"),
 }
+COMPARISONS = (
+    ("CBD0", "CBD1", "efek HBP dengan CE"),
+    ("CBD0", "CBD2", "efek Balanced Softmax pada GAP"),
+    ("CBD1", "CBD3", "efek Balanced Softmax pada HBP"),
+    ("CBD2", "CBD3", "efek HBP dengan Balanced Softmax"),
+)
 
 
 def _run(command: list[str]) -> None:
@@ -133,29 +141,36 @@ def run_cbd_multiclassify_screening(
                 )
 
     report_root = _report_root(output_root, evaluation_split)
-    baseline = [
-        report_root / f"CBD0_seed{seed}" / "metrics.json" for seed in seeds
-    ]
-    candidate = [
-        report_root / f"CBD1_seed{seed}" / "metrics.json" for seed in seeds
-    ]
-    result = aggregate(baseline, candidate)
-    destination = report_root / "CBD0_vs_CBD1_aggregate.json"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print("\n=== CBD0 vs CBD1: EFEK HBP ===")
-    for key, label in (
-        ("accuracy", "Accuracy "),
-        ("macro_f1", "Macro-F1"),
-        ("hard_class_f1", "Defect-F1"),
-        ("worst_class_f1", "Worst-F1"),
-    ):
-        row = result["summary"][key]
-        print(
-            f"{label}: {row['baseline_mean']:.2%} -> "
-            f"{row['candidate_mean']:.2%} ({row['delta_mean']:+.2%})"
+    for baseline_code, candidate_code, description in COMPARISONS:
+        baseline = [
+            report_root / f"{baseline_code}_seed{seed}" / "metrics.json"
+            for seed in seeds
+        ]
+        candidate = [
+            report_root / f"{candidate_code}_seed{seed}" / "metrics.json"
+            for seed in seeds
+        ]
+        result = aggregate(baseline, candidate)
+        destination = (
+            report_root / f"{baseline_code}_vs_{candidate_code}_aggregate.json"
         )
-    print(f"SAVED: {destination}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        print(
+            f"\n=== {baseline_code} vs {candidate_code}: {description} ==="
+        )
+        for key, label in (
+            ("accuracy", "Accuracy "),
+            ("macro_f1", "Macro-F1"),
+            ("hard_class_f1", "Defect-F1"),
+            ("worst_class_f1", "Worst-F1"),
+        ):
+            row = result["summary"][key]
+            print(
+                f"{label}: {row['baseline_mean']:.2%} -> "
+                f"{row['candidate_mean']:.2%} ({row['delta_mean']:+.2%})"
+            )
+        print(f"SAVED: {destination}")
 
 
 def main() -> None:

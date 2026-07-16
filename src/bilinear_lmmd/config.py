@@ -61,6 +61,7 @@ DEFAULTS: dict[str, Any] = {
         "epochs": 50,
         "lr": 0.0003,
         "weight_decay": 0.0001,
+        "classification_loss": "cross_entropy",
         "label_smoothing": 0.1,
         "freeze_backbone": False,
         "scheduler": "cosine",

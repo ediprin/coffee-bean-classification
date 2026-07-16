@@ -1,6 +1,37 @@
 import torch
 
-from bilinear_lmmd.losses import LMMDLoss, MMDLoss, NonTargetExpertDiversityLoss
+from bilinear_lmmd.losses import (
+    BalancedSoftmaxLoss,
+    LMMDLoss,
+    MMDLoss,
+    NonTargetExpertDiversityLoss,
+)
+
+
+def test_balanced_softmax_matches_ce_for_equal_class_counts():
+    logits = torch.tensor([[1.0, -0.5, 0.2], [-1.0, 0.3, 1.1]])
+    labels = torch.tensor([0, 2])
+    balanced = BalancedSoftmaxLoss(torch.tensor([5, 5, 5]))(logits, labels)
+    expected = torch.nn.functional.cross_entropy(logits, labels)
+    assert torch.allclose(balanced, expected)
+
+
+def test_balanced_softmax_backpropagates_with_imbalanced_counts():
+    logits = torch.randn(4, 3, requires_grad=True)
+    labels = torch.tensor([0, 1, 2, 2])
+    loss = BalancedSoftmaxLoss(torch.tensor([100, 20, 5]), 0.1)(logits, labels)
+    loss.backward()
+    assert torch.isfinite(loss)
+    assert logits.grad is not None
+
+
+def test_balanced_softmax_rejects_empty_class():
+    try:
+        BalancedSoftmaxLoss(torch.tensor([10, 0, 3]))
+    except ValueError as exc:
+        assert "lebih besar dari nol" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for zero class count")
 
 
 def test_mmd_is_finite_and_near_zero_for_identical_features():
