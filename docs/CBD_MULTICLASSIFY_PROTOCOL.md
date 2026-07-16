@@ -5,37 +5,40 @@
 Menguji apakah efek HBP terhadap MobileNetV3 juga muncul pada dataset publik
 green coffee bean lain yang labelnya lebih kasar. Dataset sumber adalah proyek
 klasifikasi [`asdasd-zsar1/cbd-multiclassify`](https://universe.roboflow.com/asdasd-zsar1/cbd-multiclassify)
-di Roboflow Universe, yang pada halaman indeks dilaporkan berisi sekitar 4,01
-ribu gambar.
+di Roboflow Universe. Ekspor version 1 yang diaudit berisi 4.015 gambar.
 
 Eksperimen ini adalah benchmark terpisah. Gambar tidak dicampurkan ke Coffee-17
 karena ontologi labelnya berbeda.
 
 ## Ontologi
 
-Sepuluh kelas berlabel yang dipakai:
+Delapan kelas berlabel yang dipakai:
 
 - Black
 - Broken
-- Cherry
-- Damage
-- Dried
+- Dried Cherry
 - Floater
-- Fungus
+- Fungus Damage
 - Good
-- Insect
+- Insect Damage
 - Sour
 
-Folder `Unlabeled` dikeluarkan sebelum split dan jumlahnya dicatat di
-`audit.json`. Nama label yang lebih kasar tidak dipetakan paksa ke `Full Sour`,
-`Partial Sour`, `Slight Insect Damage`, atau `Severe Insect Damage` Coffee-17.
+Nama folder arsip dinormalisasi dari `Cherry Dried`, `Damage Fungus`, dan
+`Damage Insect` menjadi nama di atas. Dua gambar `Unlabeled` dikeluarkan sebelum
+split. Satu gambar pada folder terpisah `Insect` juga dikeluarkan karena label
+ini inkonsisten dengan `Damage Insect` yang memiliki 455 gambar dan n=1 tidak
+memungkinkan split/evaluasi kelas yang valid. Semua pengeluaran dicatat di
+`audit.json`.
+
+Nama label yang lebih kasar tidak dipetakan paksa ke `Full Sour`, `Partial Sour`,
+`Slight Insect Damage`, atau `Severe Insect Damage` Coffee-17.
 
 ## Audit dan split
 
 Preparer melakukan langkah berikut:
 
 1. menemukan struktur ekspor klasifikasi Roboflow `train/valid/test/Kelas`;
-2. mengeluarkan `Unlabeled`;
+2. mengeluarkan `Unlabeled` dan stray class `Insect` dengan n=1;
 3. membuang exact duplicate berlabel sama dan mengarantina konflik label;
 4. mengambil identitas gambar dari nama sebelum suffix `.rf.<hash>`;
 5. membuat ulang split 60/20/20 secara class-stratified dan identity-grouped.
@@ -55,7 +58,7 @@ near-duplicate yang namanya telah berubah total.
 
 Keduanya memakai input 224, 25 epoch, dan konfigurasi training yang sama.
 Budget 25 epoch dipilih untuk screening karena dataset ini jauh lebih besar
-daripada Coffee-17. `Defect-F1` adalah macro-F1 sembilan kelas selain `Good`;
+daripada Coffee-17. `Defect-F1` adalah macro-F1 tujuh kelas selain `Good`;
 Macro-F1 dan Worst-class F1 tetap menjadi metrik utama.
 
 ## Protokol keputusan

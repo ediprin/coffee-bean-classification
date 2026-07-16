@@ -5,7 +5,7 @@ model:
   backbone: mobilenetv3_large_100
   pretrained: true
   head: hbp
-  num_classes: 10
+  num_classes: 8
   out_indices: [1, 3, 4]
   projection_dim: 512
   classifier: linear
@@ -16,4 +16,4 @@ training:
   output_dir: outputs/CBD1_mobilenetv3_hbp_source
 evaluation:
   hard_groups:
-    all_defects: [Black, Broken, Cherry, Damage, Dried, Floater, Fungus, Insect, Sour]
+    all_defects: [Black, Broken, Dried Cherry, Floater, Fungus Damage, Insect Damage, Sour]

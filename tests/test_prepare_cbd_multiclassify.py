@@ -19,12 +19,16 @@ def test_discovery_reads_roboflow_split_and_excludes_unlabeled(tmp_path):
     for index, class_name in enumerate(EXPECTED_CLASSES):
         _image(raw / "train" / class_name / "sample.png", (index, 1, 2))
     _image(raw / "valid" / "Unlabeled" / "unknown.png", (90, 1, 2))
+    _image(raw / "train" / "Insect" / "stray.png", (91, 1, 2))
 
-    samples, unlabeled, unknown = discover_samples(raw)
+    samples, excluded, unknown = discover_samples(raw)
 
     assert {sample.class_name for sample in samples} == set(EXPECTED_CLASSES)
     assert {sample.archive_split for sample in samples} == {"train"}
-    assert unlabeled == ["valid/Unlabeled/unknown.png"]
+    assert excluded == {
+        "Insect": ["train/Insect/stray.png"],
+        "Unlabeled": ["valid/Unlabeled/unknown.png"],
+    }
     assert unknown == []
 
 
@@ -49,11 +53,13 @@ def test_preparer_groups_roboflow_variants_and_deduplicates(tmp_path):
         (raw / "train" / "Black" / "bean-1.rf.aaa1.png").read_bytes()
     )
     _image(raw / "train" / "Unlabeled" / "skip.png", (250, 1, 1))
+    _image(raw / "train" / "Insect" / "stray.png", (251, 1, 1))
 
     output = tmp_path / "prepared"
     audit = prepare_cbd_multiclassify(raw, output, seed=9)
 
     assert audit["excluded_unlabeled_count"] == 1
+    assert audit["excluded_stray_insect_count"] == 1
     assert len(audit["same_class_exact_duplicates"]) == 1
     assert audit["archive_cross_split_identity_count"] == len(EXPECTED_CLASSES)
     assert audit["generated_cross_split_identity_count"] == 0

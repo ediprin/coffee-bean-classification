@@ -687,8 +687,9 @@ dan [`docs/PAPER_REPRODUCTION_RESULTS.json`](docs/PAPER_REPRODUCTION_RESULTS.jso
 ## Benchmark Roboflow CBD-Multiclassify
 
 Dataset publik `asdasd-zsar1/cbd-multiclassify` dipakai sebagai benchmark
-terpisah sepuluh kelas untuk menguji generalitas efek HBP. Runner mengeluarkan
-`Unlabeled`, melakukan exact deduplication, dan membuat split baru 60/20/20
+terpisah delapan kelas untuk menguji generalitas efek HBP. Runner mengeluarkan
+`Unlabeled` serta satu stray label `Insect`, melakukan exact deduplication, dan
+membuat split baru 60/20/20
 secara identity-grouped berdasarkan nama asli sebelum suffix `.rf.<hash>`:
 
 ```bash

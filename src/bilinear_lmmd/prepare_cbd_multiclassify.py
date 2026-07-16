@@ -16,17 +16,25 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 EXPECTED_CLASSES = (
     "Black",
     "Broken",
-    "Cherry",
-    "Damage",
-    "Dried",
+    "Dried Cherry",
     "Floater",
-    "Fungus",
+    "Fungus Damage",
     "Good",
-    "Insect",
+    "Insect Damage",
     "Sour",
 )
 CLASS_ALIASES = {
-    re.sub(r"[^a-z0-9]+", "", name.lower()): name for name in EXPECTED_CLASSES
+    "black": "Black",
+    "broken": "Broken",
+    "cherrydried": "Dried Cherry",
+    "driedcherry": "Dried Cherry",
+    "floater": "Floater",
+    "damagefungus": "Fungus Damage",
+    "fungusdamage": "Fungus Damage",
+    "good": "Good",
+    "damageinsect": "Insect Damage",
+    "insectdamage": "Insect Damage",
+    "sour": "Sour",
 }
 SPLIT_ALIASES = {
     "train": "train",
@@ -37,7 +45,13 @@ SPLIT_ALIASES = {
     "test": "test",
     "testing": "test",
 }
-UNLABELED = {"unlabeled", "unlabelled"}
+EXCLUDED_CLASSES = {
+    "unlabeled": "Unlabeled",
+    "unlabelled": "Unlabeled",
+    # The export contains one stray image here; the real defect class has 455
+    # images and is named "Damage Insect" in the archive.
+    "insect": "Insect",
+}
 ROBOFLOW_SUFFIX = re.compile(r"\.rf\.[a-z0-9_-]+$", flags=re.IGNORECASE)
 
 
@@ -73,8 +87,8 @@ def _class_and_split(path: Path, root: Path) -> tuple[str | None, str | None]:
         class_part = path.parent.name
 
     normalized = _normalized(class_part)
-    if normalized in UNLABELED:
-        return "Unlabeled", split
+    if normalized in EXCLUDED_CLASSES:
+        return EXCLUDED_CLASSES[normalized], split
     return CLASS_ALIASES.get(normalized), split
 
 
@@ -90,19 +104,19 @@ def _identity_id(path: Path, root: Path, class_name: str) -> str:
 
 def discover_samples(
     raw_root: Path,
-) -> tuple[list[Sample], list[str], list[str]]:
+) -> tuple[list[Sample], dict[str, list[str]], list[str]]:
     if not raw_root.is_dir():
         raise FileNotFoundError(f"Root cbd-multiclassify tidak ditemukan: {raw_root}")
     samples: list[Sample] = []
-    unlabeled: list[str] = []
+    excluded: dict[str, list[str]] = defaultdict(list)
     unknown: list[str] = []
     for path in sorted(raw_root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
             continue
         class_name, archive_split = _class_and_split(path, raw_root)
         relative = path.relative_to(raw_root).as_posix()
-        if class_name == "Unlabeled":
-            unlabeled.append(relative)
+        if class_name in set(EXCLUDED_CLASSES.values()):
+            excluded[str(class_name)].append(relative)
             continue
         if class_name is None:
             unknown.append(relative)
@@ -126,7 +140,7 @@ def discover_samples(
             f"Kelas cbd-multiclassify belum lengkap: {missing}. "
             "Pastikan root menunjuk ke ekspor dataset yang benar."
         )
-    return samples, unlabeled, unknown
+    return samples, dict(sorted(excluded.items())), unknown
 
 
 def _sha256(path: Path) -> str:
@@ -228,7 +242,7 @@ def prepare_cbd_multiclassify(
             "Hapus/pindahkan folder tersebut secara manual."
         )
 
-    discovered, unlabeled, unknown = discover_samples(raw_root)
+    discovered, excluded, unknown = discover_samples(raw_root)
     archive_overlap = _archive_identity_overlap(discovered)
     samples, duplicates, conflicts = _deduplicate(discovered)
     assignments = _allocate_identity_groups(samples, seed)
@@ -274,12 +288,20 @@ def prepare_cbd_multiclassify(
         "dataset": "asdasd-zsar1/cbd-multiclassify",
         "source_url": "https://universe.roboflow.com/asdasd-zsar1/cbd-multiclassify",
         "raw_root": str(raw_root.resolve()),
+        "input_recognized_images": len(discovered)
+        + sum(len(paths) for paths in excluded.values()),
         "input_labeled_images": len(discovered),
         "clean_labeled_images": len(samples),
         "classes": list(EXPECTED_CLASSES),
         "class_counts": dict(sorted(Counter(s.class_name for s in samples).items())),
-        "excluded_unlabeled_count": len(unlabeled),
-        "excluded_unlabeled_paths": unlabeled,
+        "excluded_class_counts": {
+            name: len(paths) for name, paths in excluded.items()
+        },
+        "excluded_class_paths": excluded,
+        "excluded_unlabeled_count": len(excluded.get("Unlabeled", [])),
+        "excluded_unlabeled_paths": excluded.get("Unlabeled", []),
+        "excluded_stray_insect_count": len(excluded.get("Insect", [])),
+        "excluded_stray_insect_paths": excluded.get("Insect", []),
         "unknown_image_count": len(unknown),
         "unknown_image_examples": unknown[:100],
         "same_class_exact_duplicates": duplicates,
@@ -304,7 +326,8 @@ def prepare_cbd_multiclassify(
     print("\n=== AUDIT CBD-MULTICLASSIFY ===")
     print(f"Input berlabel       : {len(discovered)}")
     print(f"Bersih berlabel      : {len(samples)}")
-    print(f"Unlabeled dikeluarkan: {len(unlabeled)}")
+    print(f"Unlabeled dikeluarkan: {len(excluded.get('Unlabeled', []))}")
+    print(f"Stray Insect (n=1)   : {len(excluded.get('Insect', []))}")
     print(f"Exact duplicate group: {len(duplicates)}")
     print(f"Konflik label        : {len(conflicts)}")
     print(f"Identity leak arsip  : {len(archive_overlap)}")

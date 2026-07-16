@@ -5,7 +5,7 @@ model:
   backbone: mobilenetv3_large_100
   pretrained: true
   head: gap
-  num_classes: 10
+  num_classes: 8
   out_indices: [4]
   classifier: linear
 adaptation:
@@ -15,4 +15,4 @@ training:
   output_dir: outputs/CBD0_mobilenetv3_gap_source
 evaluation:
   hard_groups:
-    all_defects: [Black, Broken, Cherry, Damage, Dried, Floater, Fungus, Insect, Sour]
+    all_defects: [Black, Broken, Dried Cherry, Floater, Fungus Damage, Insect Damage, Sour]
