@@ -7,6 +7,7 @@ from bilinear_lmmd.config import load_config
 from bilinear_lmmd.models import (
     AdaptationModel,
     ArcMarginClassifier,
+    DecoupledGAPHBPModel,
     FixedFusionCBAM,
     CapacityResidualHBP,
     PointwiseResidualCapacity,
@@ -17,6 +18,8 @@ from bilinear_lmmd.models import (
     SpatiallyPreservedHBP,
     build_model,
 )
+from bilinear_lmmd.losses import NonTargetExpertDiversityLoss
+from bilinear_lmmd.train import branch_gradient_cosine, supervised_objective
 
 
 def test_arcface_applies_margin_only_to_target_and_backpropagates():
@@ -497,6 +500,101 @@ def test_hbp_moe_preserves_same_seed_hbp_and_classifier_initialization():
         assert torch.equal(baseline_parameter, candidate_parameter)
     assert torch.equal(baseline.classifier.weight, candidate.classifier.weight)
     assert torch.equal(baseline.classifier.bias, candidate.classifier.bias)
+
+
+def _decoupled(fusion: str) -> DecoupledGAPHBPModel:
+    return DecoupledGAPHBPModel(
+        backbone="mobilenetv3_large_100",
+        num_classes=4,
+        projection_dim=32,
+        dropout=0.0,
+        pretrained=False,
+        fusion=fusion,
+        gate_hidden=8,
+        fusion_detach=True,
+    )
+
+
+def test_decoupled_fixed_outputs_two_experts_and_balanced_fusion():
+    model = _decoupled("fixed").eval()
+    output = model(torch.randn(2, 3, 96, 96))
+
+    assert tuple(output.expert_logits) == ("gap", "hbp")
+    assert output.logits.shape == (2, 4)
+    assert torch.allclose(output.gate_weights, torch.full((2, 2), 0.5))
+    expected = 0.5 * (
+        output.expert_logits["gap"].detach()
+        + output.expert_logits["hbp"].detach()
+    )
+    assert torch.allclose(output.logits, expected)
+
+
+def test_decoupled_learned_gate_does_not_change_branch_initialization():
+    torch.manual_seed(31)
+    fixed = _decoupled("fixed")
+    torch.manual_seed(31)
+    learned = _decoupled("learned")
+
+    fixed_state = fixed.state_dict()
+    learned_state = learned.state_dict()
+    common = [name for name in fixed_state if name in learned_state]
+    assert common
+    for name in common:
+        assert torch.equal(fixed_state[name], learned_state[name]), name
+
+    output = learned.eval()(torch.randn(2, 3, 96, 96))
+    assert torch.allclose(output.gate_weights, torch.full((2, 2), 0.5))
+
+
+def test_decoupled_fusion_gradient_only_trains_gate_but_auxiliary_trains_branches():
+    model = _decoupled("learned").train()
+    labels = torch.tensor([0, 1])
+    output = model(torch.randn(2, 3, 96, 96))
+    torch.nn.functional.cross_entropy(output.logits, labels).backward()
+
+    assert model.gate[-1].weight.grad is not None
+    assert model.gap_classifier.weight.grad is None
+    assert model.hbp_classifier.weight.grad is None
+
+    model.zero_grad(set_to_none=True)
+    output = model(torch.randn(2, 3, 96, 96))
+    total, components = supervised_objective(
+        output,
+        labels,
+        torch.nn.CrossEntropyLoss(),
+        NonTargetExpertDiversityLoss(),
+        auxiliary_weight=0.5,
+        diversity_weight=0.0,
+    )
+    cosine = branch_gradient_cosine(
+        components["gap_ce"],
+        components["hbp_ce"],
+        model.shared_parameters_for_audit(),
+    )
+    total.backward()
+
+    assert cosine is not None and -1.0 <= cosine <= 1.0
+    assert model.gap_classifier.weight.grad is not None
+    assert model.hbp_classifier.weight.grad is not None
+    assert next(model.encoder.shared_parameters()).grad is not None
+
+
+def test_decoupled_configs_change_only_the_fusion_strategy():
+    fixed = load_config(
+        "configs/D1_mobilenetv3_decoupled_gap_hbp_fixed_source.yaml"
+    )
+    learned = load_config(
+        "configs/D2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"
+    )
+    assert fixed["model"]["head"] == "decoupled_gap_hbp_fixed"
+    assert learned["model"]["head"] == "decoupled_gap_hbp_learned"
+    for section in ("data", "adaptation", "training"):
+        left = dict(fixed[section])
+        right = dict(learned[section])
+        if section == "training":
+            left.pop("output_dir")
+            right.pop("output_dir")
+        assert left == right
 
 
 def test_hbp_moe_config_is_controlled_against_hbp():

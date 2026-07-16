@@ -42,6 +42,8 @@ DEFAULTS: dict[str, Any] = {
         "moe_local_dim": 256,
         "moe_gate_hidden": 32,
         "moe_hbp_prior": 0.8,
+        "dual_gate_hidden": 32,
+        "dual_fusion_detach": True,
         "dropout": 0.2,
         "classifier": "linear",
         "arcface_scale": 30.0,

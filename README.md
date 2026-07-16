@@ -853,3 +853,20 @@ LMMD memakai one-hot label source dan probabilitas softmax target yang dilepas
 dari graph sebagai bobot pseudo-label. Kernel RBF kemudian menghitung discrepancy
 per kelas yang aktif pada kedua batch. `warmup_epochs` mencegah pseudo-label acak
 awal langsung mendominasi training.
+### Decoupled dual-branch GAP-HBP
+
+Eksperimen D1/D2 membagi MobileNetV3 setelah block 4, lalu memberi GAP dan HBP
+blok akhir serta classifier masing-masing. Jalankan screening hanya pada
+validation terlebih dahulu:
+
+```bash
+python -u -m bilinear_lmmd.run_decoupled_screening \
+  --data-root data/coffee17_hierarchy_clean/folds/fold_1 \
+  --output-root outputs/decoupled-gap-hbp \
+  --seeds 123 \
+  --evaluation-split val
+```
+
+Runner juga menyimpan checkpoint terbaik setiap expert, audit
+komplementaritas, bobot gate, dan cosine gradient. Protokol lengkap:
+[`docs/DECOUPLED_DUAL_BRANCH_PROTOCOL.md`](docs/DECOUPLED_DUAL_BRANCH_PROTOCOL.md).

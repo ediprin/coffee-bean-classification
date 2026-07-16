@@ -118,6 +118,40 @@ def repeat_loader(loader):
         yield from loader
 
 
+def branch_gradient_cosine(
+    first_loss: torch.Tensor,
+    second_loss: torch.Tensor,
+    parameters: list[nn.Parameter],
+) -> float | None:
+    """Measure gradient agreement without modifying accumulated gradients."""
+
+    first = torch.autograd.grad(
+        first_loss,
+        parameters,
+        retain_graph=True,
+        allow_unused=True,
+    )
+    second = torch.autograd.grad(
+        second_loss,
+        parameters,
+        retain_graph=True,
+        allow_unused=True,
+    )
+    dot = torch.zeros((), device=first_loss.device)
+    first_norm = torch.zeros((), device=first_loss.device)
+    second_norm = torch.zeros((), device=first_loss.device)
+    for first_gradient, second_gradient in zip(first, second):
+        if first_gradient is None or second_gradient is None:
+            continue
+        dot = dot + (first_gradient * second_gradient).sum()
+        first_norm = first_norm + first_gradient.square().sum()
+        second_norm = second_norm + second_gradient.square().sum()
+    denominator = first_norm.sqrt() * second_norm.sqrt()
+    if denominator.item() == 0.0:
+        return None
+    return float((dot / denominator).detach().cpu())
+
+
 def supervised_objective(
     output,
     labels: torch.Tensor,
@@ -141,21 +175,28 @@ def supervised_objective(
         total = total + hierarchy_weight * parent_ce
         components["parent_ce"] = parent_ce
     if output.expert_logits is not None:
-        global_ce = classification_loss(output.expert_logits["hbp_global"], labels)
-        local_ce = classification_loss(output.expert_logits["local_gmp"], labels)
+        expert_names = tuple(output.expert_logits)
+        if expert_names == ("hbp_global", "local_gmp"):
+            first_name, second_name = expert_names
+        elif expert_names == ("gap", "hbp"):
+            first_name, second_name = expert_names
+        else:
+            raise ValueError(f"Pasangan expert tidak dikenali: {expert_names}")
+        first_ce = classification_loss(output.expert_logits[first_name], labels)
+        second_ce = classification_loss(output.expert_logits[second_name], labels)
         diversity = diversity_loss(
-            output.expert_logits["hbp_global"],
-            output.expert_logits["local_gmp"],
+            output.expert_logits[first_name],
+            output.expert_logits[second_name],
         )
         total = (
             total
-            + auxiliary_weight * (global_ce + local_ce)
+            + auxiliary_weight * (first_ce + second_ce)
             + diversity_weight * diversity
         )
         components.update(
             {
-                "hbp_global_ce": global_ce,
-                "local_gmp_ce": local_ce,
+                f"{first_name}_ce": first_ce,
+                f"{second_name}_ce": second_ce,
                 "expert_diversity": diversity,
             }
         )
@@ -214,13 +255,24 @@ def evaluate(
     device: torch.device,
     class_names: list[str],
     hard_groups: dict[str, list[str]],
+    prediction_head: str = "fused",
 ) -> dict:
     model.eval()
     predictions: list[int] = []
     labels: list[int] = []
     for images, targets in loader:
         output = model(images.to(device))
-        predictions.extend(output.logits.argmax(1).cpu().tolist())
+        if prediction_head == "fused":
+            logits = output.logits
+        else:
+            if output.expert_logits is None or prediction_head not in output.expert_logits:
+                available = tuple(output.expert_logits or {})
+                raise ValueError(
+                    f"prediction_head={prediction_head!r} tidak tersedia; "
+                    f"expert={available}."
+                )
+            logits = output.expert_logits[prediction_head]
+        predictions.extend(logits.argmax(1).cpu().tolist())
         labels.extend(targets.tolist())
     return classification_metrics(labels, predictions, class_names, hard_groups)
 
@@ -372,6 +424,12 @@ def train(
         raise ValueError("training.ema_start_epoch harus lebih kecil dari epochs.")
     best_f1 = -1.0
     best_raw_f1 = -1.0
+    dual_expert_names = (
+        ("gap", "hbp")
+        if str(cfg["model"].get("head", "")).startswith("decoupled_gap_hbp_")
+        else ()
+    )
+    best_expert_f1 = {name: -1.0 for name in dual_expert_names}
     history = []
     start_epoch = 0
     hard_groups = cfg.get("evaluation", {}).get("hard_groups", {})
@@ -381,6 +439,8 @@ def train(
         checkpoint = load_resume_checkpoint(last_checkpoint, device)
         if checkpoint is not None:
             required_state = {"optimizer", "scheduler", "history", "best_f1"}
+            if dual_expert_names:
+                required_state.add("best_expert_f1")
             if ema is not None:
                 required_state.update(
                     {"ema_model", "ema_started", "best_raw_f1"}
@@ -406,6 +466,11 @@ def train(
                         ema.model.load_state_dict(checkpoint["ema_model"])
                 history = checkpoint["history"]
                 best_f1 = float(checkpoint["best_f1"])
+                if dual_expert_names:
+                    best_expert_f1 = {
+                        name: float(checkpoint["best_expert_f1"][name])
+                        for name in dual_expert_names
+                    }
                 if ema is not None:
                     best_raw_f1 = float(checkpoint["best_raw_f1"])
                 start_epoch = int(checkpoint["epoch"])
@@ -429,9 +494,10 @@ def train(
         running_components: dict[str, float] = {}
         gate_sum = torch.zeros(2)
         gate_count = 0
+        gradient_cosine: float | None = None
 
         progress = tqdm(loaders.source_train, desc=f"epoch {epoch + 1}/{epochs}")
-        for source_batch in progress:
+        for batch_index, source_batch in enumerate(progress):
             source_images, source_labels = (x.to(device) for x in source_batch)
             optimizer.zero_grad(set_to_none=True)
 
@@ -489,6 +555,18 @@ def train(
                     ) + F.cross_entropy(target_output.domain_logits, target_domain)
                 loss = cls_loss + adapt_weight * adapt_loss
 
+            if (
+                batch_index == 0
+                and source_output.expert_logits is not None
+                and tuple(source_output.expert_logits) == ("gap", "hbp")
+                and hasattr(model, "shared_parameters_for_audit")
+            ):
+                gradient_cosine = branch_gradient_cosine(
+                    supervised_components["gap_ce"],
+                    supervised_components["hbp_ce"],
+                    model.shared_parameters_for_audit(),
+                )
+
             loss.backward()
             optimizer.step()
             if ema is not None and epoch >= ema_start_epoch:
@@ -504,13 +582,31 @@ def train(
             if source_output.gate_weights is not None:
                 gate_sum += source_output.gate_weights.detach().sum(dim=0).cpu()
                 gate_count += source_output.gate_weights.shape[0]
-                postfix["gate_hbp"] = f"{(gate_sum[0] / gate_count).item():.3f}"
+                gate_label = (
+                    "gate_gap"
+                    if tuple(source_output.expert_logits or ()) == ("gap", "hbp")
+                    else "gate_hbp"
+                )
+                postfix[gate_label] = f"{(gate_sum[0] / gate_count).item():.3f}"
+            if gradient_cosine is not None:
+                postfix["grad_cos"] = f"{gradient_cosine:+.3f}"
             progress.set_postfix(**postfix)
 
         scheduler.step()
         source_metrics_raw = evaluate(
             model, loaders.source_val, device, loaders.classes, hard_groups
         )
+        source_expert_metrics_raw = {
+            name: evaluate(
+                model,
+                loaders.source_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                prediction_head=name,
+            )
+            for name in dual_expert_names
+        }
         target_metrics_raw = (
             evaluate(model, loaders.target_val, device, loaders.classes, hard_groups)
             if loaders.target_val is not None
@@ -544,6 +640,8 @@ def train(
             record["target_raw"] = target_metrics_raw
             record["target_ema"] = target_metrics_ema
             record["selection_weights"] = "ema" if source_metrics_ema is not None else "raw"
+        if source_expert_metrics_raw:
+            record["source_experts"] = source_expert_metrics_raw
         if running_components:
             record["loss_components"] = {
                 name: value / max(len(loaders.source_train), 1)
@@ -551,6 +649,8 @@ def train(
             }
         if gate_count:
             record["gate_mean"] = (gate_sum / gate_count).tolist()
+        if gradient_cosine is not None:
+            record["branch_gradient_cosine"] = gradient_cosine
         history.append(record)
         print(
             json.dumps(
@@ -559,6 +659,7 @@ def train(
                     "loss": record["loss"],
                     "loss_components": record.get("loss_components"),
                     "gate_mean": record.get("gate_mean"),
+                    "branch_gradient_cosine": record.get("branch_gradient_cosine"),
                     "source": {
                         key: value
                         for key, value in source_metrics.items()
@@ -573,6 +674,15 @@ def train(
                         if ema is not None
                         else None
                     ),
+                    "source_experts": {
+                        name: {
+                            key: value
+                            for key, value in metrics.items()
+                            if key != "per_class"
+                        }
+                        for name, metrics in source_expert_metrics_raw.items()
+                    }
+                    or None,
                     "target": (
                         {
                             key: value
@@ -596,6 +706,13 @@ def train(
         )
         if raw_is_best:
             best_raw_f1 = source_metrics_raw["macro_f1"]
+        expert_is_best = {
+            name: metrics["macro_f1"] > best_expert_f1[name]
+            for name, metrics in source_expert_metrics_raw.items()
+        }
+        for name, improved in expert_is_best.items():
+            if improved:
+                best_expert_f1[name] = source_expert_metrics_raw[name]["macro_f1"]
 
         checkpoint = {
             "model": model.state_dict(),
@@ -607,6 +724,7 @@ def train(
             "target_metrics": target_metrics,
             "history": history,
             "best_f1": best_f1,
+            "best_expert_f1": best_expert_f1,
         }
         if ema is not None:
             checkpoint["ema_model"] = ema.model.state_dict() if ema_started else None
@@ -635,6 +753,20 @@ def train(
             else:
                 best_checkpoint["weights"] = "raw"
             atomic_torch_save(best_checkpoint, output_dir / "best.pt")
+        for name, improved in expert_is_best.items():
+            if not improved:
+                continue
+            expert_checkpoint = {
+                "model": model.state_dict(),
+                "classes": loaders.classes,
+                "config": cfg,
+                "epoch": epoch + 1,
+                "target_metrics": target_metrics_raw,
+                "best_f1": best_expert_f1[name],
+                "weights": "raw",
+                "selection_head": name,
+            }
+            atomic_torch_save(expert_checkpoint, output_dir / f"best_{name}.pt")
         if raw_is_best:
             raw_best_checkpoint = {
                 "model": model.state_dict(),

@@ -24,6 +24,8 @@ class CheckpointPredictions:
     paths: list[str]
     hard_groups: dict[str, list[str]]
     gate_weights: torch.Tensor | None = None
+    gate_names: tuple[str, ...] | None = None
+    prediction_head: str = "fused"
 
     @property
     def predictions(self) -> list[int]:
@@ -37,6 +39,7 @@ def collect_checkpoint_predictions(
     split: str,
     data_root: Path | None = None,
     progress_desc: str | None = None,
+    prediction_head: str = "fused",
 ) -> CheckpointPredictions:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     cfg = copy.deepcopy(checkpoint["config"])
@@ -56,14 +59,29 @@ def collect_checkpoint_predictions(
     labels: list[int] = []
     probabilities: list[torch.Tensor] = []
     gate_weights: list[torch.Tensor] = []
+    gate_names: tuple[str, ...] | None = None
     batches = tqdm(loader, desc=progress_desc, leave=False) if progress_desc else loader
     for images, targets in batches:
         output = model(images.to(device))
-        logits = output.logits
+        if prediction_head == "fused":
+            logits = output.logits
+        else:
+            if output.expert_logits is None or prediction_head not in output.expert_logits:
+                available = tuple(output.expert_logits or {})
+                raise ValueError(
+                    f"prediction_head={prediction_head!r} tidak tersedia; "
+                    f"expert={available}."
+                )
+            logits = output.expert_logits[prediction_head]
         labels.extend(targets.tolist())
         probabilities.append(logits.softmax(1).cpu())
         if output.gate_weights is not None:
             gate_weights.append(output.gate_weights.cpu())
+            current_names = tuple(output.expert_logits or {})
+            if gate_names is None:
+                gate_names = current_names
+            elif gate_names != current_names:
+                raise RuntimeError("Urutan expert berubah antar-batch.")
 
     paths = [sample[0] for sample in loader.dataset.samples]
     if len(paths) != len(labels):
@@ -77,6 +95,8 @@ def collect_checkpoint_predictions(
         paths=paths,
         hard_groups=cfg.get("evaluation", {}).get("hard_groups", {}),
         gate_weights=(torch.cat(gate_weights) if gate_weights else None),
+        gate_names=gate_names,
+        prediction_head=prediction_head,
     )
 
 
@@ -86,6 +106,7 @@ def evaluate_checkpoint(
     split: str,
     output_dir: Path,
     data_root: Path | None = None,
+    prediction_head: str = "fused",
 ) -> None:
     bundle = collect_checkpoint_predictions(
         checkpoint_path,
@@ -93,6 +114,7 @@ def evaluate_checkpoint(
         split,
         data_root=data_root,
         progress_desc=f"evaluate {domain}/{split}",
+        prediction_head=prediction_head,
     )
     predictions = bundle.predictions
 
@@ -105,17 +127,23 @@ def evaluate_checkpoint(
             "domain": domain,
             "split": split,
             "classes": bundle.classes,
+            "prediction_head": bundle.prediction_head,
         }
     )
     if bundle.gate_weights is not None:
         weights = bundle.gate_weights
         entropy = -(weights * weights.clamp_min(1e-8).log()).sum(dim=1)
         selected = weights.argmax(dim=1)
+        names = bundle.gate_names or tuple(f"expert_{i}" for i in range(weights.shape[1]))
         metrics["gate"] = {
-            "mean_hbp_global": float(weights[:, 0].mean()),
-            "mean_local_gmp": float(weights[:, 1].mean()),
-            "hbp_selected_fraction": float((selected == 0).float().mean()),
-            "local_selected_fraction": float((selected == 1).float().mean()),
+            **{
+                f"mean_{name}": float(weights[:, index].mean())
+                for index, name in enumerate(names)
+            },
+            **{
+                f"{name}_selected_fraction": float((selected == index).float().mean())
+                for index, name in enumerate(names)
+            },
             "mean_entropy": float(entropy.mean()),
         }
     matrix = confusion_matrix(
@@ -139,7 +167,7 @@ def evaluate_checkpoint(
         writer = csv.writer(handle)
         probability_columns = [f"prob::{name}" for name in bundle.classes]
         gate_columns = (
-            ["gate::hbp_global", "gate::local_gmp"]
+            [f"gate::{name}" for name in (bundle.gate_names or ())]
             if bundle.gate_weights is not None
             else []
         )
@@ -183,6 +211,11 @@ def main() -> None:
         type=Path,
         help="Override data.root checkpoint, berguna jika folder dipindahkan.",
     )
+    parser.add_argument(
+        "--prediction-head",
+        default="fused",
+        help="Gunakan fused atau nama expert seperti gap/hbp.",
+    )
     args = parser.parse_args()
     evaluate_checkpoint(
         args.checkpoint,
@@ -190,6 +223,7 @@ def main() -> None:
         args.split,
         args.output_dir,
         data_root=args.data_root,
+        prediction_head=args.prediction_head,
     )
 
 

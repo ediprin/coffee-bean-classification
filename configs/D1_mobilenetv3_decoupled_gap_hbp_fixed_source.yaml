@@ -1,0 +1,12 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: decoupled_gap_hbp_fixed
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  dual_fusion_detach: true
+adaptation:
+  method: source_only
+training:
+  expert_aux_weight: 0.5
+  expert_diversity_weight: 0.0
+  output_dir: outputs/D1_mobilenetv3_decoupled_gap_hbp_fixed_source

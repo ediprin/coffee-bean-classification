@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 import math
 
@@ -609,6 +610,141 @@ class ModelOutput:
     gate_weights: Tensor | None = None
 
 
+class DecoupledMobileNetV3Encoder(nn.Module):
+    """Share MobileNetV3 through block 4 and duplicate blocks 5-6.
+
+    The shared branch exposes block-1 and block-4 features. The GAP and HBP
+    branches then receive independent copies of the final MobileNetV3 stages,
+    allowing their pooling objectives to shape different late representations.
+    """
+
+    def __init__(self, backbone: str, pretrained: bool):
+        super().__init__()
+        if backbone != "mobilenetv3_large_100":
+            raise ValueError(
+                "Decoupled GAP-HBP saat ini dikunci ke mobilenetv3_large_100."
+            )
+        base = timm.create_model(
+            backbone,
+            pretrained=pretrained,
+            features_only=True,
+            out_indices=(1, 3, 4),
+        )
+        if len(base.blocks) != 7:
+            raise RuntimeError("Struktur MobileNetV3 tidak sesuai branch point terkunci.")
+        self.stem = nn.Sequential(base.conv_stem, base.bn1, base.act1)
+        self.shared_blocks = nn.ModuleList(list(base.blocks[:5]))
+        original_late = nn.Sequential(*list(base.blocks[5:]))
+        self.gap_late = original_late
+        self.hbp_late = copy.deepcopy(original_late)
+        self.channels = list(base.feature_info.channels())
+
+    def shared_parameters(self):
+        yield from self.stem.parameters()
+        yield from self.shared_blocks.parameters()
+
+    def forward(self, images: Tensor) -> tuple[list[Tensor], Tensor]:
+        feature = self.stem(images)
+        middle: Tensor | None = None
+        late_shared: Tensor | None = None
+        for index, block in enumerate(self.shared_blocks):
+            feature = block(feature)
+            if index == 1:
+                middle = feature
+            elif index == 4:
+                late_shared = feature
+        if middle is None or late_shared is None:
+            raise RuntimeError("Feature shared branch tidak lengkap.")
+        gap_final = self.gap_late(late_shared)
+        hbp_final = self.hbp_late(late_shared)
+        return [middle, late_shared, hbp_final], gap_final
+
+
+class DecoupledGAPHBPModel(nn.Module):
+    """Shared-early, branched-late GAP-HBP with decoupled fusion gradients."""
+
+    def __init__(
+        self,
+        backbone: str,
+        num_classes: int,
+        projection_dim: int,
+        dropout: float,
+        pretrained: bool,
+        fusion: str,
+        gate_hidden: int,
+        fusion_detach: bool,
+    ):
+        super().__init__()
+        if fusion not in {"fixed", "learned"}:
+            raise ValueError("dual_fusion harus 'fixed' atau 'learned'.")
+        if gate_hidden <= 0:
+            raise ValueError("dual_gate_hidden harus lebih besar dari nol.")
+        self.backbone_name = backbone
+        self.head = f"decoupled_gap_hbp_{fusion}"
+        self.fusion = fusion
+        self.fusion_detach = bool(fusion_detach)
+        self.encoder = DecoupledMobileNetV3Encoder(backbone, pretrained)
+        channels = self.encoder.channels
+        self.gap_pool = GAPHead(channels[-1])
+        self.hbp_pool = HierarchicalBilinearPooling(channels, projection_dim)
+        self.dropout = nn.Dropout(dropout)
+        self.gap_classifier = nn.Linear(self.gap_pool.output_dim, num_classes)
+        self.hbp_classifier = nn.Linear(self.hbp_pool.output_dim, num_classes)
+        self.gate: nn.Sequential | None = None
+        if fusion == "learned":
+            # Gate initialization must not change branch initialization or the
+            # subsequent DataLoader RNG stream relative to the fixed control.
+            rng_state = torch.random.get_rng_state()
+            self.gate = nn.Sequential(
+                nn.Linear(num_classes * 2, gate_hidden),
+                nn.ReLU(inplace=True),
+                nn.Linear(gate_hidden, 2),
+            )
+            nn.init.zeros_(self.gate[-1].weight)
+            nn.init.zeros_(self.gate[-1].bias)
+            torch.random.set_rng_state(rng_state)
+
+    def shared_parameters_for_audit(self) -> list[nn.Parameter]:
+        return list(self.encoder.shared_parameters())
+
+    def forward(
+        self,
+        x: Tensor,
+        labels: Tensor | None = None,
+        domain_strength: float | None = None,
+    ) -> ModelOutput:
+        if domain_strength is not None:
+            raise ValueError("Decoupled GAP-HBP saat ini hanya untuk source_only.")
+        hbp_features, gap_feature = self.encoder(x)
+        gap_embedding = self.gap_pool([gap_feature])
+        hbp_embedding = self.hbp_pool(hbp_features)
+        gap_logits = self.gap_classifier(self.dropout(gap_embedding))
+        hbp_logits = self.hbp_classifier(self.dropout(hbp_embedding))
+
+        if self.gate is None:
+            gate_weights = torch.full(
+                (x.shape[0], 2),
+                0.5,
+                device=x.device,
+                dtype=gap_logits.dtype,
+            )
+        else:
+            gate_input = torch.cat((gap_logits.detach(), hbp_logits.detach()), dim=1)
+            gate_weights = torch.softmax(self.gate(gate_input), dim=1)
+        fusion_gap = gap_logits.detach() if self.fusion_detach else gap_logits
+        fusion_hbp = hbp_logits.detach() if self.fusion_detach else hbp_logits
+        logits = (
+            gate_weights[:, :1] * fusion_gap
+            + gate_weights[:, 1:] * fusion_hbp
+        )
+        return ModelOutput(
+            logits=logits,
+            embedding=torch.cat((gap_embedding, hbp_embedding), dim=1),
+            expert_logits={"gap": gap_logits, "hbp": hbp_logits},
+            gate_weights=gate_weights,
+        )
+
+
 class AdaptationModel(nn.Module):
     def __init__(
         self,
@@ -862,11 +998,25 @@ class AdaptationModel(nn.Module):
         )
 
 
-def build_model(cfg: dict) -> AdaptationModel:
+def build_model(cfg: dict) -> nn.Module:
+    head = cfg.get("head", "hbp")
+    if head in {"decoupled_gap_hbp_fixed", "decoupled_gap_hbp_learned"}:
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("Decoupled GAP-HBP hanya mendukung classifier linear.")
+        return DecoupledGAPHBPModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            projection_dim=int(cfg.get("projection_dim", 512)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            fusion=("fixed" if head.endswith("fixed") else "learned"),
+            gate_hidden=int(cfg.get("dual_gate_hidden", 32)),
+            fusion_detach=bool(cfg.get("dual_fusion_detach", True)),
+        )
     return AdaptationModel(
         backbone=cfg["backbone"],
         num_classes=int(cfg["num_classes"]),
-        head=cfg.get("head", "hbp"),
+        head=head,
         out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
         projection_dim=int(cfg.get("projection_dim", 512)),
         hbp_spatial_size=int(cfg.get("hbp_spatial_size", 14)),
