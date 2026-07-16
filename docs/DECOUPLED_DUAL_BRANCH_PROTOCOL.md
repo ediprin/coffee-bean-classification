@@ -117,6 +117,22 @@ langsung berisi `source/train`, `source/val`, dan `source/test`.
 
 Jangan mengganti `val` menjadi `test` saat masih memilih D1 atau D2.
 
+Untuk dataset CBD 8 kelas yang telah dipreparasi, gunakan preset tersendiri:
+
+```python
+subprocess.run([
+    sys.executable, "-u", "-m", "bilinear_lmmd.run_decoupled_screening",
+    "--preset", "cbd",
+    "--data-root", "/kaggle/working/cbd-prepared-kd-v2",
+    "--output-root", "/kaggle/working/cbd-decoupled-results",
+    "--seeds", "42",
+    "--evaluation-split", "val",
+], check=True, env=env)
+```
+
+Preset CBD memakai kode CBD0, CBD1, CBDD1, dan CBDD2, `num_classes=8`, 25
+epoch, serta hard group tujuh kelas cacat. CBD bukan external test Coffee-17.
+
 ## Batas klaim
 
 - D1/D2 adalah sintesis eksperimental, bukan implementasi identik ONE atau

@@ -597,6 +597,35 @@ def test_decoupled_configs_change_only_the_fusion_strategy():
         assert left == right
 
 
+def test_cbd_decoupled_configs_match_cbd_protocol_and_fusion_control():
+    fixed = load_config(
+        "configs/CBDD1_mobilenetv3_decoupled_gap_hbp_fixed_source.yaml"
+    )
+    learned = load_config(
+        "configs/CBDD2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"
+    )
+    assert fixed["model"]["num_classes"] == 8
+    assert fixed["training"]["epochs"] == 25
+    assert fixed["evaluation"]["hard_groups"] == {
+        "all_defects": [
+            "Black",
+            "Broken",
+            "Dried Cherry",
+            "Floater",
+            "Fungus Damage",
+            "Insect Damage",
+            "Sour",
+        ]
+    }
+    for section in ("data", "adaptation", "training", "evaluation"):
+        left = dict(fixed[section])
+        right = dict(learned[section])
+        if section == "training":
+            left.pop("output_dir")
+            right.pop("output_dir")
+        assert left == right
+
+
 def test_hbp_moe_config_is_controlled_against_hbp():
     baseline = load_config("configs/M1_mobilenetv3_hbp_source.yaml")
     candidate = load_config("configs/E1_mobilenetv3_hbp_local_moe_source.yaml")

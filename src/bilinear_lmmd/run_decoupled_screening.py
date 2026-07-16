@@ -12,11 +12,24 @@ from .config import load_config
 from .models import build_model
 
 
-MODEL_CONFIGS = {
-    "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
-    "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
-    "D1": Path("configs/D1_mobilenetv3_decoupled_gap_hbp_fixed_source.yaml"),
-    "D2": Path("configs/D2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"),
+PRESETS = {
+    "coffee17": {
+        "M0": Path("configs/M0_mobilenetv3_gap_source.yaml"),
+        "M1": Path("configs/M1_mobilenetv3_hbp_source.yaml"),
+        "D1": Path("configs/D1_mobilenetv3_decoupled_gap_hbp_fixed_source.yaml"),
+        "D2": Path("configs/D2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"),
+    },
+    "cbd": {
+        "CBD0": Path("configs/CBD0_mobilenetv3_gap_source.yaml"),
+        "CBD1": Path("configs/CBD1_mobilenetv3_hbp_source.yaml"),
+        "CBDD1": Path("configs/CBDD1_mobilenetv3_decoupled_gap_hbp_fixed_source.yaml"),
+        "CBDD2": Path("configs/CBDD2_mobilenetv3_decoupled_gap_hbp_learned_source.yaml"),
+    },
+}
+
+PRESET_ROLES = {
+    "coffee17": {"gap": "M0", "hbp": "M1", "fixed": "D1", "learned": "D2"},
+    "cbd": {"gap": "CBD0", "hbp": "CBD1", "fixed": "CBDD1", "learned": "CBDD2"},
 }
 
 
@@ -154,11 +167,14 @@ def run_decoupled_screening(
     output_root: Path,
     seeds: list[int],
     evaluation_split: str,
+    preset: str = "coffee17",
 ) -> None:
+    model_configs = PRESETS[preset]
+    roles = PRESET_ROLES[preset]
     report_root = _report_root(output_root, evaluation_split)
     report_root.mkdir(parents=True, exist_ok=True)
-    print("=== RANCANGAN DECOUPLED GAP-HBP ===")
-    for code, config_path in MODEL_CONFIGS.items():
+    print(f"=== RANCANGAN DECOUPLED GAP-HBP: {preset.upper()} ===")
+    for code, config_path in model_configs.items():
         cfg = load_config(config_path)
         cfg["model"]["pretrained"] = False
         parameters = sum(
@@ -166,7 +182,7 @@ def run_decoupled_screening(
         )
         print(f"{code}: head={cfg['model']['head']} params={parameters:,}")
 
-    for code, config_path in MODEL_CONFIGS.items():
+    for code, config_path in model_configs.items():
         epochs = int(load_config(config_path)["training"]["epochs"])
         for seed in seeds:
             run_dir = output_root / "outputs" / f"{code}_seed{seed}"
@@ -196,7 +212,7 @@ def run_decoupled_screening(
                 data_root,
                 evaluation_split,
             )
-            if code not in {"D1", "D2"}:
+            if code not in {roles["fixed"], roles["learned"]}:
                 continue
             # Expert diagnostics use the same fused-selected checkpoint.
             for head in ("gap", "hbp"):
@@ -217,16 +233,20 @@ def run_decoupled_screening(
             )
 
     for baseline, candidate, description in (
-        ("M0", "M1", "kontrol efek HBP"),
-        ("M0", "D1", "fixed fusion decoupled"),
-        ("M1", "D1", "fixed fusion vs HBP"),
-        ("D1", "D2", "learned gate vs fixed fusion"),
-        ("M0", "D2_detachable_gap", "HBP sebagai auxiliary training-only"),
+        (roles["gap"], roles["hbp"], "kontrol efek HBP"),
+        (roles["gap"], roles["fixed"], "fixed fusion decoupled"),
+        (roles["hbp"], roles["fixed"], "fixed fusion vs HBP"),
+        (roles["fixed"], roles["learned"], "learned gate vs fixed fusion"),
+        (
+            roles["gap"],
+            f"{roles['learned']}_detachable_gap",
+            "HBP sebagai auxiliary training-only",
+        ),
     ):
         _compare(report_root, baseline, candidate, seeds, description)
 
     audits = []
-    for model in ("D1", "D2"):
+    for model in (roles["fixed"], roles["learned"]):
         for seed in seeds:
             result = _complementarity(report_root, model, seed)
             if result is not None:
@@ -247,12 +267,17 @@ def main() -> None:
     parser.add_argument("--data-root", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--seeds", nargs="+", type=int, default=[123])
+    parser.add_argument("--preset", choices=tuple(PRESETS), default="coffee17")
     parser.add_argument(
         "--evaluation-split", choices=("val", "test"), default="val"
     )
     args = parser.parse_args()
     run_decoupled_screening(
-        args.data_root, args.output_root, args.seeds, args.evaluation_split
+        args.data_root,
+        args.output_root,
+        args.seeds,
+        args.evaluation_split,
+        args.preset,
     )
 
 
