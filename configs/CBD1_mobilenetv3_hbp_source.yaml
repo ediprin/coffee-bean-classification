@@ -12,7 +12,7 @@ model:
 adaptation:
   method: source_only
 training:
-  epochs: 50
+  epochs: 25
   output_dir: outputs/CBD1_mobilenetv3_hbp_source
 evaluation:
   hard_groups:

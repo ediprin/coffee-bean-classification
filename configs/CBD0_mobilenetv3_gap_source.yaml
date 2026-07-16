@@ -11,7 +11,7 @@ model:
 adaptation:
   method: source_only
 training:
-  epochs: 50
+  epochs: 25
   output_dir: outputs/CBD0_mobilenetv3_gap_source
 evaluation:
   hard_groups:

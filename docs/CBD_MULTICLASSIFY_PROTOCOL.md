@@ -53,9 +53,10 @@ near-duplicate yang namanya telah berubah total.
 | CBD0 | MobileNetV3-Large + GAP + CE |
 | CBD1 | MobileNetV3-Large + HBP + CE |
 
-Keduanya memakai input 224 dan konfigurasi training yang sama. `Defect-F1`
-adalah macro-F1 sembilan kelas selain `Good`; Macro-F1 dan Worst-class F1 tetap
-menjadi metrik utama.
+Keduanya memakai input 224, 25 epoch, dan konfigurasi training yang sama.
+Budget 25 epoch dipilih untuk screening karena dataset ini jauh lebih besar
+daripada Coffee-17. `Defect-F1` adalah macro-F1 sembilan kelas selain `Good`;
+Macro-F1 dan Worst-class F1 tetap menjadi metrik utama.
 
 ## Protokol keputusan
 
