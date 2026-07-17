@@ -338,6 +338,24 @@ model:
   num_classes: 17
 ```
 
+## Benchmark backbone kontemporer
+
+Bandingkan MobileNetV4, EfficientNetV2, ConvNeXtV2, PVTv2, dan SHViT dengan
+pasangan GAP/HBP yang identik. Screening harus memakai validation terlebih
+dahulu:
+
+```bash
+python -u -m bilinear_lmmd.run_backbone_screening \
+  --data-root /content/coffee17-clean-grouped/folds/fold_1 \
+  --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --seeds 123 \
+  --evaluation-split val
+```
+
+Runner mendukung resume, menampilkan progress per run, dan menulis leaderboard
+JSON/CSV. Rincian pemilihan checkpoint, batas klaim, screening, serta konfirmasi
+test tersedia di [protokol benchmark backbone](docs/BACKBONE_PROTOCOL.md).
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:
