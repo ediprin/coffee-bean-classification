@@ -356,6 +356,17 @@ Runner mendukung resume, menampilkan progress per run, dan menulis leaderboard
 JSON/CSV. Rincian pemilihan checkpoint, batas klaim, screening, serta konfirmasi
 test tersedia di [protokol benchmark backbone](docs/BACKBONE_PROTOCOL.md).
 
+Untuk checkpoint yang dapat dipulihkan dari akun/runtime lain, simpan
+`HF_TOKEN` melalui Colab/Kaggle Secrets lalu tambahkan:
+
+```bash
+  --hf-repo NAMA_USER/coffee-backbone-checkpoints \
+  --hf-sync-every 5
+```
+
+Runner otomatis memulihkan `last.pt` sebelum training dan menyinkronkan state
+model, optimizer, scheduler, history, config, serta commit Git secara periodik.
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:

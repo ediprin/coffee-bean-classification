@@ -63,6 +63,52 @@ backbone, lalu menyimpan `backbone_leaderboard.json` dan
 perintah yang sama karena runner memakai `--resume` dan melewati artefak yang
 sudah lengkap.
 
+## Checkpoint lintas runtime dengan Hugging Face
+
+Google Drive tetap dapat digunakan, tetapi runner juga mendukung private model
+repository Hugging Face. `last.pt` menyimpan model, optimizer, scheduler,
+history, dan nomor epoch sehingga training benar-benar dilanjutkan, bukan
+sekadar memuat bobot terbaik.
+
+Simpan token **write** dengan nama `HF_TOKEN` di Colab/Kaggle Secrets. Jangan
+menulis token langsung di notebook. Pada Colab:
+
+```python
+import os
+from google.colab import userdata
+
+os.environ["HF_TOKEN"] = userdata.get("HF_TOKEN")
+HF_REPO = "NAMA_USER/coffee-backbone-checkpoints"
+```
+
+Kemudian jalankan output lokal yang cepat dan sinkronkan setiap lima epoch:
+
+```bash
+python -u -m bilinear_lmmd.run_backbone_screening \
+  --data-root /content/coffee17-clean-grouped/folds/fold_1 \
+  --output-root /content/backbone-results \
+  --seeds 123 \
+  --evaluation-split val \
+  --hf-repo NAMA_USER/coffee-backbone-checkpoints \
+  --hf-sync-every 5
+```
+
+Repo private dibuat otomatis jika belum ada. Sebelum setiap run, runner
+memulihkan checkpoint dan report yang belum tersedia secara lokal. Setiap lima
+epoch, file berikut dikirim sebagai satu commit:
+
+- `last.pt` untuk resume lengkap;
+- `best.pt` untuk evaluasi;
+- `history.json`;
+- `resolved_config.json`; dan
+- `artifact_manifest.json`, termasuk commit Git, seed, dan data root.
+
+Jika runtime mati, maksimum empat epoch setelah sinkronisasi terakhir perlu
+diulang. Gunakan `--hf-sync-every 1` untuk perlindungan setiap epoch dengan
+konsekuensi upload lebih sering. Dataset tetap harus tersedia kembali dengan
+split dan urutan kelas yang identik; checkpoint akan menolak resume jika kelas
+berbeda.
+
 Untuk menghemat waktu, GAP-only dapat dijalankan lebih dahulu:
 
 ```bash

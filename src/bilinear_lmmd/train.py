@@ -5,6 +5,8 @@ import copy
 import json
 import math
 import random
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +20,12 @@ from torch import nn
 from torch.nn import functional as F
 from tqdm import tqdm
 
+from .artifact_store import (
+    ensure_artifact_repo,
+    normalize_remote_path,
+    restore_artifacts,
+    sync_artifacts,
+)
 from .config import load_config
 from .data import build_loaders
 from .hierarchy import build_parent_hierarchy
@@ -74,6 +82,19 @@ def load_resume_checkpoint(
             f"{type(exc).__name__}: {exc}. Training dimulai ulang.",
             flush=True,
         )
+        return None
+
+
+def current_git_commit() -> str | None:
+    repo_root = Path(__file__).resolve().parents[2]
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
         return None
 
 
@@ -283,6 +304,9 @@ def train(
     output_dir_override: str | None = None,
     data_root_override: str | None = None,
     resume: bool = False,
+    artifact_repo: str | None = None,
+    artifact_path: str | None = None,
+    artifact_sync_every: int = 5,
 ) -> None:
     cfg = load_config(config_path)
     if seed_override is not None:
@@ -416,9 +440,59 @@ def train(
 
     output_dir = Path(training_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_artifact_path: str | None = None
+    if artifact_repo:
+        if artifact_sync_every <= 0:
+            raise ValueError("artifact_sync_every harus lebih besar dari nol.")
+        resolved_artifact_path = normalize_remote_path(
+            artifact_path or f"outputs/{output_dir.name}"
+        )
+        try:
+            ensure_artifact_repo(artifact_repo, private=True)
+            restored = (
+                restore_artifacts(
+                    artifact_repo,
+                    resolved_artifact_path,
+                    output_dir,
+                    overwrite=False,
+                )
+                if resume
+                else []
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Hugging Face artifact store tidak dapat diakses. "
+                "Pastikan HF_TOKEN memiliki izin write dan repo_id benar."
+            ) from exc
+        print(
+            f"HF ARTIFACT: {artifact_repo}/{resolved_artifact_path} | "
+            f"restored={len(restored)} | sync_every={artifact_sync_every} epoch",
+            flush=True,
+        )
     (output_dir / "resolved_config.json").write_text(
         json.dumps(cfg, indent=2), encoding="utf-8"
     )
+    manifest_path = output_dir / "artifact_manifest.json"
+    previous_manifest = {}
+    if manifest_path.is_file():
+        try:
+            previous_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            previous_manifest = {}
+    manifest = {
+        "schema_version": 1,
+        "created_at_utc": previous_manifest.get(
+            "created_at_utc", datetime.now(timezone.utc).isoformat()
+        ),
+        "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": current_git_commit(),
+        "config_path": str(config_path),
+        "seed": int(cfg["seed"]),
+        "data_root": str(cfg["data"]["root"]),
+        "artifact_repo": artifact_repo,
+        "artifact_path": resolved_artifact_path,
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     epochs = int(training_cfg["epochs"])
     if ema is not None and ema_start_epoch >= epochs:
         raise ValueError("training.ema_start_epoch harus lebih kecil dari epochs.")
@@ -781,6 +855,32 @@ def train(
         (output_dir / "history.json").write_text(
             json.dumps(history, indent=2), encoding="utf-8"
         )
+        if artifact_repo and resolved_artifact_path and (
+            (epoch + 1) % artifact_sync_every == 0 or epoch + 1 == epochs
+        ):
+            manifest["updated_at_utc"] = datetime.now(timezone.utc).isoformat()
+            manifest["completed_epoch"] = epoch + 1
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            print(
+                f"HF SYNC: epoch {epoch + 1}/{epochs} -> "
+                f"{artifact_repo}/{resolved_artifact_path}",
+                flush=True,
+            )
+            try:
+                sync_artifacts(
+                    artifact_repo,
+                    resolved_artifact_path,
+                    output_dir,
+                    commit_message=(
+                        f"Checkpoint {output_dir.name} epoch {epoch + 1}/{epochs}"
+                    ),
+                )
+            except Exception as exc:
+                print(
+                    "WARNING: upload checkpoint ke Hugging Face gagal; "
+                    f"training tetap dilanjutkan. {type(exc).__name__}: {exc}",
+                    flush=True,
+                )
 
 
 def main() -> None:
@@ -794,6 +894,20 @@ def main() -> None:
         action="store_true",
         help="Lanjutkan dari last.pt jika state optimizer lengkap tersedia.",
     )
+    parser.add_argument(
+        "--artifact-repo",
+        help="Repo model Hugging Face private, contoh user/coffee-checkpoints.",
+    )
+    parser.add_argument(
+        "--artifact-path",
+        help="Folder run di dalam repo Hugging Face.",
+    )
+    parser.add_argument(
+        "--artifact-sync-every",
+        type=int,
+        default=5,
+        help="Upload last.pt dan metadata setiap N epoch (default: 5).",
+    )
     args = parser.parse_args()
     train(
         args.config,
@@ -801,6 +915,9 @@ def main() -> None:
         output_dir_override=args.output_dir,
         data_root_override=args.data_root,
         resume=args.resume,
+        artifact_repo=args.artifact_repo,
+        artifact_path=args.artifact_path,
+        artifact_sync_every=args.artifact_sync_every,
     )
 
 

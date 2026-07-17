@@ -9,6 +9,11 @@ import sys
 from pathlib import Path
 
 from .aggregate_ablation import aggregate
+from .artifact_store import (
+    ensure_artifact_repo,
+    restore_artifacts,
+    sync_artifacts,
+)
 from .config import load_config
 from .models import build_model
 
@@ -193,7 +198,19 @@ def run_backbone_screening(
     backbones: list[str],
     heads: list[str],
     evaluation_split: str = "val",
+    hf_repo: str | None = None,
+    hf_sync_every: int = 5,
 ) -> None:
+    if hf_sync_every <= 0:
+        raise ValueError("hf_sync_every harus lebih besar dari nol.")
+    if hf_repo:
+        try:
+            ensure_artifact_repo(hf_repo, private=True)
+        except Exception as exc:
+            raise RuntimeError(
+                "Repo checkpoint Hugging Face tidak dapat dibuat/diakses. "
+                "Pastikan HF_TOKEN memiliki izin write."
+            ) from exc
     selected = _selected_models(backbones, heads)
     total = len(selected) * len(seeds)
     print("=== PROTOKOL BACKBONE ===")
@@ -201,6 +218,9 @@ def run_backbone_screening(
     print(f"Split   : {evaluation_split}")
     print(f"Seeds   : {seeds}")
     print(f"Runs    : {total}")
+    print(f"HF repo : {hf_repo or 'OFF'}")
+    if hf_repo:
+        print(f"HF sync : setiap {hf_sync_every} epoch")
     print("Klaim   : transfer-learning benchmark; resep pretraining dicatat per config")
 
     print("\n=== RANCANGAN MODEL ===")
@@ -220,7 +240,33 @@ def run_backbone_screening(
             label = f"{code} | seed {seed}"
             run_dir = output_root / "outputs" / f"{code}_seed{seed}"
             report_dir = _report_root(output_root, evaluation_split) / f"{code}_seed{seed}"
+            artifact_run_path = f"outputs/{code}_seed{seed}"
+            artifact_report_path = f"{_report_root(Path('.'), evaluation_split).name}/{code}_seed{seed}"
             print(f"\n[{progress}/{total}] {label}", flush=True)
+            if hf_repo:
+                try:
+                    restored = restore_artifacts(
+                        hf_repo,
+                        artifact_run_path,
+                        run_dir,
+                        overwrite=False,
+                    )
+                    restored += restore_artifacts(
+                        hf_repo,
+                        artifact_report_path,
+                        report_dir,
+                        filenames=(
+                            "metrics.json",
+                            "confusion_matrix.csv",
+                            "predictions.csv",
+                        ),
+                        overwrite=False,
+                    )
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Restore artefak HF gagal untuk {label}."
+                    ) from exc
+                print(f"HF RESTORE: {len(restored)} file", flush=True)
             if _training_complete(run_dir, epochs):
                 print("SKIP training lengkap", flush=True)
             else:
@@ -240,6 +286,18 @@ def run_backbone_screening(
                         "--output-dir",
                         str(run_dir),
                         "--resume",
+                        *(
+                            [
+                                "--artifact-repo",
+                                hf_repo,
+                                "--artifact-path",
+                                artifact_run_path,
+                                "--artifact-sync-every",
+                                str(hf_sync_every),
+                            ]
+                            if hf_repo
+                            else []
+                        ),
                     ]
                 )
 
@@ -265,11 +323,35 @@ def run_backbone_screening(
                         str(report_dir),
                     ]
                 )
+                if hf_repo:
+                    report_files = [
+                        path.name for path in report_dir.iterdir() if path.is_file()
+                    ]
+                    sync_artifacts(
+                        hf_repo,
+                        artifact_report_path,
+                        report_dir,
+                        filenames=report_files,
+                        commit_message=f"Evaluation {label} on {evaluation_split}",
+                    )
 
     if {"gap", "hbp"}.issubset(heads):
         for backbone in backbones:
             _aggregate_pair(backbone, output_root, seeds, evaluation_split)
     _leaderboard(selected, output_root, seeds, evaluation_split)
+    if hf_repo:
+        report_root = _report_root(output_root, evaluation_split)
+        summary_files = [
+            path.name for path in report_root.iterdir() if path.is_file()
+        ]
+        if summary_files:
+            sync_artifacts(
+                hf_repo,
+                _report_root(Path("."), evaluation_split).name,
+                report_root,
+                filenames=summary_files,
+                commit_message=f"Aggregate backbone benchmark on {evaluation_split}",
+            )
     print("\nPASS: benchmark backbone selesai.", flush=True)
 
 
@@ -308,6 +390,16 @@ def main() -> None:
         action="store_true",
         help="Konfirmasi eksplisit bahwa kandidat sudah dikunci sebelum membuka test.",
     )
+    parser.add_argument(
+        "--hf-repo",
+        help="Repo model Hugging Face private untuk checkpoint lintas runtime.",
+    )
+    parser.add_argument(
+        "--hf-sync-every",
+        type=int,
+        default=5,
+        help="Upload last.pt dan metadata setiap N epoch (default: 5).",
+    )
     args = parser.parse_args()
     if args.evaluation_split == "test" and not args.allow_test:
         parser.error("--evaluation-split test membutuhkan --allow-test.")
@@ -318,6 +410,8 @@ def main() -> None:
         backbones=args.backbones,
         heads=args.heads,
         evaluation_split=args.evaluation_split,
+        hf_repo=args.hf_repo,
+        hf_sync_every=args.hf_sync_every,
     )
 
 
