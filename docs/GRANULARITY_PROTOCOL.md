@@ -136,6 +136,51 @@ python -u -m bilinear_lmmd.run_granularity_bootstrap \
 Bootstrap tidak menggantikan grouped OOF atau penambahan seed. Confidence
 interval hanya boleh ditafsirkan sesuai sumber ketidakpastian yang di-resample.
 
+## Hasil paired stratified bootstrap final
+
+Bootstrap dijalankan pada 199 sampel test per seed, tiga seed
+`[42, 123, 2026]`, 10.000 iterasi, random seed `20260717`, dan confidence
+level 95%. Seluruh model memakai identitas sampel dan indeks resampling yang
+sama.
+
+| Estimand | Point estimate | CI 95% fixed-seed | Proporsi bootstrap > 0 |
+|---|---:|---:|---:|
+| Fine-17 HBP gain | +3,03% | [+0,57%; +5,69%] | 0,992 |
+| Coarse-9 HBP gain | +0,42% | [-2,35%; +3,22%] | 0,607 |
+| Granularity effect | +2,60% | [-0,88%; +6,25%] | 0,931 |
+
+Hierarchical seed-and-sample bootstrap untuk granularity effect menghasilkan
+CI 95% `[-2,74%; +8,19%]` dan proporsi replikasi positif `0,839`.
+
+Keputusan:
+
+1. HBP meningkatkan Macro-F1 Fine-17 secara jelas conditional pada tiga model
+   seed yang telah dilatih, karena CI fixed-seed seluruhnya berada di atas nol.
+2. Efek HBP pada Coarse-9 tidak dapat dibedakan dari nol.
+3. Difference-in-differences mendukung arah hipotesis bahwa HBP lebih berguna
+   pada label fine-grained, tetapi CI 95% masih mencakup nol. Hipotesis
+   granularity belum boleh disebut signifikan atau terbukti universal.
+4. Interval hierarchical lebih lebar karena hanya tiga seed tersedia. Hasil
+   tersebut menegaskan bahwa generalisasi terhadap inisialisasi training baru
+   masih memiliki ketidakpastian besar.
+
+`probability_positive` adalah proporsi replikasi bootstrap dengan estimand di
+atas nol. Nilai ini bukan p-value dan bukan probabilitas posterior bahwa
+hipotesis benar.
+
+Klaim final yang diperbolehkan:
+
+> Paired stratified bootstrap menunjukkan bahwa HBP meningkatkan Macro-F1
+> Fine-17 sebesar 3,03 poin persentase, dengan CI 95% [0,57; 5,69]. Pada
+> Coarse-9, peningkatan 0,42 poin tidak dapat dibedakan dari nol.
+> Difference-in-differences sebesar 2,60 poin menunjukkan kecenderungan bahwa
+> manfaat HBP meningkat seiring granularitas label, tetapi CI 95%
+> [-0,88; 6,25] masih mencakup nol.
+
+Artefak lengkap di lingkungan eksperimen disimpan sebagai
+`results/reports/granularity_bootstrap.json`. Test telah terkunci dan tidak
+boleh digunakan untuk tuning lanjutan.
+
 ## Perintah Kaggle screening
 
 ```python

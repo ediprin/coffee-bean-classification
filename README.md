@@ -903,3 +903,9 @@ python -u -m bilinear_lmmd.run_granularity_bootstrap \
   --iterations 10000 \
   --output outputs/granularity/reports/granularity_bootstrap.json
 ```
+
+Hasil final 10.000 bootstrap test: Fine-17 HBP gain `+3,03%` dengan CI 95%
+`[+0,57%; +5,69%]`; Coarse-9 gain `+0,42%` dengan CI
+`[-2,35%; +3,22%]`; granularity difference-in-differences `+2,60%` dengan CI
+`[-0,88%; +6,25%]`. Interpretasi dan batas klaim tersedia di
+[`docs/GRANULARITY_PROTOCOL.md`](docs/GRANULARITY_PROTOCOL.md).
