@@ -367,6 +367,13 @@ Untuk checkpoint yang dapat dipulihkan dari akun/runtime lain, simpan
 Runner otomatis memulihkan `last.pt` sebelum training dan menyinkronkan state
 model, optimizer, scheduler, history, config, serta commit Git secara periodik.
 
+Untuk menjalankan seluruh setup dari runtime kosong tanpa menyusun cell manual,
+gunakan notebook
+[`backbone_benchmark_resumable_colab.ipynb`](notebooks/backbone_benchmark_resumable_colab.ipynb).
+Notebook tersebut memvalidasi GPU dan Secrets, memulihkan dataset Coffee-17
+secara deterministik, membersihkan output preparasi parsial, lalu menjalankan
+restore/train/evaluate/sync dalam satu alur yang aman diulang setelah reset.
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:
