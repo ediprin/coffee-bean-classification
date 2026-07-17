@@ -1,4 +1,5 @@
 import json
+import csv
 from pathlib import Path
 
 from PIL import Image
@@ -11,6 +12,7 @@ from bilinear_lmmd.prepare_coarse_coffee17 import (
     prepare_coarse_coffee17,
 )
 from bilinear_lmmd.run_granularity_experiment import _paired_granularity_effect
+from bilinear_lmmd.run_granularity_bootstrap import run_granularity_bootstrap
 
 
 def test_prepare_coarse_preserves_splits_and_all_images(tmp_path):
@@ -99,3 +101,58 @@ def test_granularity_models_build_with_expected_output_dimensions():
         model = build_model(cfg["model"])
         assert model.classifier.out_features == 9
         assert model.pool.output_dim == embedding_dim
+
+
+def _write_prediction_csv(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(("path", "actual", "predicted", "correct"))
+        for image_path, actual, predicted in rows:
+            writer.writerow((image_path, actual, predicted, int(actual == predicted)))
+
+
+def test_granularity_bootstrap_pairs_identical_samples(tmp_path):
+    fine_classes = list(EXPECTED_FINE_CLASSES)
+    fine_gap_rows = []
+    fine_hbp_rows = []
+    coarse_rows = []
+    for index, fine_class in enumerate(fine_classes):
+        wrong_class = fine_classes[(index + 1) % len(fine_classes)]
+        coarse_class = next(
+            coarse for coarse, members in COARSE_GROUPS.items() if fine_class in members
+        )
+        for sample in range(2):
+            filename = f"sample_{index}_{sample}.png"
+            fine_gap_prediction = fine_class if sample == 0 else wrong_class
+            fine_gap_rows.append((f"/fine/{fine_class}/{filename}", fine_class, fine_gap_prediction))
+            fine_hbp_rows.append((f"/fine/{fine_class}/{filename}", fine_class, fine_class))
+            coarse_rows.append(
+                (
+                    f"/coarse/{coarse_class}/{fine_class}__{filename}",
+                    coarse_class,
+                    coarse_class,
+                )
+            )
+
+    report_root = tmp_path / "reports"
+    for seed in (42, 123):
+        _write_prediction_csv(report_root / f"GF0_seed{seed}/predictions.csv", fine_gap_rows)
+        _write_prediction_csv(report_root / f"GF1_seed{seed}/predictions.csv", fine_hbp_rows)
+        _write_prediction_csv(report_root / f"GC0_seed{seed}/predictions.csv", coarse_rows)
+        _write_prediction_csv(report_root / f"GC1_seed{seed}/predictions.csv", coarse_rows)
+
+    output = tmp_path / "bootstrap.json"
+    result = run_granularity_bootstrap(
+        report_root=report_root,
+        seeds=[42, 123],
+        output=output,
+        iterations=100,
+        random_seed=7,
+    )
+
+    assert output.is_file()
+    assert result["samples"] == 34
+    assert result["point_estimate"]["fine_hbp_gain"] > 0
+    assert result["point_estimate"]["coarse_hbp_gain"] == 0
+    assert result["point_estimate"]["granularity_effect"] > 0

@@ -94,6 +94,48 @@ ketika label benar-benar fine-grained. Hasil belum menjadi bukti final karena
 baru seed 123 pada validation. Konfirmasi seed 42 dan 2026 harus dijalankan
 ulang; test tetap tertutup sampai interpretasi validation dikunci.
 
+## Konfirmasi tiga seed dan test terkunci
+
+Validation tiga seed menghasilkan gain Macro-F1 HBP `+0,62 ± 1,77` poin pada
+Fine-17 dan `-1,78 ± 0,86` poin pada Coarse-9. Difference-in-differences adalah
+`+2,39 ± 1,84` poin dan positif pada 3/3 seed. Berdasarkan hasil ini,
+interpretasi dikunci sebelum test dibuka.
+
+Pada test, HBP meningkatkan Macro-F1 Fine-17 sebesar `+3,03 ± 1,65` poin dan
+Coarse-9 sebesar `+0,42 ± 1,74` poin. Difference-in-differences test adalah
+`+2,60 ± 3,33` poin dan positif pada 2/3 seed. Worst-class F1 Fine-17 meningkat
+`+6,65` poin, sedangkan pada Coarse-9 turun `-2,82` poin.
+
+Temuan mendukung arah hipotesis bahwa HBP lebih bermanfaat pada label
+fine-grained, tetapi tidak membuktikan efek universal atau signifikansi
+statistik. Uji t eksploratif berbasis tiga seed tidak melewati ambang 5% dan
+tidak dijadikan bukti utama.
+
+## Paired stratified bootstrap tanpa training ulang
+
+Runner `run_granularity_bootstrap` membaca `predictions.csv` GF0/GF1/GC0/GC1,
+memasangkan identitas gambar Fine dan Coarse, lalu melakukan resampling dengan
+replacement di dalam setiap kelas Fine-17. Indeks bootstrap yang sama dipakai
+untuk seluruh model dan seed sehingga estimand tetap berpasangan.
+
+Runner melaporkan dua interval:
+
+1. fixed-trained-seed bootstrap: ketidakpastian sampel test dengan tiga model
+   seed yang telah dilatih dianggap tetap;
+2. hierarchical bootstrap: selain sampel, tiga seed juga di-resample. Karena
+   hanya ada tiga seed, interval ini tetap eksploratif.
+
+```bash
+python -u -m bilinear_lmmd.run_granularity_bootstrap \
+  --report-root outputs/granularity/reports \
+  --seeds 42 123 2026 \
+  --iterations 10000 \
+  --output outputs/granularity/reports/granularity_bootstrap.json
+```
+
+Bootstrap tidak menggantikan grouped OOF atau penambahan seed. Confidence
+interval hanya boleh ditafsirkan sesuai sumber ketidakpastian yang di-resample.
+
 ## Perintah Kaggle screening
 
 ```python

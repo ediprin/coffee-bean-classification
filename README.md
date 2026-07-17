@@ -892,3 +892,14 @@ Hasil screening seed 123 dan status konfirmasi multi-seed dicatat pada protokol
 tersebut. Kandidat backbone SHViT dibatasi sebagai ablation validation setelah
 konfirmasi granularity; lihat
 [`docs/SHVIT_BACKBONE_SCREENING.md`](docs/SHVIT_BACKBONE_SCREENING.md).
+
+Setelah test terkunci tersedia, confidence interval berpasangan dapat dihitung
+tanpa training ulang dari `predictions.csv`:
+
+```bash
+python -u -m bilinear_lmmd.run_granularity_bootstrap \
+  --report-root outputs/granularity/reports \
+  --seeds 42 123 2026 \
+  --iterations 10000 \
+  --output outputs/granularity/reports/granularity_bootstrap.json
+```
