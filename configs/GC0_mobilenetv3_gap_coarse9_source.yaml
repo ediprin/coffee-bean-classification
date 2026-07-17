@@ -1,0 +1,12 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  num_classes: 9
+  out_indices: [4]
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/GC0_mobilenetv3_gap_coarse9_source
+evaluation:
+  hard_groups:
+    all_coarse: [Black, Covering Residue, Developmental, Fade, Fungus Damage, Insect Damage, Physical Form, Processing Density, Sour]

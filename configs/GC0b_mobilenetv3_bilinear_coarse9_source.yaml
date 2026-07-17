@@ -1,0 +1,14 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: bilinear
+  num_classes: 9
+  out_indices: [4]
+  projection_dim: 160
+  bilinear_output_dim: 1536
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/GC0b_mobilenetv3_bilinear_coarse9_source
+evaluation:
+  hard_groups:
+    all_coarse: [Black, Covering Residue, Developmental, Fade, Fungus Damage, Insect Damage, Physical Form, Processing Density, Sour]

@@ -870,3 +870,20 @@ python -u -m bilinear_lmmd.run_decoupled_screening \
 Runner juga menyimpan checkpoint terbaik setiap expert, audit
 komplementaritas, bobot gate, dan cosine gradient. Protokol lengkap:
 [`docs/DECOUPLED_DUAL_BRANCH_PROTOCOL.md`](docs/DECOUPLED_DUAL_BRANCH_PROTOCOL.md).
+
+### Controlled fine-vs-coarse granularity
+
+Uji penyebab granularitas memakai gambar/split Coffee-17 yang identik dan
+membandingkan gain GAP, factorized bilinear, serta HBP pada label fine-17 dan
+coarse-9:
+
+```bash
+python -u -m bilinear_lmmd.run_granularity_experiment \
+  --fine-root data/coffee_clean/folds/fold_1 \
+  --coarse-root outputs/coffee17_coarse9_fold1 \
+  --output-root outputs/granularity \
+  --seeds 123 \
+  --evaluation-split val
+```
+
+Lihat [`docs/GRANULARITY_PROTOCOL.md`](docs/GRANULARITY_PROTOCOL.md).
