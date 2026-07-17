@@ -887,3 +887,8 @@ python -u -m bilinear_lmmd.run_granularity_experiment \
 ```
 
 Lihat [`docs/GRANULARITY_PROTOCOL.md`](docs/GRANULARITY_PROTOCOL.md).
+
+Hasil screening seed 123 dan status konfirmasi multi-seed dicatat pada protokol
+tersebut. Kandidat backbone SHViT dibatasi sebagai ablation validation setelah
+konfirmasi granularity; lihat
+[`docs/SHVIT_BACKBONE_SCREENING.md`](docs/SHVIT_BACKBONE_SCREENING.md).
