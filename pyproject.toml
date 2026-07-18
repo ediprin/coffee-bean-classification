@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bilinear-lmmd"
+name = "coffee-bean-classification"
 version = "0.1.0"
-description = "Lightweight HBP and LMMD experiments for closed-set domain adaptation"
+description = "Research framework for coffee bean classification across datasets and label granularities"
 requires-python = ">=3.10"
 dependencies = [
   "torch>=2.2",
@@ -22,6 +22,9 @@ dependencies = [
 dev = ["pytest>=8.0"]
 
 [project.scripts]
+coffee-cls-train = "bilinear_lmmd.engine.train:main"
+coffee-cls-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
+coffee-cls-benchmark = "bilinear_lmmd.engine.benchmark:main"
 blmmd-train = "bilinear_lmmd.engine.train:main"
 blmmd-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
 blmmd-benchmark = "bilinear_lmmd.engine.benchmark:main"

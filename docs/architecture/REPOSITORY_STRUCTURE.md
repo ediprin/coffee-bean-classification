@@ -2,9 +2,11 @@
 
 The repository is organized by responsibility. Generic, reusable code stays
 separate from dataset preparation and experiment orchestration.
+The distribution and repository are named `coffee-bean-classification`; the
+existing `bilinear_lmmd` Python namespace remains stable for compatibility.
 
 ```text
-bilinear-LMMD/
+coffee-bean-classification/
 ├── configs/
 │   ├── backbones/       # backbone comparison
 │   ├── cbd/             # CBD multiclass experiments

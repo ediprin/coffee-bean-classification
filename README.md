@@ -1,10 +1,14 @@
-# MobileNetV3–HBP–LMMD
+# Coffee Bean Classification
 
-Kerangka eksperimen PyTorch untuk klasifikasi fine-grained dengan **closed-set
-unsupervised domain adaptation (UDA)**. MobileNetV3 adalah anchor utama,
-MobileNetV4 dan backbone lain dipakai sebagai kontrol, HBP menguji kontribusi
-interaksi fitur antarlapis, dan LMMD menyelaraskan distribusi source–target per
-kelas.
+Kerangka riset PyTorch untuk klasifikasi biji kopi lintas dataset, granularitas
+label, backbone, dan pooling head. Eksperimen historis mencakup HBP untuk
+interaksi fitur antarlapis serta closed-set domain adaptation; namespace Python
+`bilinear_lmmd` dipertahankan agar checkpoint dan command lama tetap kompatibel.
+
+Repository sebelumnya bernama `bilinear-LMMD`. Mulai perubahan ini, gunakan
+`https://github.com/ediprin/coffee-bean-classification.git` untuk clone baru.
+Penggantian nama repository tidak mengubah format checkpoint maupun namespace
+Python historis.
 
 Dataset source yang digunakan adalah [Coffee Green Bean with 17 Defects
 (original)](https://www.kaggle.com/datasets/sujitraarw/coffee-green-bean-with-17-defects-original)
@@ -355,7 +359,7 @@ validation terlebih dahulu:
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
-  --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --output-root /content/drive/MyDrive/coffee-bean-classification-backbones/results \
   --backbones MV4 EV2 CV2 PV2 \
   --heads gap hierarchical_gap hbp \
   --seeds 123 \
