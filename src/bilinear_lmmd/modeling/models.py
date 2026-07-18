@@ -166,6 +166,54 @@ class HierarchicalBilinearPooling(nn.Module):
         return torch.cat(pairwise, dim=1)
 
 
+class ProjectedHierarchicalGAP(nn.Module):
+    """Capacity-matched first-order control for normalized HBP.
+
+    The three selected feature maps use exactly the same learned
+    ``Conv-BatchNorm-ReLU`` projections and deepest-grid alignment as
+    :class:`HierarchicalBilinearPooling`.  Each projected stage is pooled and
+    normalized independently, then concatenated without a multiplicative
+    interaction.  HBP and this control therefore have identical trainable
+    parameter counts and embedding dimensions; their only representational
+    difference is first-order pooling versus pairwise second-order products.
+    """
+
+    def __init__(self, channels: list[int], projection_dim: int):
+        super().__init__()
+        if len(channels) != 3:
+            raise ValueError("Hierarchical GAP membutuhkan tepat tiga feature map.")
+        self.projections = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv2d(channel, projection_dim, kernel_size=1, bias=False),
+                    nn.BatchNorm2d(projection_dim),
+                    nn.ReLU(inplace=True),
+                )
+                for channel in channels
+            ]
+        )
+        self.output_dim = projection_dim * 3
+
+    @staticmethod
+    def _normalize(x: Tensor) -> Tensor:
+        x = torch.sign(x) * torch.sqrt(torch.abs(x) + 1e-8)
+        return F.normalize(x, p=2, dim=1)
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if len(features) != 3:
+            raise ValueError(
+                f"Hierarchical GAP menerima 3 feature map, didapat {len(features)}."
+            )
+        target_size = features[-1].shape[-2:]
+        pooled = []
+        for projection, feature in zip(self.projections, features):
+            feature = projection(feature)
+            if feature.shape[-2:] != target_size:
+                feature = F.adaptive_avg_pool2d(feature, target_size)
+            pooled.append(self._normalize(feature.flatten(2).mean(-1)))
+        return torch.cat(pooled, dim=1)
+
+
 class LinearProjectionHBP(nn.Module):
     """Yu-style linear-projection, low-dimensional cross-stage HBP.
 
@@ -837,6 +885,7 @@ class AdaptationModel(nn.Module):
         super().__init__()
         supported_heads = {
             "gap",
+            "hierarchical_gap",
             "sppf_attention_gap",
             "bilinear",
             "hbp",
@@ -866,8 +915,11 @@ class AdaptationModel(nn.Module):
             "hbp_residual_control",
             "gap_hbp_residual",
         }
-        if head in hbp_heads and len(out_indices) != 3:
-            raise ValueError("out_indices untuk head berbasis HBP harus tepat 3 indeks.")
+        hierarchical_heads = hbp_heads | {"hierarchical_gap"}
+        if head in hierarchical_heads and len(out_indices) != 3:
+            raise ValueError(
+                "out_indices untuk head hierarkis harus tepat 3 indeks."
+            )
 
         self.backbone_name = backbone
         self.head = head
@@ -880,6 +932,8 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "hierarchical_gap":
+            self.pool = ProjectedHierarchicalGAP(channels, projection_dim)
         elif head == "hbp_linear":
             self.pool = LinearProjectionHBP(
                 channels,

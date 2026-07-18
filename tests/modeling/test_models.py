@@ -99,6 +99,7 @@ def test_finegrained_configs_form_controlled_ablation(
         "gap",
         "bilinear",
         "hbp",
+        "hierarchical_gap",
         "hbp_moe",
         "sp_hbp",
         "sppf_attention_gap",

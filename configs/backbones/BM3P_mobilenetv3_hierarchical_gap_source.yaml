@@ -1,0 +1,14 @@
+data:
+  image_size: 224
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: hierarchical_gap
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/BM3P_mobilenetv3_hierarchical_gap_source

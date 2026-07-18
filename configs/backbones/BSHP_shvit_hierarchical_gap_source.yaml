@@ -1,0 +1,14 @@
+data:
+  image_size: 224
+model:
+  backbone: shvit_s1.in1k
+  pretrained: true
+  head: hierarchical_gap
+  out_indices: [0, 1, 2]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/BSHP_shvit_hierarchical_gap_source

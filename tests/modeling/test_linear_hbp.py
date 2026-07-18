@@ -11,6 +11,7 @@ from bilinear_lmmd.modeling.models import (
     AdaptationModel,
     HierarchicalBilinearPooling,
     LinearProjectionHBP,
+    ProjectedHierarchicalGAP,
 )
 
 
@@ -132,3 +133,54 @@ def test_linear_hbp_rejects_invalid_configuration() -> None:
         LinearProjectionHBP([3, 5], projection_dim=4)
     with pytest.raises(ValueError, match="lebih besar dari nol"):
         LinearProjectionHBP([3, 5, 7], projection_dim=0)
+
+
+def test_projected_hierarchical_gap_is_capacity_matched_to_hbp() -> None:
+    kwargs = {
+        "backbone": "mobilenetv3_small_050",
+        "num_classes": 4,
+        "out_indices": (1, 3, 4),
+        "projection_dim": 32,
+        "pretrained": False,
+    }
+    torch.manual_seed(42)
+    hbp = AdaptationModel(head="hbp", **kwargs)
+    torch.manual_seed(42)
+    first_order = AdaptationModel(head="hierarchical_gap", **kwargs)
+
+    assert isinstance(hbp.pool, HierarchicalBilinearPooling)
+    assert isinstance(first_order.pool, ProjectedHierarchicalGAP)
+    assert hbp.pool.output_dim == first_order.pool.output_dim == 96
+    assert sum(p.numel() for p in hbp.parameters()) == sum(
+        p.numel() for p in first_order.parameters()
+    )
+    for hbp_projection, first_order_projection in zip(
+        hbp.pool.projections, first_order.pool.projections
+    ):
+        for hbp_parameter, first_order_parameter in zip(
+            hbp_projection.parameters(), first_order_projection.parameters()
+        ):
+            assert torch.equal(hbp_parameter, first_order_parameter)
+    assert torch.equal(hbp.classifier.weight, first_order.classifier.weight)
+    assert torch.equal(hbp.classifier.bias, first_order.classifier.bias)
+
+
+def test_projected_hierarchical_gap_forward_and_validation() -> None:
+    pool = ProjectedHierarchicalGAP([3, 5, 7], projection_dim=11).eval()
+    features = [
+        torch.randn(2, 3, 16, 16),
+        torch.randn(2, 5, 8, 8),
+        torch.randn(2, 7, 4, 4),
+    ]
+
+    output = pool(features)
+
+    assert output.shape == (2, 33)
+    torch.testing.assert_close(
+        output.reshape(2, 3, 11).norm(dim=2),
+        torch.ones(2, 3),
+    )
+    with pytest.raises(ValueError, match="3 feature map"):
+        pool(features[:2])
+    with pytest.raises(ValueError, match="tepat tiga"):
+        ProjectedHierarchicalGAP([3, 5], projection_dim=11)

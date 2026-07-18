@@ -331,7 +331,7 @@ python -m bilinear_lmmd.engine.train --config configs/coffee17/M5_mobilenetv3_hb
 
 Ubah `data.root`, `model.num_classes`, batch size, dan hyperparameter lain pada
 YAML. Semua nilai yang tidak ditulis di YAML mengambil default dari
-`src/bilinear_lmmd/config.py`.
+`src/bilinear_lmmd/core/config.py`.
 
 Contoh override dataset untuk 17 kelas:
 
@@ -346,21 +346,28 @@ model:
 
 ## Benchmark backbone kontemporer
 
-Bandingkan MobileNetV4, EfficientNetV2, ConvNeXtV2, PVTv2, dan SHViT dengan
-pasangan GAP/HBP yang identik. Screening harus memakai validation terlebih
-dahulu:
+Bandingkan MobileNetV4, EfficientNetV2, ConvNeXtV2, dan PVTv2 dengan GAP,
+Projected Hierarchical GAP (kontrol first-order capacity-matched), serta HBP.
+SHViT tetap dapat dibandingkan dengan GAP, tetapi head hierarkisnya tidak
+sebanding karena feature reductions `[16,32,64]`. Screening harus memakai
+validation terlebih dahulu:
 
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
   --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --backbones MV4 EV2 CV2 PV2 \
+  --heads gap hierarchical_gap hbp \
   --seeds 123 \
   --evaluation-split val
 ```
 
-Runner mendukung resume, menampilkan progress per run, dan menulis leaderboard
-JSON/CSV. Rincian pemilihan checkpoint, batas klaim, screening, serta konfirmasi
-test tersedia di [protokol benchmark backbone](docs/protocols/BACKBONE_PROTOCOL.md).
+Runner mengaudit feature hierarchy sebelum training, mendukung resume,
+menampilkan progress per run, dan menulis leaderboard JSON/CSV. Gunakan
+`--audit-only` untuk menghasilkan `backbone_compatibility.json` tanpa training.
+Rincian pemilihan checkpoint, kontrol kapasitas, batas klaim, screening, serta
+konfirmasi test tersedia di
+[protokol benchmark backbone](docs/protocols/BACKBONE_PROTOCOL.md).
 
 Untuk checkpoint yang dapat dipulihkan dari akun/runtime lain, simpan
 `HF_TOKEN` melalui Colab/Kaggle Secrets lalu tambahkan:
@@ -937,8 +944,9 @@ python -u -m bilinear_lmmd.experiments.run_granularity_experiment \
 Lihat [`docs/protocols/GRANULARITY_PROTOCOL.md`](docs/protocols/GRANULARITY_PROTOCOL.md).
 
 Hasil screening seed 123 dan status konfirmasi multi-seed dicatat pada protokol
-tersebut. Kandidat backbone SHViT dibatasi sebagai ablation validation setelah
-konfirmasi granularity; lihat
+tersebut. SHViT hanya dipakai sebagai pembanding GAP; HBP generiknya tidak
+sebanding karena feature hierarchy berakhir pada reduction 64. Adapter
+beresolusi lebih tinggi harus diaudit sebelum ablation HBP SHViT; lihat
 [`docs/protocols/SHVIT_BACKBONE_SCREENING.md`](docs/protocols/SHVIT_BACKBONE_SCREENING.md).
 
 Setelah test terkunci tersedia, confidence interval berpasangan dapat dihitung

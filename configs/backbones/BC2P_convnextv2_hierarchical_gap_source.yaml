@@ -1,0 +1,14 @@
+data:
+  image_size: 224
+model:
+  backbone: convnextv2_atto.fcmae_ft_in1k
+  pretrained: true
+  head: hierarchical_gap
+  out_indices: [0, 2, 3]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/BC2P_convnextv2_hierarchical_gap_source
