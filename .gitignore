@@ -5,8 +5,8 @@ tmp/
 *.egg-info/
 .venv/
 venv/
-data/
-outputs/
+/data/
+/outputs/
 *.pt
 *.pth
 

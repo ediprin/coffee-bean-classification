@@ -21,6 +21,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
+[project.scripts]
+blmmd-train = "bilinear_lmmd.engine.train:main"
+blmmd-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
+blmmd-benchmark = "bilinear_lmmd.engine.benchmark:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

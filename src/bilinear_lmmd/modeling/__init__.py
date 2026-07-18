@@ -1,4 +1,4 @@
-"""Reusable components for coffee-bean recognition experiments."""
+"""Neural-network architectures, objectives, and label structures."""
 
 from bilinear_lmmd.modeling.losses import LMMDLoss, MMDLoss
 from bilinear_lmmd.modeling.models import AdaptationModel, build_model

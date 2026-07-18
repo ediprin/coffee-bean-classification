@@ -10,10 +10,16 @@ Dataset source yang digunakan adalah [Coffee Green Bean with 17 Defects
 (original)](https://www.kaggle.com/datasets/sujitraarw/coffee-green-bean-with-17-defects-original)
 dan referensi baseline-nya adalah Arwatchananukul et al. (2024), DOI
 [10.1016/j.atech.2024.100680](https://doi.org/10.1016/j.atech.2024.100680).
-Catatan protokol rinci tersedia di [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md).
+Catatan protokol rinci tersedia di [docs/protocols/RESEARCH_PROTOCOL.md](docs/protocols/RESEARCH_PROTOCOL.md).
 Hasil test M0/M1 tiga seed yang telah dikunci, keputusan model, batas klaim,
 dan benchmark efisiensi dicatat di
-[docs/FINAL_HBP_RESULTS.md](docs/FINAL_HBP_RESULTS.md).
+[docs/results/FINAL_HBP_RESULTS.md](docs/results/FINAL_HBP_RESULTS.md).
+
+Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
+preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di
+`engine`, orkestrasi studi di `experiments`, serta agregasi di `reporting`.
+Struktur lengkap dan aturan dependensinya tersedia di
+[docs/architecture/REPOSITORY_STRUCTURE.md](docs/architecture/REPOSITORY_STRUCTURE.md).
 
 ## Desain eksperimen
 
@@ -47,7 +53,7 @@ Tahap B menguji kontribusi metode:
 | M5w01 | M5 dengan bobot LMMD 0,1 | rescue control untuk source degradation |
 
 Eksperimen lintas-dataset USK-Coffee memakai kode U0-U3; lihat bagian
-"Benchmark USK-Coffee" dan `docs/USK_COFFEE_PROTOCOL.md`.
+"Benchmark USK-Coffee" dan `docs/protocols/USK_COFFEE_PROTOCOL.md`.
 
 Model final tidak dikunci sebelum B0–B4 dibandingkan berdasarkan target
 macro-F1, parameter, ukuran FP32, latency, dan memori pada perangkat yang sama.
@@ -89,14 +95,14 @@ memverifikasi jumlah setiap kelas terhadap Table 1 paper, lalu membuat split
 stratified 70/20/10 dengan seed 42:
 
 ```powershell
-python -m bilinear_lmmd.prepare_coffee17 --output data/coffee
+python -m bilinear_lmmd.data.preparation.prepare_coffee17 --output data/coffee
 ```
 
 Jika dataset sudah ditambahkan sebagai Kaggle Input dan telah diekstrak,
 gunakan folder mount secara langsung tanpa download ulang:
 
 ```powershell
-python -u -m bilinear_lmmd.prepare_coffee17 `
+python -u -m bilinear_lmmd.data.preparation.prepare_coffee17 `
   --raw-root /kaggle/input `
   --output data/coffee
 ```
@@ -124,7 +130,7 @@ Screening awal membandingkan MobileNetV2 paper, MobileNetV3-GAP, dan
 MobileNetV3-HBP pada validation seed 42:
 
 ```powershell
-python -u -m bilinear_lmmd.run_usk_screening `
+python -u -m bilinear_lmmd.experiments.run_usk_screening `
   --raw-root /kaggle/input/usk-coffee `
   --data-root /kaggle/working/usk-coffee-prepared `
   --output-root /kaggle/working/usk-results `
@@ -137,7 +143,7 @@ Perintah yang sama dapat dijalankan ulang; dataset, training lengkap, dan
 report lengkap akan dilewati. Jika audit mendeteksi pasangan depan-belakang
 lintas split, runner berhenti sebelum training. Batas perbandingan terhadap
 test accuracy paper 81,31% dan protokol konfirmasi tersedia di
-[docs/USK_COFFEE_PROTOCOL.md](docs/USK_COFFEE_PROTOCOL.md).
+[docs/protocols/USK_COFFEE_PROTOCOL.md](docs/protocols/USK_COFFEE_PROTOCOL.md).
 
 ### Screening HBP pada dataset coffee roast
 
@@ -146,7 +152,7 @@ bukan kelas cacat. Uji minimal R0 (MobileNetV3-GAP) versus R1
 (MobileNetV3-HBP) dijalankan dengan:
 
 ```powershell
-python -u -m bilinear_lmmd.run_roast_hbp_screening `
+python -u -m bilinear_lmmd.experiments.run_roast_hbp_screening `
   --raw-root /kaggle/input/coffee-bean-dataset-resized-224-x-224 `
   --data-root /kaggle/working/coffee-roast-prepared `
   --output-root /kaggle/working/coffee-roast-hbp-results `
@@ -158,7 +164,7 @@ Runner mempertahankan test bawaan, membuat validation hanya dari train bila
 perlu, serta membuang salinan exact duplicate lintas split dengan prioritas
 mempertahankan test. Protokol dan
 batas klaim tersedia di
-[docs/ROAST_HBP_PROTOCOL.md](docs/ROAST_HBP_PROTOCOL.md).
+[docs/protocols/ROAST_HBP_PROTOCOL.md](docs/protocols/ROAST_HBP_PROTOCOL.md).
 
 ### Screening hierarchical HBP pada Coffee17
 
@@ -167,7 +173,7 @@ menambahkan auxiliary parent loss untuk pasangan Black, Sour, dan Insect
 Damage. Screening terkontrol dijalankan pada validation:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean_for_synthetic/folds/fold_1 `
   --output-root outputs/hierarchical-hbp `
   --stage hierarchy `
@@ -176,7 +182,7 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
 ```
 
 Pemetaan kelas, bobot loss yang dikunci, dan kriteria keputusan tersedia di
-[docs/HIERARCHICAL_HBP_PROTOCOL.md](docs/HIERARCHICAL_HBP_PROTOCOL.md).
+[docs/protocols/HIERARCHICAL_HBP_PROTOCOL.md](docs/protocols/HIERARCHICAL_HBP_PROTOCOL.md).
 
 ### Screening SPPF-Attention sebelum HBP
 
@@ -185,7 +191,7 @@ MobileNetV3 dengan pooling multi-skala serta channel-spatial attention sebelum
 HBP. Jalankan M1 versus S1 pada validation:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
   --output-root outputs/sppf-attention-hbp `
   --stage sppf `
@@ -195,13 +201,13 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
 
 Formulasi modul, perbedaan terhadap detector Hong, dan kriteria penghentian
 tersedia di
-[docs/SPPF_ATTENTION_HBP_PROTOCOL.md](docs/SPPF_ATTENTION_HBP_PROTOCOL.md).
+[docs/protocols/SPPF_ATTENTION_HBP_PROTOCOL.md](docs/protocols/SPPF_ATTENTION_HBP_PROTOCOL.md).
 
 Untuk membedakan efek SPPF dari efek HBP, jalankan ablasi faktorial
 M0/M1/S0/S1. S0 menempatkan SPPF-Attention sebelum GAP tanpa HBP:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
   --output-root outputs/sppf-attention-hbp `
   --stage sppf_factorial `
@@ -212,7 +218,7 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
 Jika S1 lolos screening terhadap M1, isolasi efek kapasitas dengan:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
   --output-root outputs/sppf-attention-hbp `
   --stage sppf_control `
@@ -233,7 +239,7 @@ menulis resep per gambar agar eksperimen dapat diaudit.
 Screening hemat komputasi memakai domain `combined` dan satu seed:
 
 ```powershell
-python -u -m bilinear_lmmd.run_synthetic_benchmark `
+python -u -m bilinear_lmmd.experiments.run_synthetic_benchmark `
   --source-root data/coffee_clean/folds/fold_1/source `
   --data-root data/coffee_synthetic `
   --output-root outputs/synthetic_screen `
@@ -252,13 +258,13 @@ source-only yang seed serta arsitekturnya sudah cocok.
 Eksperimen ini hanya mendukung klaim **controlled synthetic robustness/UDA
 sanity-check**, bukan ketahanan dunia nyata. Protokol lengkap dan perintah
 konfirmasi empat domain x tiga seed tersedia di
-[docs/SYNTHETIC_DOMAIN_PROTOCOL.md](docs/SYNTHETIC_DOMAIN_PROTOCOL.md).
+[docs/protocols/SYNTHETIC_DOMAIN_PROTOCOL.md](docs/protocols/SYNTHETIC_DOMAIN_PROTOCOL.md).
 
 Setelah rescue control M5w01 lulus pada seed screening 123, konfirmasi tanpa
 tuning tambahan pada held-out seeds 42 dan 2026 dijalankan dengan:
 
 ```powershell
-python -u -m bilinear_lmmd.run_lmmd_rescue_confirmation `
+python -u -m bilinear_lmmd.experiments.run_lmmd_rescue_confirmation `
   --data-root data/coffee_synthetic_components/illumination `
   --output-root outputs/lmmd_rescue_confirmation `
   --seeds 42 2026
@@ -269,7 +275,7 @@ sensor dan background dengan reuse checkpoint M1 yang diverifikasi melalui
 fingerprint source:
 
 ```powershell
-python -u -m bilinear_lmmd.run_lmmd_cross_shift_confirmation `
+python -u -m bilinear_lmmd.experiments.run_lmmd_cross_shift_confirmation `
   --data-root data/coffee_synthetic_components `
   --baseline-output-root outputs/lmmd_rescue_confirmation `
   --output-root outputs/lmmd_cross_shift_confirmation `
@@ -286,7 +292,7 @@ dan source forgetting pada sampel `rescued`, `negative_transfer`,
 `both_correct`, dan `both_wrong`.
 
 ```bash
-python -u -m bilinear_lmmd.run_xai_analysis \
+python -u -m bilinear_lmmd.experiments.run_xai_analysis \
   --data-root /kaggle/working/coffee-synthetic-components \
   --illumination-root /kaggle/working/lmmd-rescue-confirmation \
   --cross-shift-root /kaggle/working/lmmd-cross-shift-confirmation \
@@ -299,28 +305,28 @@ python -u -m bilinear_lmmd.run_xai_analysis \
 Output mencakup panel heatmap, foreground-attention terhadap mask biji,
 background leakage, dan relative confidence drop setelah penghapusan 5% piksel
 terkuat. Protokol dan batas interpretasi tersedia di
-[docs/XAI_PROTOCOL.md](docs/XAI_PROTOCOL.md).
+[docs/protocols/XAI_PROTOCOL.md](docs/protocols/XAI_PROTOCOL.md).
 
 ## Instalasi dan training
 
 ```powershell
 python -m pip install -r requirements.txt
 python -m pip install -e .
-python -m bilinear_lmmd.prepare_coffee17 --output data/coffee
-python -m bilinear_lmmd.train --config configs/B0_mobilenetv3_large_gap.yaml
+python -m bilinear_lmmd.data.preparation.prepare_coffee17 --output data/coffee
+python -m bilinear_lmmd.engine.train --config configs/backbones/B0_mobilenetv3_large_gap.yaml
 ```
 
 Jika target domain belum tersedia, mulai dari baseline source-only:
 
 ```powershell
-python -m bilinear_lmmd.train --config configs/B0_mobilenetv3_large_gap.yaml
+python -m bilinear_lmmd.engine.train --config configs/backbones/B0_mobilenetv3_large_gap.yaml
 ```
 
 Sesudah target domain tersedia dan disusun dengan 17 kelas yang sama, model
 usulan dapat dijalankan dengan:
 
 ```powershell
-python -m bilinear_lmmd.train --config configs/M5_mobilenetv3_hbp_lmmd.yaml
+python -m bilinear_lmmd.engine.train --config configs/coffee17/M5_mobilenetv3_hbp_lmmd.yaml
 ```
 
 Ubah `data.root`, `model.num_classes`, batch size, dan hyperparameter lain pada
@@ -345,7 +351,7 @@ pasangan GAP/HBP yang identik. Screening harus memakai validation terlebih
 dahulu:
 
 ```bash
-python -u -m bilinear_lmmd.run_backbone_screening \
+python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
   --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
   --seeds 123 \
@@ -354,7 +360,7 @@ python -u -m bilinear_lmmd.run_backbone_screening \
 
 Runner mendukung resume, menampilkan progress per run, dan menulis leaderboard
 JSON/CSV. Rincian pemilihan checkpoint, batas klaim, screening, serta konfirmasi
-test tersedia di [protokol benchmark backbone](docs/BACKBONE_PROTOCOL.md).
+test tersedia di [protokol benchmark backbone](docs/protocols/BACKBONE_PROTOCOL.md).
 
 Untuk checkpoint yang dapat dipulihkan dari akun/runtime lain, simpan
 `HF_TOKEN` melalui Colab/Kaggle Secrets lalu tambahkan:
@@ -379,8 +385,8 @@ restore/train/evaluate/sync dalam satu alur yang aman diulang setelah reset.
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:
 
 ```powershell
-python -m bilinear_lmmd.benchmark --config configs/B0_mobilenetv3_large_gap.yaml
-python -m bilinear_lmmd.benchmark --config configs/B2_mobilenetv4_conv_small_gap.yaml
+python -m bilinear_lmmd.engine.benchmark --config configs/backbones/B0_mobilenetv3_large_gap.yaml
+python -m bilinear_lmmd.engine.benchmark --config configs/backbones/B2_mobilenetv4_conv_small_gap.yaml
 ```
 
 Output berisi jumlah parameter, estimasi ukuran bobot FP32, serta latency batch
@@ -391,7 +397,7 @@ Setelah report test M0/M1 tiga seed terkunci, buat paket pelaporan final tanpa
 melatih ulang atau mengubah checkpoint:
 
 ```powershell
-python -u -m bilinear_lmmd.run_final_hbp_report `
+python -u -m bilinear_lmmd.experiments.run_final_hbp_report `
   --report-root outputs/hierarchical-hbp-results/reports `
   --output-dir outputs/hierarchical-hbp-results/final_report `
   --seeds 42 123 2026
@@ -407,7 +413,7 @@ overlay, dan Finer-LayerCAM. Sampel dipilih deterministik berdasarkan outcome
 prediksi, bukan dipilih manual setelah heatmap terlihat:
 
 ```powershell
-python -u -m bilinear_lmmd.run_final_hbp_xai `
+python -u -m bilinear_lmmd.experiments.run_final_hbp_xai `
   --data-root data/coffee17_hierarchy_clean/folds/fold_1 `
   --experiment-root outputs/hierarchical-hbp-results `
   --output-root outputs/final-hbp-xai `
@@ -426,7 +432,7 @@ M1e mempertahankan arsitektur, loss, optimizer, dan inferensi M1. EMA decay
 yang dievaluasi. Gunakan fold baru; test final fold 1 tidak boleh dipakai lagi:
 
 ```powershell
-python -u -m bilinear_lmmd.run_ema_screening `
+python -u -m bilinear_lmmd.experiments.run_ema_screening `
   --data-root data/coffee17_hierarchy_clean/folds/fold_2 `
   --output-root outputs/hbp-ema-fold2 `
   --seeds 42 123 2026 `
@@ -438,7 +444,7 @@ sehingga waktu training hampir separuh dan perbandingan bobot benar-benar
 berpasangan.
 
 Kriteria keputusan dan batas test leakage tersedia di
-[docs/EMA_HBP_PROTOCOL.md](docs/EMA_HBP_PROTOCOL.md).
+[docs/protocols/EMA_HBP_PROTOCOL.md](docs/protocols/EMA_HBP_PROTOCOL.md).
 
 ## Urutan eksperimen yang disarankan
 
@@ -457,7 +463,7 @@ Kriteria keputusan dan batas test leakage tersedia di
 ## Membuktikan kontribusi HBP
 
 Analisis angka paper dan kriteria keputusan tersedia di
-[docs/HBP_HYPOTHESIS.md](docs/HBP_HYPOTHESIS.md). Eksperimen minimum harus
+[docs/protocols/HBP_HYPOTHESIS.md](docs/protocols/HBP_HYPOTHESIS.md). Eksperimen minimum harus
 membandingkan GAP, bilinear satu lapis, dan HBP pada split serta seed identik.
 Notebook siap-Colab tersedia di
 [notebooks/hbp_ablation_colab.ipynb](notebooks/hbp_ablation_colab.ipynb).
@@ -465,14 +471,14 @@ Notebook siap-Colab tersedia di
 Contoh satu seed:
 
 ```powershell
-python -m bilinear_lmmd.train --config configs/M0_mobilenetv3_gap_source.yaml --seed 42 --output-dir outputs/M0_seed42
-python -m bilinear_lmmd.train --config configs/M0b_mobilenetv3_bilinear_source.yaml --seed 42 --output-dir outputs/M0b_seed42
-python -m bilinear_lmmd.train --config configs/M1_mobilenetv3_hbp_source.yaml --seed 42 --output-dir outputs/M1_seed42
+python -m bilinear_lmmd.engine.train --config configs/coffee17/M0_mobilenetv3_gap_source.yaml --seed 42 --output-dir outputs/M0_seed42
+python -m bilinear_lmmd.engine.train --config configs/coffee17/M0b_mobilenetv3_bilinear_source.yaml --seed 42 --output-dir outputs/M0b_seed42
+python -m bilinear_lmmd.engine.train --config configs/coffee17/M1_mobilenetv3_hbp_source.yaml --seed 42 --output-dir outputs/M1_seed42
 
-python -m bilinear_lmmd.evaluate_checkpoint --checkpoint outputs/M0_seed42/best.pt --domain source --split test --output-dir reports/M0_seed42
-python -m bilinear_lmmd.evaluate_checkpoint --checkpoint outputs/M1_seed42/best.pt --domain source --split test --output-dir reports/M1_seed42
+python -m bilinear_lmmd.engine.evaluate_checkpoint --checkpoint outputs/M0_seed42/best.pt --domain source --split test --output-dir reports/M0_seed42
+python -m bilinear_lmmd.engine.evaluate_checkpoint --checkpoint outputs/M1_seed42/best.pt --domain source --split test --output-dir reports/M1_seed42
 
-python -m bilinear_lmmd.compare_reports --baseline reports/M0_seed42/metrics.json --candidate reports/M1_seed42/metrics.json --output reports/M0_vs_M1_seed42.json
+python -m bilinear_lmmd.reporting.compare_reports --baseline reports/M0_seed42/metrics.json --candidate reports/M1_seed42/metrics.json --output reports/M0_vs_M1_seed42.json
 ```
 
 Ulangi minimal untuk seed 42, 123, dan 2026. Kesimpulan tidak boleh diambil dari
@@ -481,7 +487,7 @@ satu run terbaik.
 Setelah ketiga seed dievaluasi, agregasikan secara berpasangan:
 
 ```powershell
-python -m bilinear_lmmd.aggregate_ablation `
+python -m bilinear_lmmd.reporting.aggregate_ablation `
   --baseline reports/M0_seed42/metrics.json reports/M0_seed123/metrics.json reports/M0_seed2026/metrics.json `
   --candidate reports/M1_seed42/metrics.json reports/M1_seed123/metrics.json reports/M1_seed2026/metrics.json `
   --output reports/M0_vs_M1_aggregate.json
@@ -493,7 +499,7 @@ Setelah M1 tersedia untuk seed 42, 123, dan 2026, jalankan kontrol kapasitas
 M1c dan feature fusion M1f dengan satu perintah:
 
 ```powershell
-python -u -m bilinear_lmmd.run_fusion_screening `
+python -u -m bilinear_lmmd.experiments.run_fusion_screening `
   --data-root data/coffee `
   --output-root outputs/holdout
 ```
@@ -507,7 +513,7 @@ M1c-vs-M1f, dan M1-vs-M1f dicetak otomatis.
 Untuk stress test residual fusion pada seed 123 saja:
 
 ```powershell
-python -u -m bilinear_lmmd.run_fusion_screening `
+python -u -m bilinear_lmmd.experiments.run_fusion_screening `
   --data-root data/coffee `
   --output-root outputs/holdout `
   --models M1rc M1r `
@@ -527,7 +533,7 @@ augmentasi tetap hanya diterapkan oleh loader train.
 Siapkan fold:
 
 ```powershell
-python -m bilinear_lmmd.prepare_grouped_folds `
+python -m bilinear_lmmd.data.preparation.prepare_grouped_folds `
   --source-root data/coffee/source `
   --output-root data/coffee_5fold
 ```
@@ -536,7 +542,7 @@ Jalankan GAP dan HBP dengan satu perintah yang aman dijalankan ulang setelah
 interupsi:
 
 ```powershell
-python -u -m bilinear_lmmd.run_grouped_cv `
+python -u -m bilinear_lmmd.experiments.run_grouped_cv `
   --data-root data/coffee_5fold `
   --output-root outputs/grouped5fold `
   --models M0 M1 `
@@ -555,7 +561,7 @@ set, kemudian diterapkan ke outer test fold. Label OOF tidak digunakan untuk
 memilih bobot.
 
 ```powershell
-python -u -m bilinear_lmmd.run_oof_ensemble `
+python -u -m bilinear_lmmd.experiments.run_oof_ensemble `
   --data-root data/coffee_5fold `
   --output-root outputs/grouped5fold `
   --seed 42
@@ -577,7 +583,7 @@ moments, sedangkan tekstur memakai masked GLCM dan LBP. Setiap kombinasi memakai
 RBF-SVM; `C` dan `gamma` dipilih hanya dari validation fold.
 
 ```powershell
-python -u -m bilinear_lmmd.run_attribute_ablation `
+python -u -m bilinear_lmmd.experiments.run_attribute_ablation `
   --data-root data/coffee_5fold `
   --output-root outputs/attribute_ablation
 ```
@@ -600,7 +606,7 @@ Jika audit menemukan prediksi CST yang benar ketika HBP salah, screening gate
 berbasis pasangan label dapat dijalankan tanpa training ulang backbone:
 
 ```powershell
-python -u -m bilinear_lmmd.run_disagreement_gate `
+python -u -m bilinear_lmmd.experiments.run_disagreement_gate `
   --attribute-predictions outputs/attribute_ablation/CST/predictions.csv `
   --hbp-predictions outputs/grouped5fold/oof/M1_seed42/predictions.csv `
   --output-dir outputs/attribute_ablation/HBP_CST_gate
@@ -629,7 +635,7 @@ spatial attention, lalu GAP dan classifier. HBP tidak digunakan.
 Jalankan screening seed 123:
 
 ```powershell
-python -u -m bilinear_lmmd.run_attention_screening `
+python -u -m bilinear_lmmd.experiments.run_attention_screening `
   --data-root data/coffee `
   --output-root outputs/attention_screen `
   --seeds 123
@@ -639,7 +645,7 @@ Runner aman dilanjutkan setelah interupsi. Perbandingan primer adalah M0lgf vs
 M0a, karena keduanya memiliki jalur attention yang sama. Gate LGF diinisialisasi
 50:50 sehingga kedua model memulai dari fungsi fusion yang identik. Detail
 operasional dan keterbatasan paper dicatat di
-`docs/LGF_CBAM_HYPOTHESIS.md`.
+`docs/protocols/LGF_CBAM_HYPOTHESIS.md`.
 
 ## Membersihkan exact duplicate sebelum grouped CV
 
@@ -647,7 +653,7 @@ Dataset publik berisi exact duplicate satu kelas serta satu hash gambar yang
 memiliki dua label berbeda. Buat salinan bersih tanpa mengubah data asli:
 
 ```powershell
-python -u -m bilinear_lmmd.prepare_clean_grouped_folds `
+python -u -m bilinear_lmmd.data.preparation.prepare_clean_grouped_folds `
   --source-root data/coffee/source `
   --output-root data/coffee_clean
 ```
@@ -664,7 +670,7 @@ Audit tersimpan di `data/coffee_clean/audit.json`, konflik label berada di
 Konfirmasi ulang GAP dan HBP dengan:
 
 ```powershell
-python -u -m bilinear_lmmd.run_grouped_cv `
+python -u -m bilinear_lmmd.experiments.run_grouped_cv `
   --data-root data/coffee_clean/folds `
   --output-root outputs/grouped5fold_clean `
   --models M0 M1 `
@@ -681,7 +687,7 @@ dengan margin 10%, lalu menjalankan pipeline training/evaluasi biasa.
 Factorial ablation membandingkan M0/M1 pada gambar asli dengan O0/O1 pada crop:
 
 ```bash
-python -u -m bilinear_lmmd.run_finegrained_screening \
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening \
   --data-root DATA_ROOT_SATU_FOLD \
   --output-root outputs/object_crop \
   --stage object_crop \
@@ -692,7 +698,7 @@ python -u -m bilinear_lmmd.run_finegrained_screening \
 Konfigurasi preprocessing tersimpan di checkpoint sehingga inference dan
 evaluasi tidak membutuhkan mask manual. Definisi operasional, kontrol
 factorial, dan kriteria keputusan ada di
-[`docs/OBJECT_CROP_PROTOCOL.md`](docs/OBJECT_CROP_PROTOCOL.md).
+[`docs/protocols/OBJECT_CROP_PROTOCOL.md`](docs/protocols/OBJECT_CROP_PROTOCOL.md).
 
 ## Reproduksi paper Arwatchananukul et al.
 
@@ -701,7 +707,7 @@ rotasi sebelum split 70/20/10. Runner mempertahankan kelemahan tersebut hanya
 untuk keterbandingan dan mencetak audit identity leakage secara eksplisit:
 
 ```bash
-python -u -m bilinear_lmmd.run_paper_reproduction \
+python -u -m bilinear_lmmd.experiments.run_paper_reproduction \
   --raw-root RAW_COFFEE17 \
   --data-root data/coffee17_paper_protocol \
   --output-root outputs/paper_reproduction \
@@ -710,15 +716,15 @@ python -u -m bilinear_lmmd.run_paper_reproduction \
 
 Hasil P0/P1 bukan pengganti hasil clean M0/M1. Asumsi yang tidak dilaporkan
 paper dan aturan interpretasi dicatat di
-[`docs/PAPER_REPRODUCTION_PROTOCOL.md`](docs/PAPER_REPRODUCTION_PROTOCOL.md).
+[`docs/protocols/PAPER_REPRODUCTION_PROTOCOL.md`](docs/protocols/PAPER_REPRODUCTION_PROTOCOL.md).
 
 Hasil test terkunci tiga seed menunjukkan P1 mengungguli P0 pada seluruh seed:
 Accuracy +6,41 ± 2,26 poin, Macro-F1 +6,61 ± 2,33 poin, Hard-F1 +7,58 ± 2,59
 poin, dan Worst-class F1 +15,98 ± 6,13 poin. Karena variant rotasi dibuat
 sebelum split, angka ini hanya bukti keterbandingan paper-style. Hasil clean
 grouped M0/M1 tetap bukti utama. Ringkasan lengkap tersedia di
-[`docs/PAPER_REPRODUCTION_PROTOCOL.md`](docs/PAPER_REPRODUCTION_PROTOCOL.md)
-dan [`docs/PAPER_REPRODUCTION_RESULTS.json`](docs/PAPER_REPRODUCTION_RESULTS.json).
+[`docs/protocols/PAPER_REPRODUCTION_PROTOCOL.md`](docs/protocols/PAPER_REPRODUCTION_PROTOCOL.md)
+dan [`docs/results/PAPER_REPRODUCTION_RESULTS.json`](docs/results/PAPER_REPRODUCTION_RESULTS.json).
 
 ## Benchmark Roboflow CBD-Multiclassify
 
@@ -729,7 +735,7 @@ membuat split baru 60/20/20
 secara identity-grouped berdasarkan nama asli sebelum suffix `.rf.<hash>`:
 
 ```bash
-python -u -m bilinear_lmmd.run_cbd_multiclassify_screening \
+python -u -m bilinear_lmmd.experiments.run_cbd_multiclassify_screening \
   --raw-root RAW_CBD_MULTICLASSIFY \
   --data-root data/cbd_multiclassify_prepared \
   --output-root outputs/cbd_hbp \
@@ -741,13 +747,13 @@ CBD0/CBD1 membandingkan GAP dan HBP dengan CE. CBD2/CBD3 mengulang faktorial
 head yang sama memakai Balanced Softmax untuk menguji apakah imbalance menutupi
 efek HBP. Dataset ini tidak dicampur dengan Coffee-17 karena labelnya lebih
 kasar. Protokol dan batas klaim lengkap ada di
-[`docs/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/CBD_MULTICLASSIFY_PROTOCOL.md).
+[`docs/protocols/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/protocols/CBD_MULTICLASSIFY_PROTOCOL.md).
 
 Konfirmasi tiga seed untuk logistic stacking GAP-HBP dapat dilanjutkan tanpa
 mengulang run yang sudah lengkap:
 
 ```bash
-python -u -m bilinear_lmmd.run_cbd_stacking_confirmation \
+python -u -m bilinear_lmmd.experiments.run_cbd_stacking_confirmation \
   --data-root data/cbd_multiclassify_prepared \
   --output-root outputs/cbd_hbp \
   --seeds 42 123 2026
@@ -758,7 +764,7 @@ student GAP dapat disaring pada seed 42. CBD4 adalah kontrol KD dari GAP yang
 terkalibrasi, sedangkan CBD5 menerima teacher stacking:
 
 ```bash
-python -u -m bilinear_lmmd.run_cbd_kd_confirmation \
+python -u -m bilinear_lmmd.experiments.run_cbd_kd_confirmation \
   --data-root data/cbd_multiclassify_prepared \
   --output-root outputs/cbd_hbp \
   --seeds 42
@@ -767,7 +773,7 @@ python -u -m bilinear_lmmd.run_cbd_kd_confirmation \
 Jika hasil screening layak, ubah seed menjadi `42 123 2026`; artefak lengkap
 akan dilewati. Student hasil KD tetap satu MobileNetV3-GAP saat inference.
 Rancangan, kontrol kalibrasi, dan kriteria keputusan tercatat di
-[`docs/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/CBD_MULTICLASSIFY_PROTOCOL.md).
+[`docs/protocols/CBD_MULTICLASSIFY_PROTOCOL.md`](docs/protocols/CBD_MULTICLASSIFY_PROTOCOL.md).
 
 ## Screening preservasi spasial HBP
 
@@ -780,7 +786,7 @@ M1; biaya interaksi spasialnya lebih besar.
 Jalankan screening M1 vs M1s pada fold dan seed yang sama:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean/folds/fold_1 `
   --output-root outputs/sp_hbp_screen `
   --stage spatial `
@@ -790,13 +796,13 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
 
 Runner dapat dilanjutkan dengan perintah yang sama setelah interupsi. Batas
 klaim, kontrol eksperimen, dan kriteria keputusan tercatat di
-`docs/SP_HBP_PROTOCOL.md`. SP-HBP 14 x 14 adalah modifikasi penelitian ini;
+`docs/protocols/SP_HBP_PROTOCOL.md`. SP-HBP 14 x 14 adalah modifikasi penelitian ini;
 interaksi HBP lintas-layer mengacu pada Yu et al. (ECCV 2018).
 
 Jika kriteria validation lolos, jalankan seed konfirmasi dan evaluasi test:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean/folds/fold_1 `
   --output-root outputs/sp_hbp_screen `
   --stage spatial `
@@ -816,7 +822,7 @@ arsitektur paper tersebut.
 Screening validation M1 vs E1:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean/folds/fold_1 `
   --output-root outputs/hbp_moe_screen `
   --stage moe `
@@ -826,7 +832,7 @@ python -u -m bilinear_lmmd.run_finegrained_screening `
 
 `metrics.json` E1 memuat mean gate, fraksi pemilihan expert, dan entropy gate;
 `history.json` memuat loss tiap expert. Protokol dan batas klaim lengkap ada di
-`docs/HBP_MOE_PROTOCOL.md`.
+`docs/protocols/HBP_MOE_PROTOCOL.md`.
 
 ## Screening fine-grained: resolusi, HBP, dan ArcFace
 
@@ -837,7 +843,7 @@ kelas, bukan klasifikasi pasangan ala Siamese.
 Mulai dari satu clean fold dan seed 123 untuk memilih resolusi:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean/folds/fold_1 `
   --output-root outputs/finegrained_screen `
   --stage resolution `
@@ -850,7 +856,7 @@ Hard-F1 4,40 poin, dan Worst-F1 6,06 poin. Karena itu eksperimen utama diteruska
 pada 224 dengan matrix GAP/HBP x CE/ArcFace:
 
 ```powershell
-python -u -m bilinear_lmmd.run_finegrained_screening `
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean/folds/fold_1 `
   --output-root outputs/finegrained_screen `
   --stage arcface224 `
@@ -866,7 +872,7 @@ dan meneruskan training dari `last.pt` setelah interupsi untuk checkpoint baru.
 Setelah maksimal dua kandidat dipilih, jalankan grouped OOF bersih, misalnya:
 
 ```powershell
-python -u -m bilinear_lmmd.run_grouped_cv `
+python -u -m bilinear_lmmd.experiments.run_grouped_cv `
   --data-root data/coffee_clean/folds `
   --output-root outputs/finegrained_grouped5fold `
   --models M1 A3 `
@@ -876,7 +882,7 @@ python -u -m bilinear_lmmd.run_grouped_cv `
 
 Ganti `M1 A3` dengan dua kandidat yang benar-benar menang screening. Rancangan
 hipotesis dan aturan keputusan dicatat di
-`docs/FINEGRAINED_HBP_ARCFACE.md`.
+`docs/protocols/FINEGRAINED_HBP_ARCFACE.md`.
 
 ## Catatan implementasi HBP dan LMMD
 
@@ -889,7 +895,7 @@ Audit lintas-backbone membedakan `head: hbp` lama (`Conv-BN-ReLU`) dari
 `head: hbp_linear` yang memakai proyeksi linear sesuai formulasi Yu. Head lama
 tidak diubah agar checkpoint tetap kompatibel. Screening dan batas klaim
 varian baru dijelaskan di
-[`docs/HBP_LINEAR_PROTOCOL.md`](docs/HBP_LINEAR_PROTOCOL.md).
+[`docs/protocols/HBP_LINEAR_PROTOCOL.md`](docs/protocols/HBP_LINEAR_PROTOCOL.md).
 
 LMMD memakai one-hot label source dan probabilitas softmax target yang dilepas
 dari graph sebagai bobot pseudo-label. Kernel RBF kemudian menghitung discrepancy
@@ -902,7 +908,7 @@ blok akhir serta classifier masing-masing. Jalankan screening hanya pada
 validation terlebih dahulu:
 
 ```bash
-python -u -m bilinear_lmmd.run_decoupled_screening \
+python -u -m bilinear_lmmd.experiments.run_decoupled_screening \
   --data-root data/coffee17_hierarchy_clean/folds/fold_1 \
   --output-root outputs/decoupled-gap-hbp \
   --seeds 123 \
@@ -911,7 +917,7 @@ python -u -m bilinear_lmmd.run_decoupled_screening \
 
 Runner juga menyimpan checkpoint terbaik setiap expert, audit
 komplementaritas, bobot gate, dan cosine gradient. Protokol lengkap:
-[`docs/DECOUPLED_DUAL_BRANCH_PROTOCOL.md`](docs/DECOUPLED_DUAL_BRANCH_PROTOCOL.md).
+[`docs/protocols/DECOUPLED_DUAL_BRANCH_PROTOCOL.md`](docs/protocols/DECOUPLED_DUAL_BRANCH_PROTOCOL.md).
 
 ### Controlled fine-vs-coarse granularity
 
@@ -920,7 +926,7 @@ membandingkan gain GAP, factorized bilinear, serta HBP pada label fine-17 dan
 coarse-9:
 
 ```bash
-python -u -m bilinear_lmmd.run_granularity_experiment \
+python -u -m bilinear_lmmd.experiments.run_granularity_experiment \
   --fine-root data/coffee_clean/folds/fold_1 \
   --coarse-root outputs/coffee17_coarse9_fold1 \
   --output-root outputs/granularity \
@@ -928,18 +934,18 @@ python -u -m bilinear_lmmd.run_granularity_experiment \
   --evaluation-split val
 ```
 
-Lihat [`docs/GRANULARITY_PROTOCOL.md`](docs/GRANULARITY_PROTOCOL.md).
+Lihat [`docs/protocols/GRANULARITY_PROTOCOL.md`](docs/protocols/GRANULARITY_PROTOCOL.md).
 
 Hasil screening seed 123 dan status konfirmasi multi-seed dicatat pada protokol
 tersebut. Kandidat backbone SHViT dibatasi sebagai ablation validation setelah
 konfirmasi granularity; lihat
-[`docs/SHVIT_BACKBONE_SCREENING.md`](docs/SHVIT_BACKBONE_SCREENING.md).
+[`docs/protocols/SHVIT_BACKBONE_SCREENING.md`](docs/protocols/SHVIT_BACKBONE_SCREENING.md).
 
 Setelah test terkunci tersedia, confidence interval berpasangan dapat dihitung
 tanpa training ulang dari `predictions.csv`:
 
 ```bash
-python -u -m bilinear_lmmd.run_granularity_bootstrap \
+python -u -m bilinear_lmmd.experiments.run_granularity_bootstrap \
   --report-root outputs/granularity/reports \
   --seeds 42 123 2026 \
   --iterations 10000 \
@@ -950,4 +956,4 @@ Hasil final 10.000 bootstrap test: Fine-17 HBP gain `+3,03%` dengan CI 95%
 `[+0,57%; +5,69%]`; Coarse-9 gain `+0,42%` dengan CI
 `[-2,35%; +3,22%]`; granularity difference-in-differences `+2,60%` dengan CI
 `[-0,88%; +6,25%]`. Interpretasi dan batas klaim tersedia di
-[`docs/GRANULARITY_PROTOCOL.md`](docs/GRANULARITY_PROTOCOL.md).
+[`docs/protocols/GRANULARITY_PROTOCOL.md`](docs/protocols/GRANULARITY_PROTOCOL.md).
