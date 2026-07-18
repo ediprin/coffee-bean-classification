@@ -1,0 +1,39 @@
+seed: 42
+device: auto
+
+ontology:
+  path: coffee_ontology_draft.yaml
+  # Deliberately explicit: switch to false after the CBD mapping audit.
+  allow_provisional: true
+
+data:
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  balance_datasets: true
+  rotation_angles: [0, 45, 90, 135, 180, 225, 270]
+  augmentation_mode: standard
+  sources:
+    - name: coffee17
+      root: ../../data/coffee/source
+    - name: cbd
+      root: ../../data/cbd/source
+
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: gap
+  out_indices: [4]
+  classifier: linear
+  dropout: 0.2
+
+taxonomy_contrastive:
+  weight: 0.0
+  temperature: 0.1
+  nested_positives: false
+
+training:
+  epochs: 30
+  lr: 0.0003
+  weight_decay: 0.0001
+  output_dir: outputs/omsl/OMSL0_seed42

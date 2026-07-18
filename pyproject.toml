@@ -25,6 +25,7 @@ dev = ["pytest>=8.0"]
 coffee-cls-train = "bilinear_lmmd.engine.train:main"
 coffee-cls-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
 coffee-cls-benchmark = "bilinear_lmmd.engine.benchmark:main"
+coffee-cls-omsl = "bilinear_lmmd.engine.train_omsl:main"
 blmmd-train = "bilinear_lmmd.engine.train:main"
 blmmd-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
 blmmd-benchmark = "bilinear_lmmd.engine.benchmark:main"

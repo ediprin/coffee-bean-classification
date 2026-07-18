@@ -1,0 +1,59 @@
+# DRAFT observation ontology. Coffee17 mappings are identity mappings. CBD
+# mappings are provisional until their annotation manuals are audited.
+canonical_classes:
+  - Good
+  - Broken
+  - Cut
+  - Dry Cherry
+  - Fade
+  - Floater
+  - Full Black
+  - Full Sour
+  - Fungus Damage
+  - Husk
+  - Immature
+  - Parchment
+  - Partial Black
+  - Partial Sour
+  - Severe Insect Damage
+  - Shell
+  - Slight Insect Damage
+  - Withered
+
+datasets:
+  coffee17:
+    labels:
+      Broken: {leaves: [Broken], status: exact}
+      Cut: {leaves: [Cut], status: exact}
+      Dry Cherry: {leaves: [Dry Cherry], status: exact}
+      Fade: {leaves: [Fade], status: exact}
+      Floater: {leaves: [Floater], status: exact}
+      Full Black: {leaves: [Full Black], status: exact}
+      Full Sour: {leaves: [Full Sour], status: exact}
+      Fungus Damage: {leaves: [Fungus Damage], status: exact}
+      Husk: {leaves: [Husk], status: exact}
+      Immature: {leaves: [Immature], status: exact}
+      Parchment: {leaves: [Parchment], status: exact}
+      Partial Black: {leaves: [Partial Black], status: exact}
+      Partial Sour: {leaves: [Partial Sour], status: exact}
+      Severe Insect Damage: {leaves: [Severe Insect Damage], status: exact}
+      Shell: {leaves: [Shell], status: exact}
+      Slight Insect Damage: {leaves: [Slight Insect Damage], status: exact}
+      Withered: {leaves: [Withered], status: exact}
+
+  cbd:
+    labels:
+      Black:
+        leaves: [Full Black, Partial Black]
+        status: provisional
+      Broken: {leaves: [Broken], status: provisional}
+      Dried Cherry: {leaves: [Dry Cherry], status: provisional}
+      Floater: {leaves: [Floater], status: provisional}
+      Fungus Damage: {leaves: [Fungus Damage], status: provisional}
+      Good: {leaves: [Good], status: provisional}
+      Insect Damage:
+        leaves: [Severe Insect Damage, Slight Insect Damage]
+        status: provisional
+      Sour:
+        leaves: [Full Sour, Partial Sour]
+        status: provisional
