@@ -5,7 +5,12 @@ import torch
 
 from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.modeling.models import build_model
-from bilinear_lmmd.experiments.run_backbone_screening import BACKBONES, _selected_models
+from bilinear_lmmd.experiments.run_backbone_screening import (
+    BACKBONES,
+    _audit_selected_models,
+    _selected_models,
+    assess_hierarchy_compatibility,
+)
 
 
 EXPECTED = {
@@ -24,25 +29,45 @@ def test_backbone_pair_is_controlled(family: str) -> None:
     gap = load_config(BACKBONES[family]["gap"][1])
     hbp = load_config(BACKBONES[family]["hbp"][1])
     linear = load_config(BACKBONES[family]["hbp_linear"][1])
+    first_order = load_config(BACKBONES[family]["hierarchical_gap"][1])
 
     assert gap["model"]["backbone"] == expected_backbone
     assert hbp["model"]["backbone"] == expected_backbone
     assert linear["model"]["backbone"] == expected_backbone
+    assert first_order["model"]["backbone"] == expected_backbone
     assert gap["model"]["head"] == "gap"
     assert hbp["model"]["head"] == "hbp"
     assert linear["model"]["head"] == "hbp_linear"
+    assert first_order["model"]["head"] == "hierarchical_gap"
     assert hbp["model"]["out_indices"] == expected_hbp_indices
     assert linear["model"]["out_indices"] == expected_hbp_indices
+    assert first_order["model"]["out_indices"] == expected_hbp_indices
     assert len(gap["model"]["out_indices"]) == 1
     assert gap["model"]["pretrained"] is True
     assert hbp["model"]["pretrained"] is True
     assert linear["model"]["pretrained"] is True
+    assert first_order["model"]["pretrained"] is True
     assert gap["data"]["image_size"] == hbp["data"]["image_size"] == 224
     assert gap["adaptation"]["method"] == hbp["adaptation"]["method"] == "source_only"
     assert linear["adaptation"]["method"] == "source_only"
+    assert first_order["adaptation"]["method"] == "source_only"
     assert gap["training"]["classification_loss"] == "cross_entropy"
     assert hbp["training"]["classification_loss"] == "cross_entropy"
     assert linear["training"]["classification_loss"] == "cross_entropy"
+    assert first_order["training"]["classification_loss"] == "cross_entropy"
+
+    legacy_model = dict(hbp["model"])
+    first_order_model = dict(first_order["model"])
+    legacy_model.pop("head")
+    first_order_model.pop("head")
+    assert legacy_model == first_order_model
+    assert hbp["data"] == first_order["data"]
+    assert hbp["adaptation"] == first_order["adaptation"]
+    legacy_training = dict(hbp["training"])
+    first_order_training = dict(first_order["training"])
+    legacy_training.pop("output_dir")
+    first_order_training.pop("output_dir")
+    assert legacy_training == first_order_training
 
     legacy_model = dict(hbp["model"])
     linear_model = dict(linear["model"])
@@ -59,17 +84,23 @@ def test_backbone_pair_is_controlled(family: str) -> None:
 
 
 def test_backbone_selection_keeps_family_then_head_order() -> None:
-    selected = _selected_models(["PV2", "SHV"], ["gap", "hbp"])
+    selected = _selected_models(
+        ["PV2", "SHV"], ["gap", "hierarchical_gap", "hbp"]
+    )
     assert [(family, head, code) for family, head, code, _ in selected] == [
         ("PV2", "gap", "BP2G"),
+        ("PV2", "hierarchical_gap", "BP2P"),
         ("PV2", "hbp", "BP2H"),
         ("SHV", "gap", "BSHG"),
+        ("SHV", "hierarchical_gap", "BSHP"),
         ("SHV", "hbp", "BSHH"),
     ]
 
 
 @pytest.mark.parametrize("family", tuple(EXPECTED))
-@pytest.mark.parametrize("head", ("gap", "hbp", "hbp_linear"))
+@pytest.mark.parametrize(
+    "head", ("gap", "hierarchical_gap", "hbp", "hbp_linear")
+)
 def test_backbone_model_forward_shape(family: str, head: str) -> None:
     config = load_config(BACKBONES[family][head][1])
     config["model"]["pretrained"] = False
@@ -80,6 +111,39 @@ def test_backbone_model_forward_shape(family: str, head: str) -> None:
 
     assert output.logits.shape == (1, 17)
     expected_embedding = (
-        1536 if head in {"hbp", "hbp_linear"} else model.pool.output_dim
+        1536
+        if head in {"hierarchical_gap", "hbp", "hbp_linear"}
+        else model.pool.output_dim
     )
     assert output.embedding.shape == (1, expected_embedding)
+
+
+def test_hierarchy_compatibility_requires_controlled_reductions() -> None:
+    compatible = assess_hierarchy_compatibility("hbp", [4, 16, 32])
+    incompatible = assess_hierarchy_compatibility("hbp", [16, 32, 64])
+    gap = assess_hierarchy_compatibility("gap", [32])
+
+    assert compatible["comparable"] is True
+    assert incompatible["comparable"] is False
+    assert incompatible["expected_reductions"] == [4, 16, 32]
+    assert gap["required"] is False
+    assert gap["comparable"] is None
+
+
+def test_audit_blocks_shvit_hierarchy_but_allows_explicit_exploration(tmp_path) -> None:
+    selected = _selected_models(["SHV"], ["hbp"])
+
+    with pytest.raises(ValueError, match="BSHH"):
+        _audit_selected_models(
+            selected,
+            tmp_path,
+            allow_incompatible_hierarchy=False,
+        )
+
+    rows = _audit_selected_models(
+        selected,
+        tmp_path,
+        allow_incompatible_hierarchy=True,
+    )
+    assert rows[0]["hierarchy"]["comparable"] is False
+    assert (tmp_path / "backbone_compatibility.json").is_file()

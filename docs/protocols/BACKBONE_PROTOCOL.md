@@ -8,6 +8,16 @@ Benchmark ini menguji dua faktor secara terpisah:
 2. apakah efek HBP dibanding GAP konsisten pada CNN, Transformer hierarkis,
    dan hybrid CNN-Transformer.
 
+Perbandingan orde kedua memakai kontrol tambahan
+`Projected Hierarchical GAP (PH-GAP)`. Kontrol ini memiliki proyeksi,
+normalisasi, dimensi embedding, classifier, dan jumlah parameter yang identik
+dengan HBP, tetapi tidak melakukan perkalian antarlayer. Karena itu:
+
+- GAP vs PH-GAP mengukur efek feature hierarchy, proyeksi, dan kapasitas;
+- PH-GAP vs HBP mengisolasi efek interaksi multiplikatif orde kedua; dan
+- HBP vs HBP-linear mengukur efek modifikasi BatchNorm-ReLU terhadap
+  formulasi proyeksi linear.
+
 Benchmark bukan klaim pretraining arsitektur murni. Setiap model memakai
 checkpoint publiknya sendiri, sehingga hasil harus disebut sebagai
 **transfer-learning system comparison**.
@@ -27,7 +37,8 @@ sebelumnya, tetapi bukan peserta baru dalam seleksi lintas keluarga.
 
 ## Matriks eksperimen
 
-Setiap backbone mempunyai pasangan `GAP + CE` dan `HBP + CE`. Faktor lain
+Setiap backbone yang kompatibel mempunyai `GAP + CE`, `PH-GAP + CE`,
+`HBP + CE`, dan `HBP-linear + CE`. Faktor lain
 harus sama: data split, input 224, augmentasi, optimizer, scheduler, epoch,
 label smoothing, dan seed.
 
@@ -42,8 +53,27 @@ menengah, dan terdalam yang tersedia:
 | PV2 | `[3]` | `[0, 2, 3]` |
 | SHV | `[2]` | `[0, 1, 2]` |
 
-Perbedaan stride SHViT harus dicatat saat menginterpretasikan hasil karena
-feature map-nya berada pada reduksi 16, 32, dan 64.
+MV3, MV4, EV2, CV2, dan PV2 menghasilkan reduksi `[4, 16, 32]`, yaitu grid
+`[56x56, 14x14, 7x7]` untuk input 224. SHViT menghasilkan reduksi
+`[16, 32, 64]` atau grid `[14x14, 7x7, 4x4]`. SHViT karena itu hanya boleh
+masuk leaderboard GAP utama. Head hierarkis SHViT bersifat eksploratif dan
+tidak boleh dibandingkan langsung dengan HBP backbone lain sebelum tersedia
+adapter yang mengekspos feature map beresolusi lebih tinggi.
+
+Runner memeriksa geometri ini sebelum training. Audit tanpa training:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_backbone_screening \
+  --data-root /content/coffee17-clean-grouped/folds/fold_1 \
+  --output-root /content/backbone-audit \
+  --backbones MV3 MV4 EV2 CV2 PV2 SHV \
+  --heads gap hierarchical_gap hbp hbp_linear \
+  --audit-only
+```
+
+Laporan disimpan sebagai `backbone_compatibility.json`. Flag
+`--allow-incompatible-hierarchy` hanya boleh digunakan untuk eksperimen
+eksploratif yang dilabeli secara eksplisit.
 
 ## Screening
 
@@ -53,6 +83,8 @@ Gunakan validation dan satu seed dahulu:
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
   --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --backbones MV4 EV2 CV2 PV2 \
+  --heads gap hierarchical_gap hbp \
   --seeds 123 \
   --evaluation-split val
 ```
@@ -109,7 +141,7 @@ konsekuensi upload lebih sering. Dataset tetap harus tersedia kembali dengan
 split dan urutan kelas yang identik; checkpoint akan menolak resume jika kelas
 berbeda.
 
-Untuk menghemat waktu, GAP-only dapat dijalankan lebih dahulu:
+Untuk menghemat waktu, audit dan GAP-only dapat dijalankan lebih dahulu:
 
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
@@ -120,8 +152,8 @@ python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --evaluation-split val
 ```
 
-Namun keputusan final tentang kegunaan HBP harus memakai pasangan GAP/HBP pada
-backbone yang telah ditetapkan sebelum hasil test dilihat.
+Namun keputusan final tentang kegunaan HBP harus memakai PH-GAP/HBP yang
+capacity-matched pada backbone yang telah ditetapkan sebelum hasil test dilihat.
 
 ## Konfirmasi dan test
 
@@ -132,7 +164,8 @@ misalnya:
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
   --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
-  --backbones PV2 SHV \
+  --backbones EV2 PV2 \
+  --heads gap hierarchical_gap hbp hbp_linear \
   --seeds 42 123 2026 \
   --evaluation-split val
 ```
@@ -144,7 +177,8 @@ tambahan:
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
   --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
-  --backbones PV2 SHV \
+  --backbones EV2 PV2 \
+  --heads gap hierarchical_gap hbp hbp_linear \
   --seeds 42 123 2026 \
   --evaluation-split test \
   --allow-test
