@@ -84,6 +84,97 @@ class KnowledgeDistillationLoss(nn.Module):
         return total, {"hard_ce": hard, "soft_kl": soft}
 
 
+class OntologyMarginalLoss(nn.Module):
+    """Exact negative log-likelihood for coarsened/candidate-set labels.
+
+    A boolean compatibility mask identifies the canonical leaves compatible
+    with each observed label. The implementation uses two log-sum-exp terms
+    and never materializes probabilities, which is stable for extreme logits.
+    """
+
+    def __init__(self, reduction: str = "mean"):
+        super().__init__()
+        if reduction not in {"none", "mean", "sum"}:
+            raise ValueError("reduction harus 'none', 'mean', atau 'sum'.")
+        self.reduction = reduction
+
+    def forward(self, logits: Tensor, compatibility: Tensor) -> Tensor:
+        if logits.ndim != 2 or compatibility.shape != logits.shape:
+            raise ValueError(
+                "logits dan compatibility harus memiliki shape [batch, canonical_class] "
+                f"yang sama ({logits.shape} vs {compatibility.shape})."
+            )
+        compatibility = compatibility.to(device=logits.device, dtype=torch.bool)
+        if not torch.all(compatibility.any(dim=1)):
+            raise ValueError("Setiap sampel harus kompatibel dengan minimal satu leaf.")
+        compatible_logits = logits.masked_fill(~compatibility, -torch.inf)
+        losses = torch.logsumexp(logits, dim=1) - torch.logsumexp(
+            compatible_logits, dim=1
+        )
+        if self.reduction == "none":
+            return losses
+        if self.reduction == "sum":
+            return losses.sum()
+        return losses.mean()
+
+
+class TaxonomyCompatibleContrastiveLoss(nn.Module):
+    """Supervised contrastive loss that does not invent fine labels.
+
+    Equal compatible sets are positives. Disjoint sets are definite negatives.
+    Partially overlapping or parent-child sets are ignored by default because
+    treating them as either positive or negative can collapse real subclasses
+    or introduce false negatives. ``nested_positives`` is exposed only as an
+    explicit ablation.
+    """
+
+    def __init__(self, temperature: float = 0.1, nested_positives: bool = False):
+        super().__init__()
+        if temperature <= 0.0:
+            raise ValueError("temperature harus lebih besar dari nol.")
+        self.temperature = float(temperature)
+        self.nested_positives = bool(nested_positives)
+
+    def forward(self, embeddings: Tensor, compatibility: Tensor) -> Tensor:
+        if embeddings.ndim != 2 or compatibility.ndim != 2:
+            raise ValueError("embeddings dan compatibility harus berupa matriks.")
+        if embeddings.shape[0] != compatibility.shape[0]:
+            raise ValueError("Batch embeddings dan compatibility berbeda.")
+        batch = embeddings.shape[0]
+        if batch < 2:
+            return embeddings.sum() * 0.0
+        masks = compatibility.to(device=embeddings.device, dtype=torch.bool)
+        if not torch.all(masks.any(dim=1)):
+            raise ValueError("Set compatibility tidak boleh kosong.")
+
+        overlap = (masks[:, None, :] & masks[None, :, :]).any(dim=2)
+        equal = (masks[:, None, :] == masks[None, :, :]).all(dim=2)
+        positives = equal
+        if self.nested_positives:
+            left_subset = ((~masks[:, None, :]) | masks[None, :, :]).all(dim=2)
+            right_subset = ((~masks[None, :, :]) | masks[:, None, :]).all(dim=2)
+            positives = positives | left_subset | right_subset
+        eye = torch.eye(batch, device=embeddings.device, dtype=torch.bool)
+        positives = positives & ~eye
+        candidates = (positives | ~overlap) & ~eye
+
+        normalized = F.normalize(embeddings, p=2, dim=1)
+        similarity = normalized @ normalized.T / self.temperature
+        similarity = similarity - similarity.max(dim=1, keepdim=True).values.detach()
+        exp_similarity = similarity.exp() * candidates
+        denominator = exp_similarity.sum(dim=1).clamp_min(1e-12)
+        log_probability = similarity - denominator.log()[:, None]
+        positive_count = positives.sum(dim=1)
+        valid = positive_count > 0
+        if not torch.any(valid):
+            return embeddings.sum() * 0.0
+        per_anchor = -(
+            (log_probability * positives).sum(dim=1)
+            / positive_count.clamp_min(1)
+        )
+        return per_anchor[valid].mean()
+
+
 def _multi_rbf_kernel(
     source: Tensor,
     target: Tensor,

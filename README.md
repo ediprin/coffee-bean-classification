@@ -969,3 +969,21 @@ Hasil final 10.000 bootstrap test: Fine-17 HBP gain `+3,03%` dengan CI 95%
 `[-2,35%; +3,22%]`; granularity difference-in-differences `+2,60%` dengan CI
 `[-0,88%; +6,25%]`. Interpretasi dan batas klaim tersedia di
 [`docs/protocols/GRANULARITY_PROTOCOL.md`](docs/protocols/GRANULARITY_PROTOCOL.md).
+
+### Multi-source heterogeneous labels: OMSL
+
+OMSL melatih satu canonical leaf classifier dari beberapa dataset dengan
+granularitas label berbeda. Label kasar dioptimalkan dengan exact marginalized
+likelihood; OMSL-TC menambahkan regularizer contrastive yang hanya memakai
+pasangan label yang pasti sama atau pasti terpisah.
+
+```bash
+python -u -m bilinear_lmmd.engine.train_omsl \
+  --config configs/omsl/OMSL0_efficientnetv2_gap.yaml \
+  --seed 42 --resume
+```
+
+Mapping CBD yang disertakan masih berstatus `provisional` dan akan menghasilkan
+peringatan. Audit definisi label dataset wajib dilakukan sebelum eksperimen
+konfirmatori. Formulasi, baseline wajib, dan batas klaim dijelaskan di
+[`docs/protocols/OMSL_PROTOCOL.md`](docs/protocols/OMSL_PROTOCOL.md).
