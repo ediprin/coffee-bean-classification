@@ -1,0 +1,14 @@
+data:
+  image_size: 224
+model:
+  backbone: pvt_v2_b0.in1k
+  pretrained: true
+  head: hbp_linear
+  out_indices: [0, 2, 3]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/BP2L_pvtv2_hbp_linear_source

@@ -885,6 +885,12 @@ spasial, lalu membentuk interaksi multiplikatif untuk pasangan 1–2, 1–3, dan
 2–3. Setiap pasangan melalui signed square-root dan normalisasi L2 sebelum
 digabungkan.
 
+Audit lintas-backbone membedakan `head: hbp` lama (`Conv-BN-ReLU`) dari
+`head: hbp_linear` yang memakai proyeksi linear sesuai formulasi Yu. Head lama
+tidak diubah agar checkpoint tetap kompatibel. Screening dan batas klaim
+varian baru dijelaskan di
+[`docs/HBP_LINEAR_PROTOCOL.md`](docs/HBP_LINEAR_PROTOCOL.md).
+
 LMMD memakai one-hot label source dan probabilitas softmax target yang dilepas
 dari graph sebagai bobot pseudo-label. Kernel RBF kemudian menghitung discrepancy
 per kelas yang aktif pada kedua batch. `warmup_epochs` mencegah pseudo-label acak

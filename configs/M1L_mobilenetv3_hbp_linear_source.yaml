@@ -1,0 +1,14 @@
+data:
+  image_size: 224
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: hbp_linear
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/M1L_mobilenetv3_hbp_linear_source

@@ -166,6 +166,67 @@ class HierarchicalBilinearPooling(nn.Module):
         return torch.cat(pairwise, dim=1)
 
 
+class LinearProjectionHBP(nn.Module):
+    """Yu-style linear-projection, low-dimensional cross-stage HBP.
+
+    Yu et al. formulate each cross-layer interaction with independent linear
+    projections before the Hadamard product.  The legacy
+    :class:`HierarchicalBilinearPooling` in this repository adds BatchNorm and
+    ReLU to those projections.  This variant deliberately uses bare 1x1
+    convolutions so negative projected interactions are retained.  The
+    learnable biases start at zero, matching the released Caffe implementation
+    without consuming an additional random initialization stream.
+
+    Feature maps from modern backbones can have different spatial resolutions.
+    They are therefore still aligned to the deepest selected grid; this is an
+    explicit cross-stage adaptation and not a literal reproduction of the
+    same-resolution VGG layers used in the original paper.
+    """
+
+    def __init__(self, channels: list[int], projection_dim: int):
+        super().__init__()
+        if len(channels) != 3:
+            raise ValueError("Linear HBP membutuhkan tepat tiga feature map.")
+        if projection_dim <= 0:
+            raise ValueError("projection_dim Linear HBP harus lebih besar dari nol.")
+        projections = []
+        for channel in channels:
+            projection = nn.Conv2d(
+                channel,
+                projection_dim,
+                kernel_size=1,
+                bias=False,
+            )
+            projection.bias = nn.Parameter(torch.zeros(projection_dim))
+            projections.append(projection)
+        self.projections = nn.ModuleList(projections)
+        self.output_dim = projection_dim * 3
+
+    @staticmethod
+    def _normalize(x: Tensor) -> Tensor:
+        x = torch.sign(x) * torch.sqrt(torch.abs(x) + 1e-8)
+        return F.normalize(x, p=2, dim=1)
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if len(features) != 3:
+            raise ValueError(
+                f"Linear HBP menerima 3 feature map, didapat {len(features)}."
+            )
+        target_size = features[-1].shape[-2:]
+        projected = []
+        for projection, feature in zip(self.projections, features):
+            feature = projection(feature)
+            if feature.shape[-2:] != target_size:
+                feature = F.adaptive_avg_pool2d(feature, target_size)
+            projected.append(feature)
+
+        pairwise = []
+        for left, right in ((0, 1), (0, 2), (1, 2)):
+            interaction = (projected[left] * projected[right]).flatten(2).mean(-1)
+            pairwise.append(self._normalize(interaction))
+        return torch.cat(pairwise, dim=1)
+
+
 class SPPFAttention(nn.Module):
     """SPPF with channel-spatial attention and a residual connection.
 
@@ -779,6 +840,7 @@ class AdaptationModel(nn.Module):
             "sppf_attention_gap",
             "bilinear",
             "hbp",
+            "hbp_linear",
             "hbp_moe",
             "sp_hbp",
             "sppf_attention_hbp",
@@ -794,6 +856,7 @@ class AdaptationModel(nn.Module):
             raise ValueError(f"head harus salah satu dari {sorted(supported_heads)}.")
         hbp_heads = {
             "hbp",
+            "hbp_linear",
             "hbp_moe",
             "sp_hbp",
             "sppf_attention_hbp",
@@ -817,6 +880,11 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "hbp_linear":
+            self.pool = LinearProjectionHBP(
+                channels,
+                projection_dim,
+            )
         elif head == "sppf_attention_gap":
             self.pool = SPPFAttentionGAP(
                 channels[-1],

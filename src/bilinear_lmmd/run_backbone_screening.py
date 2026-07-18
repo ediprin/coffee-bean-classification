@@ -19,32 +19,63 @@ from .models import build_model
 
 
 BACKBONES = {
+    "MV3": {
+        "label": "MobileNetV3-Large",
+        "gap": ("M0", Path("configs/M0_mobilenetv3_gap_source.yaml")),
+        "hbp": ("M1", Path("configs/M1_mobilenetv3_hbp_source.yaml")),
+        "hbp_linear": (
+            "M1L",
+            Path("configs/M1L_mobilenetv3_hbp_linear_source.yaml"),
+        ),
+    },
     "MV4": {
         "label": "MobileNetV4-Conv-Medium",
         "gap": ("BV4G", Path("configs/BV4G_mobilenetv4_gap_source.yaml")),
         "hbp": ("BV4H", Path("configs/BV4H_mobilenetv4_hbp_source.yaml")),
+        "hbp_linear": (
+            "BV4L",
+            Path("configs/BV4L_mobilenetv4_hbp_linear_source.yaml"),
+        ),
     },
     "EV2": {
         "label": "EfficientNetV2-B0",
         "gap": ("BE2G", Path("configs/BE2G_efficientnetv2_gap_source.yaml")),
         "hbp": ("BE2H", Path("configs/BE2H_efficientnetv2_hbp_source.yaml")),
+        "hbp_linear": (
+            "BE2L",
+            Path("configs/BE2L_efficientnetv2_hbp_linear_source.yaml"),
+        ),
     },
     "CV2": {
         "label": "ConvNeXtV2-Atto",
         "gap": ("BC2G", Path("configs/BC2G_convnextv2_gap_source.yaml")),
         "hbp": ("BC2H", Path("configs/BC2H_convnextv2_hbp_source.yaml")),
+        "hbp_linear": (
+            "BC2L",
+            Path("configs/BC2L_convnextv2_hbp_linear_source.yaml"),
+        ),
     },
     "PV2": {
         "label": "PVTv2-B0",
         "gap": ("BP2G", Path("configs/BP2G_pvtv2_gap_source.yaml")),
         "hbp": ("BP2H", Path("configs/BP2H_pvtv2_hbp_source.yaml")),
+        "hbp_linear": (
+            "BP2L",
+            Path("configs/BP2L_pvtv2_hbp_linear_source.yaml"),
+        ),
     },
     "SHV": {
         "label": "SHViT-S1",
         "gap": ("BSHG", Path("configs/BSHG_shvit_gap_source.yaml")),
         "hbp": ("BSHH", Path("configs/BSHH_shvit_hbp_source.yaml")),
+        "hbp_linear": (
+            "BSHL",
+            Path("configs/BSHL_shvit_hbp_linear_source.yaml"),
+        ),
     },
 }
+
+DEFAULT_BACKBONES = ("MV4", "EV2", "CV2", "PV2", "SHV")
 
 METRICS = (
     "accuracy",
@@ -105,23 +136,36 @@ def _selected_models(
 
 def _aggregate_pair(
     backbone: str,
+    baseline_head: str,
+    candidate_head: str,
     output_root: Path,
     seeds: list[int],
     split: str,
 ) -> dict | None:
     spec = BACKBONES[backbone]
-    gap_code = spec["gap"][0]
-    hbp_code = spec["hbp"][0]
+    baseline_code = spec[baseline_head][0]
+    candidate_code = spec[candidate_head][0]
     report_root = _report_root(output_root, split)
-    gap_paths = [report_root / f"{gap_code}_seed{seed}" / "metrics.json" for seed in seeds]
-    hbp_paths = [report_root / f"{hbp_code}_seed{seed}" / "metrics.json" for seed in seeds]
-    if any(not path.is_file() for path in gap_paths + hbp_paths):
+    baseline_paths = [
+        report_root / f"{baseline_code}_seed{seed}" / "metrics.json"
+        for seed in seeds
+    ]
+    candidate_paths = [
+        report_root / f"{candidate_code}_seed{seed}" / "metrics.json"
+        for seed in seeds
+    ]
+    if any(not path.is_file() for path in baseline_paths + candidate_paths):
         return None
 
-    result = aggregate(gap_paths, hbp_paths)
-    destination = report_root / f"{gap_code}_vs_{hbp_code}_aggregate.json"
+    result = aggregate(baseline_paths, candidate_paths)
+    destination = (
+        report_root / f"{baseline_code}_vs_{candidate_code}_aggregate.json"
+    )
     destination.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(f"\n=== {spec['label']}: GAP vs HBP ===")
+    print(
+        f"\n=== {spec['label']}: "
+        f"{baseline_head.upper()} vs {candidate_head.upper()} ==="
+    )
     for key, label in (
         ("macro_f1", "Macro-F1"),
         ("hard_class_f1", "Hard-F1 "),
@@ -335,9 +379,21 @@ def run_backbone_screening(
                         commit_message=f"Evaluation {label} on {evaluation_split}",
                     )
 
-    if {"gap", "hbp"}.issubset(heads):
-        for backbone in backbones:
-            _aggregate_pair(backbone, output_root, seeds, evaluation_split)
+    for baseline_head, candidate_head in (
+        ("gap", "hbp"),
+        ("hbp", "hbp_linear"),
+        ("gap", "hbp_linear"),
+    ):
+        if {baseline_head, candidate_head}.issubset(heads):
+            for backbone in backbones:
+                _aggregate_pair(
+                    backbone,
+                    baseline_head,
+                    candidate_head,
+                    output_root,
+                    seeds,
+                    evaluation_split,
+                )
     _leaderboard(selected, output_root, seeds, evaluation_split)
     if hf_repo:
         report_root = _report_root(output_root, evaluation_split)
@@ -371,12 +427,12 @@ def main() -> None:
         "--backbones",
         nargs="+",
         choices=tuple(BACKBONES),
-        default=list(BACKBONES),
+        default=list(DEFAULT_BACKBONES),
     )
     parser.add_argument(
         "--heads",
         nargs="+",
-        choices=("gap", "hbp"),
+        choices=("gap", "hbp", "hbp_linear"),
         default=["gap", "hbp"],
     )
     parser.add_argument(
