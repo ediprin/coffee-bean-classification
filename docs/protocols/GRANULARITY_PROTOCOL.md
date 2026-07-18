@@ -184,14 +184,14 @@ boleh digunakan untuk tuning lanjutan.
 ## Perintah Kaggle screening
 
 ```python
-%cd /kaggle/working/bilinear-LMMD
+%cd /kaggle/working/coffee-bean-classification
 
 import os
 import subprocess
 import sys
 
 env = os.environ.copy()
-env["PYTHONPATH"] = "/kaggle/working/bilinear-LMMD/src" + os.pathsep + env.get("PYTHONPATH", "")
+env["PYTHONPATH"] = "/kaggle/working/coffee-bean-classification/src" + os.pathsep + env.get("PYTHONPATH", "")
 
 subprocess.run([
     sys.executable, "-u", "-m", "bilinear_lmmd.experiments.run_granularity_experiment",

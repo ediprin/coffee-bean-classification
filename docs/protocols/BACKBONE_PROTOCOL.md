@@ -82,7 +82,7 @@ Gunakan validation dan satu seed dahulu:
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
-  --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --output-root /content/drive/MyDrive/coffee-bean-classification-backbones/results \
   --backbones MV4 EV2 CV2 PV2 \
   --heads gap hierarchical_gap hbp \
   --seeds 123 \
@@ -146,7 +146,7 @@ Untuk menghemat waktu, audit dan GAP-only dapat dijalankan lebih dahulu:
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
-  --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --output-root /content/drive/MyDrive/coffee-bean-classification-backbones/results \
   --heads gap \
   --seeds 123 \
   --evaluation-split val
@@ -163,7 +163,7 @@ misalnya:
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
-  --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --output-root /content/drive/MyDrive/coffee-bean-classification-backbones/results \
   --backbones EV2 PV2 \
   --heads gap hierarchical_gap hbp hbp_linear \
   --seeds 42 123 2026 \
@@ -176,7 +176,7 @@ tambahan:
 ```bash
 python -u -m bilinear_lmmd.experiments.run_backbone_screening \
   --data-root /content/coffee17-clean-grouped/folds/fold_1 \
-  --output-root /content/drive/MyDrive/bilinear-LMMD-backbones/results \
+  --output-root /content/drive/MyDrive/coffee-bean-classification-backbones/results \
   --backbones EV2 PV2 \
   --heads gap hierarchical_gap hbp hbp_linear \
   --seeds 42 123 2026 \

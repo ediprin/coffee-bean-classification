@@ -78,7 +78,7 @@ Runner memakai artefak yang sudah dihasilkan oleh rescue confirmation dan
 cross-shift confirmation. Tidak ada training baru.
 
 ```bash
-cd /kaggle/working/bilinear-LMMD
+cd /kaggle/working/coffee-bean-classification
 git pull
 
 python -u -m bilinear_lmmd.experiments.run_xai_analysis \

@@ -94,18 +94,18 @@ lebih banyak parameter karena menduplikasi blok akhir.
 Screening satu seed pada validation:
 
 ```python
-%cd /kaggle/working/bilinear-LMMD
+%cd /kaggle/working/coffee-bean-classification
 
 import os
 import subprocess
 import sys
 
 env = os.environ.copy()
-env["PYTHONPATH"] = "/kaggle/working/bilinear-LMMD/src" + os.pathsep + env.get("PYTHONPATH", "")
+env["PYTHONPATH"] = "/kaggle/working/coffee-bean-classification/src" + os.pathsep + env.get("PYTHONPATH", "")
 
 subprocess.run([
     sys.executable, "-u", "-m", "bilinear_lmmd.experiments.run_decoupled_screening",
-    "--data-root", "/kaggle/working/bilinear-LMMD/data/coffee17_hierarchy_clean/folds/fold_1",
+    "--data-root", "/kaggle/working/coffee-bean-classification/data/coffee17_hierarchy_clean/folds/fold_1",
     "--output-root", "/kaggle/working/decoupled-gap-hbp-results",
     "--seeds", "123",
     "--evaluation-split", "val",
