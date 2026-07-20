@@ -6,6 +6,7 @@ pytest.importorskip("timm")
 from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.modeling.models import (
     AdaptationModel,
+    AdversarialReciprocalPointClassifier,
     ArcMarginClassifier,
     DecoupledGAPHBPModel,
     FixedFusionCBAM,
@@ -70,6 +71,57 @@ def test_arcface_model_uses_margin_for_training_and_cosine_for_inference():
     rows = torch.arange(labels.shape[0])
     assert inference.logits.shape == (2, 4)
     assert torch.all(training.logits[rows, labels] < inference.logits[rows, labels])
+
+
+def test_arpl_classifier_matches_official_logits_and_margin_loss():
+    classifier = AdversarialReciprocalPointClassifier(
+        in_features=3,
+        num_classes=2,
+        regularization_weight=0.1,
+        margin=1.0,
+    )
+    embedding = torch.tensor(
+        [[1.0, 0.0, -1.0], [0.0, 2.0, 1.0]], requires_grad=True
+    )
+    labels = torch.tensor([0, 1])
+    with torch.no_grad():
+        classifier.reciprocal_points.copy_(
+            torch.tensor([[0.2, 0.1, -0.1], [-0.3, 0.4, 0.2]])
+        )
+
+    manual_l2 = torch.cdist(
+        embedding, classifier.reciprocal_points, p=2
+    ).square() / embedding.shape[1]
+    manual_dot = embedding @ classifier.reciprocal_points.t()
+    logits = classifier(embedding)
+    regularization = classifier.open_space_regularization(embedding, labels)
+
+    assert torch.allclose(logits, manual_l2 - manual_dot, atol=1e-6)
+    assert regularization.ndim == 0
+    (torch.nn.functional.cross_entropy(logits, labels) + regularization).backward()
+    assert embedding.grad is not None
+    assert classifier.reciprocal_points.grad is not None
+    assert classifier.radius.grad is not None
+
+
+def test_arpl_model_emits_training_only_open_set_regularization():
+    model = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="gap",
+        out_indices=(4,),
+        classifier="arpl",
+        pretrained=False,
+    )
+    model.eval()
+    images = torch.randn(2, 3, 96, 96)
+    labels = torch.tensor([0, 1])
+    training = model(images, labels=labels)
+    inference = model(images)
+
+    assert training.logits.shape == (2, 4)
+    assert training.open_set_loss is not None
+    assert inference.open_set_loss is None
 
 
 @pytest.mark.parametrize(

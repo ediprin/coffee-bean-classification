@@ -61,3 +61,28 @@ def test_supervised_objective_adds_weighted_parent_ce_and_backpropagates():
     total.backward()
     assert fine_logits.grad is not None
     assert parent_logits.grad is not None
+
+
+def test_supervised_objective_adds_model_open_set_regularization():
+    logits = torch.randn(3, 4, requires_grad=True)
+    regularization = torch.tensor(0.25, requires_grad=True)
+    output = SimpleNamespace(
+        logits=logits,
+        parent_logits=None,
+        expert_logits=None,
+        open_set_loss=regularization,
+    )
+    labels = torch.tensor([0, 1, 3])
+    criterion = nn.CrossEntropyLoss()
+
+    total, components = supervised_objective(
+        output,
+        labels,
+        criterion,
+        nn.Identity(),
+        auxiliary_weight=0.0,
+        diversity_weight=0.0,
+    )
+
+    assert torch.allclose(total, criterion(logits, labels) + regularization)
+    assert set(components) == {"fused_ce", "open_set_regularization"}
