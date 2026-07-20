@@ -32,6 +32,18 @@ from bilinear_lmmd.engine.train import resolve_device
 from bilinear_lmmd.modeling.models import build_model
 
 
+AGGREGATE_METRICS = (
+    "known_macro_f1",
+    "oscr",
+    "macro_oscr_research",
+    "auroc",
+    "aupr_in",
+    "aupr_out",
+    "fpr95",
+    "unknown_rejection",
+)
+
+
 @dataclass(frozen=True)
 class FeatureBundle:
     class_names: list[str]
@@ -363,7 +375,9 @@ def run_osr_baselines(
         tier_root = prepared_root / tier
         run_root = output_root / "outputs" / f"OSR0_{tier}_seed{seed}"
         checkpoint = run_root / "best.pt"
-        generated_config = output_root / "resolved_configs" / f"OSR0_{tier}.yaml"
+        generated_config = (
+            output_root / "resolved_configs" / f"OSR0_{tier}_seed{seed}.yaml"
+        )
         _write_split_config(base_config, tier_root, run_root, generated_config)
         if not checkpoint.is_file() and not skip_training:
             command = [
@@ -424,6 +438,89 @@ def run_osr_baselines(
     return summary
 
 
+def aggregate_osr_summaries(
+    summaries: list[dict],
+    output_root: Path,
+) -> dict:
+    """Aggregate balanced OSR results without selecting on unknown test data."""
+
+    if not summaries:
+        raise ValueError("Minimal satu summary OSR diperlukan untuk agregasi.")
+    seeds = [int(summary["seed"]) for summary in summaries]
+    tiers = ("near", "medium", "far")
+    methods = sorted(
+        summaries[0]["splits"]["near"]["primary_balanced"]
+    )
+    aggregate: dict[str, dict] = {}
+    csv_rows: list[dict] = []
+    for tier in tiers:
+        aggregate[tier] = {}
+        for method in methods:
+            metric_summary = {}
+            for metric_name in AGGREGATE_METRICS:
+                values = np.asarray(
+                    [
+                        summary["splits"][tier]["primary_balanced"][method][
+                            metric_name
+                        ]
+                        for summary in summaries
+                    ],
+                    dtype=np.float64,
+                )
+                metric_summary[metric_name] = {
+                    "mean": float(values.mean()),
+                    "std": float(values.std(ddof=1)) if len(values) > 1 else 0.0,
+                    "values": {
+                        str(seed): float(value)
+                        for seed, value in zip(seeds, values, strict=True)
+                    },
+                }
+            aggregate[tier][method] = metric_summary
+            csv_rows.append(
+                {
+                    "tier": tier,
+                    "score": method.upper(),
+                    **{
+                        f"{name}_{stat}": metric_summary[name][stat]
+                        for name in AGGREGATE_METRICS
+                        for stat in ("mean", "std")
+                    },
+                }
+            )
+
+    result = {
+        "protocol_id": summaries[0]["protocol_id"],
+        "seeds": seeds,
+        "claim": "multi-seed baseline problem validation; HBP not evaluated",
+        "splits": aggregate,
+    }
+    report_root = output_root / "reports"
+    report_root.mkdir(parents=True, exist_ok=True)
+    json_path = report_root / "osr_v1_aggregate.json"
+    csv_path = report_root / "osr_v1_aggregate.csv"
+    json_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(csv_rows[0]))
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    print("\n=== AGREGAT BASELINE OSR ===", flush=True)
+    for tier in tiers:
+        print(f"\n{tier.upper()}", flush=True)
+        for method in methods:
+            row = aggregate[tier][method]
+            print(
+                f"{method.upper():10s} "
+                f"OSCR={row['oscr']['mean']:.2%}±{row['oscr']['std']:.2%} "
+                f"AUROC={row['auroc']['mean']:.2%}±{row['auroc']['std']:.2%} "
+                f"FPR95={row['fpr95']['mean']:.2%}±{row['fpr95']['std']:.2%} "
+                f"Reject={row['unknown_rejection']['mean']:.2%}"
+            )
+    print(f"\nSAVED: {json_path}", flush=True)
+    print(f"SAVED: {csv_path}", flush=True)
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run Coffee17 semantic OSR v1 GAP baselines (no HBP)"
@@ -448,24 +545,45 @@ def main() -> None:
         type=Path,
         default=Path("configs/osr/OSR0_efficientnetv2_gap_ce.yaml"),
     )
-    parser.add_argument("--seed", type=int, default=123)
+    seed_group = parser.add_mutually_exclusive_group()
+    seed_group.add_argument(
+        "--seed",
+        type=int,
+        help="Satu seed (kompatibilitas runner lama).",
+    )
+    seed_group.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="Satu atau lebih seed; contoh: --seeds 42 123 2026.",
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--skip-training", action="store_true")
     parser.add_argument("--artifact-repo")
     parser.add_argument("--artifact-sync-every", type=int, default=5)
     args = parser.parse_args()
-    run_osr_baselines(
-        args.data_root,
-        args.output_root,
-        args.prepared_root,
-        args.protocol,
-        args.config,
-        args.seed,
-        args.resume,
-        args.skip_training,
-        args.artifact_repo,
-        args.artifact_sync_every,
-    )
+    seeds = args.seeds or [args.seed if args.seed is not None else 123]
+    summaries = []
+    for index, seed in enumerate(seeds, start=1):
+        print(
+            f"\n{'#' * 72}\nSEED {seed} ({index}/{len(seeds)})\n{'#' * 72}",
+            flush=True,
+        )
+        summaries.append(
+            run_osr_baselines(
+                args.data_root,
+                args.output_root,
+                args.prepared_root,
+                args.protocol,
+                args.config,
+                seed,
+                args.resume,
+                args.skip_training,
+                args.artifact_repo,
+                args.artifact_sync_every,
+            )
+        )
+    aggregate_osr_summaries(summaries, args.output_root)
 
 
 if __name__ == "__main__":
