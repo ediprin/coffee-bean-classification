@@ -1,0 +1,42 @@
+protocol_id: coffee17-semantic-osr-v1
+version: 1
+status: frozen
+dataset:
+  expected_classes: 17
+  unknown_classes_per_split: 3
+  balanced_test_samples_per_class: 7
+  known_acceptance_target: 0.95
+  balance_seed: 20260719
+scores:
+  energy_temperature: 1.0
+  openmax_tail_size: 20
+  openmax_alpha_rank: 10
+  openmax_distance: eucos
+splits:
+  near:
+    unknown_classes:
+      - Partial Black
+      - Partial Sour
+      - Slight Insect Damage
+    rationale: >-
+      One severity sibling is unknown while Full Black, Full Sour, and Severe
+      Insect Damage remain known. This is the closest operational tier.
+  medium:
+    unknown_classes:
+      - Withered
+      - Floater
+      - Shell
+    rationale: >-
+      Each class has a related known mechanism or morphology (Immature,
+      Dry Cherry, and Broken/Cut), but is not a direct Full/Partial or
+      Slight/Severe severity sibling.
+  far:
+    unknown_classes:
+      - Husk
+      - Parchment
+      - Fungus Damage
+    rationale: >-
+      Covering-residue classes are removed together and the singleton fungus
+      mechanism is removed, so no direct severity sibling remains known.
+      Far is an operational Coffee17 tier, not a WordNet or official SCA
+      semantic distance.

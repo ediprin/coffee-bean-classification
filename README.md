@@ -987,3 +987,25 @@ Mapping CBD yang disertakan masih berstatus `provisional` dan akan menghasilkan
 peringatan. Audit definisi label dataset wajib dilakukan sebelum eksperimen
 konfirmatori. Formulasi, baseline wajib, dan batas klaim dijelaskan di
 [`docs/protocols/OMSL_PROTOCOL.md`](docs/protocols/OMSL_PROTOCOL.md).
+
+### Fine-grained open-set recognition (OSR v1)
+
+OSR v1 menahan tepat tiga kelas Coffee17 pada setiap tier semantic
+`near/medium/far`. Tahap fail-fast hanya melatih tiga model
+EfficientNetV2-B0 + GAP + CE (satu per tier); HBP belum dijalankan. MSP, MLS,
+Energy, prototype, dan OpenMax dihitung dari checkpoint yang sama. Unknown test
+tidak dipakai untuk pemilihan checkpoint, fitting, atau threshold.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_osr_baselines \
+  --data-root /content/coffee17-clean-grouped/folds/fold_1 \
+  --prepared-root /content/coffee17-osr-prepared \
+  --output-root /content/drive/MyDrive/coffee17-osr-v1 \
+  --seed 123 \
+  --resume
+```
+
+Untuk checkpoint yang tahan reset Colab, tambahkan `--artifact-repo
+USER/REPO_MODEL_PRIVATE --artifact-sync-every 2`. Definisi split, rumus metrik,
+dan aturan fail-fast dibekukan di
+[`docs/protocols/COFFEE17_OSR_V1.md`](docs/protocols/COFFEE17_OSR_V1.md).

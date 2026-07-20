@@ -131,6 +131,26 @@ def _transforms(
     )
 
 
+def build_image_transform(
+    image_size: int,
+    train: bool = False,
+    rotation_angles: list[float] | None = None,
+    object_crop: bool = False,
+    object_crop_margin: float = 0.10,
+    augmentation_mode: str = "standard",
+):
+    """Public transform factory for evaluation tools outside DomainLoaders."""
+
+    return _transforms(
+        image_size=image_size,
+        train=train,
+        rotation_angles=rotation_angles or [0],
+        object_crop=object_crop,
+        object_crop_margin=object_crop_margin,
+        augmentation_mode=augmentation_mode,
+    )
+
+
 def build_loaders(cfg: dict, require_target: bool = True) -> DomainLoaders:
     root = Path(cfg["root"])
     train_split = cfg.get("train_split", "train")
