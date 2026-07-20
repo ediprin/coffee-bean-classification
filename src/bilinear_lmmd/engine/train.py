@@ -186,6 +186,10 @@ def supervised_objective(
     fused_ce = classification_loss(output.logits, labels)
     components = {"fused_ce": fused_ce}
     total = fused_ce
+    open_set_loss = getattr(output, "open_set_loss", None)
+    if open_set_loss is not None:
+        total = total + open_set_loss
+        components["open_set_regularization"] = open_set_loss
     if output.parent_logits is not None:
         if parent_mapping is None or hierarchy_weight <= 0.0:
             raise ValueError(

@@ -48,6 +48,8 @@ DEFAULTS: dict[str, Any] = {
         "classifier": "linear",
         "arcface_scale": 30.0,
         "arcface_margin": 0.3,
+        "arpl_weight": 0.1,
+        "arpl_margin": 1.0,
         "enable_domain_classifier": False,
         "hierarchy_num_parents": 0,
     },

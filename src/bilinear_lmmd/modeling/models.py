@@ -84,6 +84,72 @@ class ArcMarginClassifier(nn.Module):
         return (one_hot * phi + (1.0 - one_hot) * cosine) * self.scale
 
 
+class AdversarialReciprocalPointClassifier(nn.Module):
+    """ARPLoss classifier without the optional confusing-sample GAN.
+
+    This follows the official ARPL implementation: one learnable reciprocal
+    point per class, logits equal to normalized squared-L2 distance minus the
+    dot product, and a learnable-radius margin regularizer for known samples.
+    """
+
+    def __init__(
+        self,
+        in_features: int,
+        num_classes: int,
+        regularization_weight: float = 0.1,
+        margin: float = 1.0,
+    ):
+        super().__init__()
+        if in_features <= 0 or num_classes < 2:
+            raise ValueError("Dimensi ARPL dan jumlah kelas harus valid.")
+        if regularization_weight < 0.0:
+            raise ValueError("arpl_weight tidak boleh negatif.")
+        if margin < 0.0:
+            raise ValueError("arpl_margin tidak boleh negatif.")
+        self.in_features = int(in_features)
+        self.out_features = int(num_classes)
+        self.regularization_weight = float(regularization_weight)
+        self.margin = float(margin)
+        self.reciprocal_points = nn.Parameter(
+            0.1 * torch.randn(num_classes, in_features)
+        )
+        self.radius = nn.Parameter(torch.zeros(1))
+
+    def squared_l2(self, embedding: Tensor) -> Tensor:
+        feature_norm = embedding.square().sum(dim=1, keepdim=True)
+        center_norm = self.reciprocal_points.square().sum(
+            dim=1, keepdim=True
+        ).t()
+        distance = (
+            feature_norm
+            - 2.0 * embedding @ self.reciprocal_points.t()
+            + center_norm
+        )
+        return distance / float(embedding.shape[1])
+
+    def forward(self, embedding: Tensor) -> Tensor:
+        distance = self.squared_l2(embedding)
+        dot_product = embedding @ self.reciprocal_points.t()
+        return distance - dot_product
+
+    def open_space_regularization(
+        self,
+        embedding: Tensor,
+        labels: Tensor,
+    ) -> Tensor:
+        target_points = self.reciprocal_points[labels]
+        target_distance = (embedding - target_points).square().mean(dim=1)
+        target = torch.ones_like(target_distance)
+        radius = self.radius.expand_as(target_distance)
+        margin_loss = F.margin_ranking_loss(
+            radius,
+            target_distance,
+            target,
+            margin=self.margin,
+        )
+        return self.regularization_weight * margin_loss
+
+
 class GAPHead(nn.Module):
     def __init__(self, channels: int):
         super().__init__()
@@ -717,6 +783,7 @@ class ModelOutput:
     parent_logits: Tensor | None = None
     expert_logits: dict[str, Tensor] | None = None
     gate_weights: Tensor | None = None
+    open_set_loss: Tensor | None = None
 
 
 class DecoupledMobileNetV3Encoder(nn.Module):
@@ -878,6 +945,8 @@ class AdaptationModel(nn.Module):
         classifier: str = "linear",
         arcface_scale: float = 30.0,
         arcface_margin: float = 0.3,
+        arpl_weight: float = 0.1,
+        arpl_margin: float = 1.0,
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
         hierarchy_num_parents: int = 0,
@@ -1008,8 +1077,17 @@ class AdaptationModel(nn.Module):
                 scale=arcface_scale,
                 margin=arcface_margin,
             )
+        elif classifier == "arpl":
+            self.classifier = AdversarialReciprocalPointClassifier(
+                self.pool.output_dim,
+                num_classes,
+                regularization_weight=arpl_weight,
+                margin=arpl_margin,
+            )
         else:
-            raise ValueError("model.classifier harus 'linear' atau 'arcface'.")
+            raise ValueError(
+                "model.classifier harus 'linear', 'arcface', atau 'arpl'."
+            )
         self.classifier_type = classifier
 
         if hierarchy_num_parents < 0:
@@ -1072,12 +1150,18 @@ class AdaptationModel(nn.Module):
     ) -> ModelOutput:
         features = self.encoder(x)
         embedding = self.pool(features)
+        open_set_loss = None
         if self.classifier_type == "arcface":
             logits = self.classifier(embedding, labels)
             classifier_embedding = embedding
         else:
             classifier_embedding = self.dropout(embedding)
             logits = self.classifier(classifier_embedding)
+            if self.classifier_type == "arpl" and labels is not None:
+                open_set_loss = self.classifier.open_space_regularization(
+                    classifier_embedding,
+                    labels,
+                )
         parent_logits = (
             self.parent_classifier(classifier_embedding)
             if self.parent_classifier is not None
@@ -1117,6 +1201,7 @@ class AdaptationModel(nn.Module):
             parent_logits=parent_logits,
             expert_logits=expert_logits,
             gate_weights=gate_weights,
+            open_set_loss=open_set_loss,
         )
 
 
@@ -1161,6 +1246,8 @@ def build_model(cfg: dict) -> nn.Module:
         classifier=str(cfg.get("classifier", "linear")),
         arcface_scale=float(cfg.get("arcface_scale", 30.0)),
         arcface_margin=float(cfg.get("arcface_margin", 0.3)),
+        arpl_weight=float(cfg.get("arpl_weight", 0.1)),
+        arpl_margin=float(cfg.get("arpl_margin", 1.0)),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
         hierarchy_num_parents=int(cfg.get("hierarchy_num_parents", 0)),

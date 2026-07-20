@@ -1,0 +1,19 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: gap
+  out_indices: [4]
+  num_classes: 14
+  classifier: arpl
+  arpl_weight: 0.1
+  arpl_margin: 1.0
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  label_smoothing: 0.0
+  output_dir: outputs/OSR2_efficientnetv2_arpl_no_cs
+evaluation:
+  hard_groups: {}
