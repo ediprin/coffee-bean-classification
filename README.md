@@ -991,10 +991,10 @@ konfirmatori. Formulasi, baseline wajib, dan batas klaim dijelaskan di
 ### Fine-grained open-set recognition (OSR v1)
 
 OSR v1 menahan tepat tiga kelas Coffee17 pada setiap tier semantic
-`near/medium/far`. Tahap fail-fast hanya melatih tiga model
-EfficientNetV2-B0 + GAP + CE (satu per tier); HBP belum dijalankan. MSP, MLS,
-Energy, prototype, dan OpenMax dihitung dari checkpoint yang sama. Unknown test
-tidak dipakai untuk pemilihan checkpoint, fitting, atau threshold.
+`near/medium/far`. Baseline melatih EfficientNetV2-B0 + GAP + CE per tier.
+MSP, MLS, Energy, prototype, dan OpenMax dihitung dari checkpoint yang sama.
+HBP dan ARPL-no-CS telah gagal pada fail-fast seed 123. Unknown test tidak
+dipakai untuk pemilihan checkpoint, fitting, atau threshold.
 
 ```bash
 python -u -m bilinear_lmmd.experiments.run_osr_baselines \
@@ -1009,3 +1009,17 @@ Untuk checkpoint yang tahan reset Colab, tambahkan `--artifact-repo
 USER/REPO_MODEL_PRIVATE --artifact-sync-every 2`. Definisi split, rumus metrik,
 dan aturan fail-fast dibekukan di
 [`docs/protocols/COFFEE17_OSR_V1.md`](docs/protocols/COFFEE17_OSR_V1.md).
+
+ViM dapat diuji tanpa training ulang dari sembilan checkpoint baseline:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_osr_vim_screening \
+  --data-root /content/coffee17-osr-data/clean/folds/fold_1 \
+  --prepared-root /content/coffee17-osr-prepared \
+  --output-root /content/drive/MyDrive/coffee17-osr-v1 \
+  --seeds 42 123 2026
+```
+
+Fitting ViM hanya memakai known-train dan threshold hanya memakai
+known-validation. Formula resmi, gate multi-seed, dan batas klaim tersedia di
+[`docs/protocols/COFFEE17_OSR_VIM_POSTHOC.md`](docs/protocols/COFFEE17_OSR_VIM_POSTHOC.md).
