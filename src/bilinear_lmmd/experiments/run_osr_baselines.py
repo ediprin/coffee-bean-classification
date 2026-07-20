@@ -19,11 +19,13 @@ from tqdm import tqdm
 from bilinear_lmmd.analysis.open_set import (
     fit_class_prototypes,
     fit_openmax,
+    fit_vim,
     open_set_metrics,
     openmax_knownness,
     prototype_knownness,
     standard_knownness_scores,
     threshold_from_known_validation,
+    vim_knownness,
 )
 from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.data.loaders import build_image_transform
@@ -155,6 +157,9 @@ def _score_sets(
     known_test: FeatureBundle,
     unknown_test: FeatureBundle,
     protocol: dict,
+    classifier_weight: np.ndarray | None = None,
+    classifier_bias: np.ndarray | None = None,
+    vim_principal_dimension: int | None = None,
 ) -> tuple[dict[str, dict[str, np.ndarray]], dict]:
     temperature = float(protocol["scores"]["energy_temperature"])
     scores = {
@@ -206,6 +211,38 @@ def _score_sets(
         },
         "openmax_distance": str(protocol["scores"]["openmax_distance"]),
     }
+    if (classifier_weight is None) != (classifier_bias is None):
+        raise ValueError("Weight dan bias classifier ViM harus diberikan bersama.")
+    if classifier_weight is not None and classifier_bias is not None:
+        vim_model = fit_vim(
+            train.embeddings,
+            train.logits,
+            classifier_weight,
+            classifier_bias,
+            principal_dimension=vim_principal_dimension,
+        )
+        for name, bundle in (
+            ("validation", validation),
+            ("known_test", known_test),
+            ("unknown_test", unknown_test),
+        ):
+            scores[name]["vim"] = vim_knownness(
+                bundle.embeddings,
+                bundle.logits,
+                vim_model,
+            )
+        fit_metadata["vim"] = {
+            "fit_population": "known_train_only",
+            "principal_dimension": vim_model.principal_dimension,
+            "feature_dimension": int(train.embeddings.shape[1]),
+            "residual_dimension": int(vim_model.residual_basis.shape[1]),
+            "alpha": vim_model.alpha,
+            "dimension_rule": (
+                "official_feature_dimension_heuristic"
+                if vim_principal_dimension is None
+                else "explicit_pre_registered_value"
+            ),
+        }
     return scores, fit_metadata
 
 
@@ -274,6 +311,8 @@ def evaluate_split(
     tier_root: Path,
     protocol: dict,
     report_root: Path,
+    include_vim: bool = False,
+    vim_principal_dimension: int | None = None,
 ) -> dict:
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     cfg = copy.deepcopy(checkpoint["config"])
@@ -296,12 +335,24 @@ def evaluate_split(
         name: _collect(model, dataset, cfg, name)
         for name, dataset in datasets.items()
     }
+    classifier_weight = None
+    classifier_bias = None
+    if include_vim:
+        if not isinstance(model.classifier, torch.nn.Linear):
+            raise TypeError("ViM runner memerlukan classifier linear dengan bias.")
+        if model.classifier.bias is None:
+            raise TypeError("ViM runner memerlukan bias classifier.")
+        classifier_weight = model.classifier.weight.detach().cpu().numpy()
+        classifier_bias = model.classifier.bias.detach().cpu().numpy()
     score_sets, fit_metadata = _score_sets(
         bundles["train"],
         bundles["validation"],
         bundles["known_test"],
         bundles["unknown_test"],
         protocol,
+        classifier_weight=classifier_weight,
+        classifier_bias=classifier_bias,
+        vim_principal_dimension=vim_principal_dimension,
     )
     acceptance_target = float(protocol["dataset"]["known_acceptance_target"])
     thresholds = {

@@ -85,6 +85,119 @@ class WeibullClassModel:
     tail_count: int
 
 
+@dataclass(frozen=True)
+class ViMModel:
+    """Fitted Virtual-logit Matching state.
+
+    ``residual_basis`` contains the eigenvectors outside the principal
+    subspace. Scores use the project reference orientation: larger means more
+    in-distribution/known.
+    """
+
+    origin: np.ndarray
+    residual_basis: np.ndarray
+    alpha: float
+    principal_dimension: int
+
+
+def vim_default_principal_dimension(feature_dimension: int) -> int:
+    """Return the dimension heuristic used by the official ViM benchmark."""
+
+    if feature_dimension < 2:
+        raise ValueError("Dimensi feature ViM minimal 2.")
+    if feature_dimension >= 2048:
+        dimension = 1000
+    elif feature_dimension >= 768:
+        dimension = 512
+    else:
+        dimension = feature_dimension // 2
+    return min(max(dimension, 1), feature_dimension - 1)
+
+
+def _stable_logsumexp(logits: np.ndarray) -> np.ndarray:
+    maximum = logits.max(axis=1, keepdims=True)
+    return maximum[:, 0] + np.log(np.exp(logits - maximum).sum(axis=1))
+
+
+def fit_vim(
+    train_embeddings: np.ndarray,
+    train_logits: np.ndarray,
+    classifier_weight: np.ndarray,
+    classifier_bias: np.ndarray,
+    principal_dimension: int | None = None,
+) -> ViMModel:
+    """Fit ViM using known training data only.
+
+    The implementation follows Wang et al.'s official benchmark: classifier
+    origin shift, uncentred empirical covariance, residual eigen-space, and
+    virtual-logit scale matched to the mean maximum training logit.
+    """
+
+    embeddings = np.asarray(train_embeddings, dtype=np.float64)
+    logits = np.asarray(train_logits, dtype=np.float64)
+    weight = np.asarray(classifier_weight, dtype=np.float64)
+    bias = np.asarray(classifier_bias, dtype=np.float64)
+    if embeddings.ndim != 2 or logits.ndim != 2:
+        raise ValueError("Embedding dan logit train ViM harus matriks.")
+    if len(embeddings) != len(logits) or len(embeddings) < 2:
+        raise ValueError("Jumlah embedding/logit train ViM tidak valid.")
+    if weight.shape != (logits.shape[1], embeddings.shape[1]):
+        raise ValueError("Bentuk weight classifier tidak cocok untuk ViM.")
+    if bias.shape != (logits.shape[1],):
+        raise ValueError("Bentuk bias classifier tidak cocok untuk ViM.")
+
+    feature_dimension = embeddings.shape[1]
+    dimension = (
+        vim_default_principal_dimension(feature_dimension)
+        if principal_dimension is None
+        else int(principal_dimension)
+    )
+    if not 0 < dimension < feature_dimension:
+        raise ValueError("Principal dimension ViM harus antara 1 dan F-1.")
+
+    origin = -(np.linalg.pinv(weight) @ bias)
+    shifted = embeddings - origin
+    covariance = shifted.T @ shifted / len(shifted)
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    order = np.argsort(eigenvalues)[::-1]
+    residual_basis = np.ascontiguousarray(eigenvectors[:, order[dimension:]])
+    residual_norm = np.linalg.norm(shifted @ residual_basis, axis=1)
+    mean_residual = float(residual_norm.mean())
+    if not np.isfinite(mean_residual) or mean_residual <= 1e-12:
+        raise ValueError("Mean residual norm ViM nol atau tidak finite.")
+    alpha = float(logits.max(axis=1).mean() / mean_residual)
+    if not np.isfinite(alpha):
+        raise ValueError("Alpha ViM tidak finite.")
+    return ViMModel(
+        origin=origin,
+        residual_basis=residual_basis,
+        alpha=alpha,
+        principal_dimension=dimension,
+    )
+
+
+def vim_knownness(
+    embeddings: np.ndarray,
+    logits: np.ndarray,
+    model: ViMModel,
+) -> np.ndarray:
+    """Compute ViM knownness; larger values indicate a known sample."""
+
+    embeddings = np.asarray(embeddings, dtype=np.float64)
+    logits = np.asarray(logits, dtype=np.float64)
+    if embeddings.ndim != 2 or logits.ndim != 2:
+        raise ValueError("Embedding dan logit ViM harus matriks.")
+    if len(embeddings) != len(logits):
+        raise ValueError("Jumlah embedding dan logit ViM berbeda.")
+    if embeddings.shape[1] != len(model.origin):
+        raise ValueError("Dimensi embedding tidak cocok dengan model ViM.")
+    residual = np.linalg.norm(
+        (embeddings - model.origin) @ model.residual_basis,
+        axis=1,
+    )
+    return _stable_logsumexp(logits) - model.alpha * residual
+
+
 def _activation_distance(
     first: np.ndarray,
     second: np.ndarray,
