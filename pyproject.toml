@@ -15,6 +15,7 @@ dependencies = [
   "PyYAML>=6.0",
   "scikit-learn>=1.4",
   "scikit-image>=0.23",
+  "scipy>=1.11",
   "tqdm>=4.66",
 ]
 
@@ -26,6 +27,7 @@ coffee-cls-train = "bilinear_lmmd.engine.train:main"
 coffee-cls-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
 coffee-cls-benchmark = "bilinear_lmmd.engine.benchmark:main"
 coffee-cls-omsl = "bilinear_lmmd.engine.train_omsl:main"
+coffee-cls-osr = "bilinear_lmmd.experiments.run_osr_baselines:main"
 blmmd-train = "bilinear_lmmd.engine.train:main"
 blmmd-evaluate = "bilinear_lmmd.engine.evaluate_checkpoint:main"
 blmmd-benchmark = "bilinear_lmmd.engine.benchmark:main"
