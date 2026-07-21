@@ -74,3 +74,30 @@ python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_screening \
   --seeds 42 \
   --evaluation-split val
 ```
+
+## Konfirmasi tiga seed
+
+Konfirmasi hanya boleh dijalankan setelah report screening seed 42 berstatus
+`PASS`. Artefak seed 42 dipakai ulang dan hanya seed 123 serta 2026 yang perlu
+dilatih. Tidak ada perubahan rank, DropFactor, slow-start, augmentasi, atau
+hyperparameter setelah melihat hasil screening.
+
+FB1 dinyatakan terkonfirmasi hanya jika `BE2G vs FB1` dan `FB0 vs FB1`
+memenuhi seluruh syarat berikut pada validation:
+
+- rata-rata delta Macro-F1 positif dan naik pada minimal 2/3 seed;
+- rata-rata delta Hard-F1 positif dan naik pada minimal 2/3 seed;
+- rata-rata delta Worst-F1 tidak turun lebih dari satu poin persentase.
+
+Perbandingan terhadap BE2H tetap dilaporkan, tetapi bukan syarat utama karena
+tujuan mekanistik FB1 adalah menguji operasi kuadratik terhadap GAP dan kontrol
+linear capacity-matched. Test tetap terkunci apa pun hasil konfirmasi.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_confirmation \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/factorized-bilinear-conv \
+  --seeds 42 123 2026 \
+  --evaluation-split val
+```

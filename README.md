@@ -308,6 +308,19 @@ python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_screening \
 Protokol: [docs/protocols/FACTORIZED_BILINEAR_CONV_SCREENING.md](docs/protocols/FACTORIZED_BILINEAR_CONV_SCREENING.md).
 Notebook: [notebooks/coffee17_factorized_bilinear_conv_colab.ipynb](notebooks/coffee17_factorized_bilinear_conv_colab.ipynb).
 
+Jika screening seed 42 berstatus PASS, konfirmasi terkunci memakai seed 42,
+123, dan 2026. Seed 42 digunakan ulang; test tidak dibuka:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_confirmation \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/factorized-bilinear-conv \
+  --seeds 42 123 2026 --evaluation-split val
+```
+
+Notebook: [notebooks/coffee17_factorized_bilinear_conv_confirmation_colab.ipynb](notebooks/coffee17_factorized_bilinear_conv_confirmation_colab.ipynb).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat
