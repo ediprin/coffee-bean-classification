@@ -117,3 +117,22 @@ python -u -m bilinear_lmmd.experiments.run_confusion_pair_audit \
 - Hasil satu seed hanya screening.
 - Worst-F1 satu kelas tetap dilaporkan, tetapi interpretasi harus didampingi
   per-class support karena validation Coffee17 sangat kecil.
+
+## Hasil screening
+
+**Status akhir: FAIL - dihentikan pada validation.** Screening seed 123 yang
+dijalankan sesuai gate menghasilkan putusan berikut:
+
+| Perbandingan | Putusan |
+|---|---|
+| BE2G vs CP1 | FAIL |
+| BE2H vs CP1 | FAIL |
+| BE2G vs CP2 | FAIL |
+| BE2H vs CP2 | FAIL |
+| CP1 vs CP2 | FAIL |
+| CP2 final | FAIL |
+
+Output yang tersedia hanya memuat putusan gate; angka metrik tidak
+ditranskripsikan agar tidak direkonstruksi atau dikarang. Karena CP1 gagal
+melampaui GAP/HBP dan CP2 juga gagal melampaui CP1, eksperimen dihentikan tanpa
+seed tambahan, tanpa tuning loss, dan tanpa membuka test.
