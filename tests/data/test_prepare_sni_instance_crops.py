@@ -10,6 +10,7 @@ from bilinear_lmmd.data.preparation.prepare_sni_instance_crops import (
     InstanceRecord,
     allocate_groups,
     canonical_class,
+    orient_to_coco_size,
     source_identity,
     square_crop,
     valid_polygon_segmentation,
@@ -62,6 +63,25 @@ def test_square_crop_is_square_and_pads_at_image_edge():
 )
 def test_polygon_segmentation_validation(segmentation, expected):
     assert valid_polygon_segmentation(segmentation) is expected
+
+
+def test_exif_orientation_is_applied_before_coco_crop(tmp_path):
+    path = tmp_path / "portrait.jpg"
+    image = Image.new("RGB", (8, 4), (10, 20, 30))
+    exif = image.getexif()
+    exif[274] = 6  # stored landscape, displayed portrait
+    image.save(path, exif=exif)
+
+    with Image.open(path) as opened:
+        oriented, changed = orient_to_coco_size(opened, (4, 8))
+    assert changed is True
+    assert oriented.size == (4, 8)
+
+
+def test_coco_dimension_mismatch_is_rejected():
+    image = Image.new("RGB", (8, 4))
+    with pytest.raises(ValueError, match="tidak cocok dengan metadata COCO"):
+        orient_to_coco_size(image, (7, 4))
 
 
 def _synthetic_records():

@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageStat
+from PIL import Image, ImageDraw, ImageOps, ImageStat
 
 
 SPLITS = ("train", "val", "test")
@@ -555,6 +555,21 @@ def square_crop(
     return output
 
 
+def orient_to_coco_size(
+    image: Image.Image,
+    expected_size: tuple[int, int],
+) -> tuple[Image.Image, bool]:
+    raw_size = image.size
+    exif_orientation = image.getexif().get(274, 1)
+    oriented = ImageOps.exif_transpose(image)
+    if oriented.size != expected_size:
+        raise ValueError(
+            "Ukuran gambar setelah EXIF transpose tidak cocok dengan metadata COCO: "
+            f"raw={raw_size}, oriented={oriented.size}, coco={expected_size}"
+        )
+    return oriented.convert("RGB"), exif_orientation not in (None, 1)
+
+
 def _contact_sheets(output_root: Path, manifest: list[dict]) -> list[str]:
     outputs: list[str] = []
     for dataset in sorted({row["dataset"] for row in manifest}):
@@ -602,10 +617,9 @@ def prepare_sni_instance_crops(
         if audit.get("status") == "complete":
             print(f"SKIP: crop SNI sudah lengkap: {output_root}")
             return audit
-    if output_root.exists():
-        raise FileExistsError(
-            f"Output parsial ditemukan: {output_root}. Pindahkan atau hapus manual."
-        )
+    resuming_partial = output_root.exists()
+    if resuming_partial:
+        print(f"RESUME: output parsial ditemukan: {output_root}", flush=True)
     datasets = {"adrian_detection": adrian_root, "faruq_segmentation": faruq_root}
     images: list[ImageRecord] = []
     instances: list[InstanceRecord] = []
@@ -621,27 +635,42 @@ def prepare_sni_instance_crops(
         instances_by_image[instance.image_uid].append(instance)
     group_ids, identity_audit = group_images(images)
     assignments = allocate_groups(images, instances, group_ids, seed)
-    output_root.mkdir(parents=True)
+    output_root.mkdir(parents=True, exist_ok=True)
     for split in SPLITS:
         for class_name in CANONICAL_CLASSES:
             (output_root / "source" / split / class_name).mkdir(parents=True)
     manifest: list[dict] = []
     crop_hashes: dict[str, list[str]] = defaultdict(list)
+    resumed_crops = 0
+    exif_transposed_images = 0
     for image_index, image_record in enumerate(images, start=1):
         image_instances = instances_by_image.get(image_record.uid, [])
         if not image_instances:
             continue
         split = assignments[group_ids[image_record.uid]]
         with Image.open(image_record.path) as opened:
-            image = opened.convert("RGB")
+            image, exif_transposed = orient_to_coco_size(
+                opened,
+                (image_record.width, image_record.height),
+            )
+            exif_transposed_images += int(exif_transposed)
             for instance in image_instances:
-                crop = square_crop(image, instance.bbox, margin_fraction)
                 filename = (
                     f"{image_record.dataset}__{image_record.archive_split}__"
                     f"{image_record.image_id:07d}__{instance.annotation_id:08d}.jpg"
                 )
                 destination = output_root / "source" / split / instance.canonical_class / filename
-                crop.save(destination, quality=jpeg_quality, subsampling=0)
+                # A crop created without applying EXIF orientation is unsafe;
+                # regenerate it even when a partial-run file already exists.
+                if destination.is_file() and not exif_transposed:
+                    with Image.open(destination) as existing:
+                        crop_width, crop_height = existing.size
+                    resumed_crops += 1
+                else:
+                    crop = square_crop(image, instance.bbox, margin_fraction)
+                    crop.save(destination, quality=jpeg_quality, subsampling=0)
+                    crop_width, crop_height = crop.size
+                    crop.close()
                 digest = _sha256(destination)
                 relative = destination.relative_to(output_root).as_posix()
                 crop_hashes[digest].append(relative)
@@ -663,15 +692,16 @@ def prepare_sni_instance_crops(
                         "bbox_y": y,
                         "bbox_width": width,
                         "bbox_height": height,
-                        "crop_width": crop.width,
-                        "crop_height": crop.height,
+                        "crop_width": crop_width,
+                        "crop_height": crop_height,
                         "crop_sha256": digest,
                         "crop_path": relative,
                     }
                 )
         if image_index % 250 == 0 or image_index == len(images):
             print(
-                f"CROP {image_index}/{len(images)} images | {len(manifest)} instances",
+                f"CROP {image_index}/{len(images)} images | {len(manifest)} instances "
+                f"| resumed={resumed_crops}",
                 flush=True,
             )
 
@@ -781,6 +811,9 @@ def prepare_sni_instance_crops(
         "identity_audit": identity_audit,
         "input_images": len(images),
         "output_crops": len(manifest),
+        "resumed_partial_run": resuming_partial,
+        "resumed_existing_crops": resumed_crops,
+        "exif_transposed_images": exif_transposed_images,
         "split_strategy": "deterministic_grouped_multilabel_70_15_15",
         "grouping_rule": (
             "Semua gambar dengan dataset+nama sumber Roboflow yang sama atau SHA256 "

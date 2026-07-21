@@ -74,6 +74,8 @@ foto padat tidak boleh dipecah antar-split. Nilai aktual dicatat di
 - sumber lokasi: COCO bounding box;
 - Faruq: polygon tetap diaudit, tetapi common input menggunakan bbox-nya;
 - crop berbentuk persegi, berpusat pada bbox;
+- orientasi EXIF diterapkan sebelum bbox COCO digunakan; ukuran hasil orientasi
+  wajib sama dengan metadata COCO;
 - margin konteks: 10% pada setiap sisi;
 - area di luar gambar dipad dengan rata-rata RGB foto sumber;
 - tidak ada resize atau augmentasi offline;
