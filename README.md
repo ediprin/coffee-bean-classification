@@ -251,6 +251,26 @@ python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
 Runner memakai ulang M1/S1 yang sudah lengkap dan hanya melatih C1, yaitu
 pointwise residual control dengan parameter yang cocok terhadap S1.
 
+### Adaptasi klasifikasi Hong: DSConv x SPPF-Attention
+
+Adaptasi validation-only ini menguji Distribution Shifting Convolution dan
+SPPF-Attention dari Hong et al. pada EfficientNetV2-B0 + GAP, tanpa YOLO,
+detection head, PConv, atau HBP. DSConv yang dimaksud adalah operator
+VQK/KDS/CDS Nascimento et al., bukan sekadar depthwise-separable convolution.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_hong_classification_screening \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/hong-classification \
+  --seeds 123 \
+  --models HCD1 HCS1 HCDS1 \
+  --evaluation-split val
+```
+
+Protokol: [docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md](docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md).
+Notebook: [notebooks/coffee17_hong_classification_colab.ipynb](notebooks/coffee17_hong_classification_colab.ipynb).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat

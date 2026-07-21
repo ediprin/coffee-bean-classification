@@ -1,0 +1,22 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: gap
+  out_indices: [4]
+  classifier: linear
+  dsconv_enabled: true
+  dsconv_bits: 4
+  dsconv_block_size: 128
+  dsconv_stage_prefixes: [blocks.0, blocks.1, blocks.2]
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  scheduler: cosine
+  output_dir: outputs/HCD1_efficientnetv2_dsconv_gap

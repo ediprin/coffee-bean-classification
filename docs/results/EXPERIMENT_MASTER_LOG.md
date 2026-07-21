@@ -496,3 +496,29 @@ dijalankan.
 
 Protokol lengkap:
 `docs/protocols/CONFUSION_AWARE_PAIRWISE.md`.
+
+## 17. Adaptasi klasifikasi Hong: DSConv x SPPF-Attention
+
+**Status: PROTOCOL LOCKED — BELUM ADA HASIL.** Eksperimen ini mengadaptasi dua
+komponen representasi Hong et al. ke EfficientNetV2-B0 untuk klasifikasi
+Coffee17. Tidak ada YOLO, PConv, HBP, bounding-box loss, atau klaim detector.
+
+| Kode | DSConv | SPPF-Attention | Head |
+|---|---:|---:|---|
+| BE2G | tidak | tidak | GAP + CE, baseline lama |
+| HCD1 | ya | tidak | GAP + CE |
+| HCS1 | tidak | ya | GAP + CE |
+| HCDS1 | ya | ya | GAP + CE |
+
+DSConv adalah Distribution Shifting Convolution VQK/KDS/CDS 4-bit, block size
+128, pada lima full spatial convolution stage awal/menengah. Forward PyTorch
+merupakan simulasi quantization-aware; tidak ada klaim speedup atau ukuran
+checkpoint integer. SPPF mengikuti tiga max-pool 5x5 berurutan, channel/spatial
+attention, residual, lalu GAP.
+
+Screening dikunci pada validation seed 123. HCDS1 final harus mengalahkan BE2H,
+HCD1, dan HCS1 dengan Macro/Hard naik serta Worst tidak turun lebih dari satu
+poin. Jika gagal, tiga seed dan test tidak dijalankan.
+
+Protokol lengkap:
+`docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md`.

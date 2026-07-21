@@ -9,6 +9,10 @@ from torch import Tensor, nn
 from torch.autograd import Function
 from torch.nn import functional as F
 
+from bilinear_lmmd.modeling.dsconv import (
+    replace_spatial_convolutions_with_dsconv,
+)
+
 try:
     import timm
 except ImportError as exc:  # pragma: no cover - actionable runtime message
@@ -1035,6 +1039,14 @@ class AdaptationModel(nn.Module):
         arcface_margin: float = 0.3,
         arpl_weight: float = 0.1,
         arpl_margin: float = 1.0,
+        dsconv_enabled: bool = False,
+        dsconv_bits: int = 4,
+        dsconv_block_size: int = 128,
+        dsconv_stage_prefixes: tuple[str, ...] = (
+            "blocks.0",
+            "blocks.1",
+            "blocks.2",
+        ),
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
         hierarchy_num_parents: int = 0,
@@ -1087,6 +1099,14 @@ class AdaptationModel(nn.Module):
             features_only=True,
             out_indices=out_indices,
         )
+        self.dsconv_replaced_layers: list[str] = []
+        if dsconv_enabled:
+            self.dsconv_replaced_layers = replace_spatial_convolutions_with_dsconv(
+                self.encoder,
+                stage_prefixes=dsconv_stage_prefixes,
+                bits=dsconv_bits,
+                block_size=dsconv_block_size,
+            )
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
@@ -1369,6 +1389,15 @@ def build_model(cfg: dict) -> nn.Module:
         arcface_margin=float(cfg.get("arcface_margin", 0.3)),
         arpl_weight=float(cfg.get("arpl_weight", 0.1)),
         arpl_margin=float(cfg.get("arpl_margin", 1.0)),
+        dsconv_enabled=bool(cfg.get("dsconv_enabled", False)),
+        dsconv_bits=int(cfg.get("dsconv_bits", 4)),
+        dsconv_block_size=int(cfg.get("dsconv_block_size", 128)),
+        dsconv_stage_prefixes=tuple(
+            cfg.get(
+                "dsconv_stage_prefixes",
+                ("blocks.0", "blocks.1", "blocks.2"),
+            )
+        ),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
         hierarchy_num_parents=int(cfg.get("hierarchy_num_parents", 0)),
