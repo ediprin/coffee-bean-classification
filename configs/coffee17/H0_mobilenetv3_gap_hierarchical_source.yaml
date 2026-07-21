@@ -1,0 +1,27 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+  hierarchy_num_parents: 14
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/H0_mobilenetv3_gap_hierarchical_source
+hierarchy:
+  enabled: true
+  weight: 0.2
+  groups:
+    black: [Full Black, Partial Black]
+    sour: [Full Sour, Partial Sour]
+    insect_damage: [Severe Insect Damage, Slight Insect Damage]
+    broken: [Broken]
+    cut: [Cut]
+    dry_cherry: [Dry Cherry]
+    fade: [Fade]
+    floater: [Floater]
+    fungus_damage: [Fungus Damage]
+    husk: [Husk]
+    immature: [Immature]
+    parchment: [Parchment]
+    shell: [Shell]
+    withered: [Withered]
