@@ -453,6 +453,10 @@ metode, perbedaan dari kode resmi, gate, dan batas klaim tercatat di
 Notebook Colab dengan restore baseline dan resume dari Google Drive tersedia di
 [`coffee17_progressive_multigranularity_colab.ipynb`](notebooks/coffee17_progressive_multigranularity_colab.ipynb).
 
+Konfirmasi validation tiga seed telah selesai. E2 hanya memberi Macro-F1
+`+0,67 ± 1,84` terhadap GAP, tetapi `-0,48 ± 2,11` terhadap HBP. Karena tidak
+menunjukkan superioritas yang stabil, E2/E3 dihentikan dan test tidak dibuka.
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:

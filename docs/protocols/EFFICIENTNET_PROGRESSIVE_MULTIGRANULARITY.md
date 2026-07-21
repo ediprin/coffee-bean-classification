@@ -131,6 +131,26 @@ python -u -m bilinear_lmmd.experiments.run_progressive_multigranularity \
   --evaluation-split val
 ```
 
+## Hasil konfirmasi validation tiga seed
+
+Konfirmasi seed 42/123/2026 dijalankan tanpa tuning ulang dan tanpa membuka
+test.
+
+| Model | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|
+| E0/BE2G GAP | 88,77 | 82,37 | 71,11 |
+| E1/BE2H HBP | **89,93** | 82,47 | 70,09 |
+| E2 progressive multi-granularity | 89,44 | **83,50** | **72,11** |
+
+E2 versus GAP menghasilkan delta Macro `+0,67 ± 1,84`, Hard
+`+1,13 ± 4,32`, dan Worst `+0,99 ± 8,81`. E2 versus HBP menghasilkan delta
+Macro `-0,48 ± 2,11`, Hard `+1,03 ± 5,01`, dan Worst `+2,02 ± 10,84`.
+
+**Putusan final: STOP.** E2 hanya lolos gate rerata terhadap GAP, tetapi
+efeknya kecil dan tidak stabil. E2 gagal terhadap HBP karena Macro-F1 lebih
+rendah. E3 sudah gagal pada screening seed 123. Keduanya tidak dibawa ke test
+dan tidak menjadi metode utama.
+
 ## Keterbatasan
 
 - Empat optimizer update per batch membuat biaya training tidak setara GAP/HBP.

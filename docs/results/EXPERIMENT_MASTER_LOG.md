@@ -418,14 +418,42 @@ masih satu seed validation; test belum boleh dibuka.
 
 ### Keputusan konfirmasi
 
-E2 dikunci tanpa tuning tambahan untuk validation seed 42 dan 2026. Konfirmasi
-akhir memakai E0/E1/E2 pada seed 42/123/2026. Hasil konfirmasi belum tersedia.
+**Status: KONFIRMASI VALIDATION SELESAI — E2 gagal melampaui HBP dan
+dihentikan.** E2 dikunci tanpa tuning tambahan, lalu E0/E1/E2 dikonfirmasi pada
+seed 42/123/2026. Test tidak dibuka.
+
+| Model | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|
+| E0/BE2G GAP | 88,77 | 82,37 | 71,11 |
+| **E1/BE2H HBP** | **89,93** | 82,47 | 70,09 |
+| E2 progressive multi-granularity | 89,44 | **83,50** | **72,11** |
+
+| Perbandingan | Metrik | Delta mean | Std delta | Naik/seed |
+|---|---|---:|---:|---:|
+| E2 vs GAP | Macro-F1 | +0,67 | 1,84 | 2/3 |
+| E2 vs GAP | Hard-F1 | +1,13 | 4,32 | 2/3 |
+| E2 vs GAP | Worst-F1 | +0,99 | 8,81 | 1/3 |
+| E2 vs HBP | Macro-F1 | -0,48 | 2,11 | 1/3 |
+| E2 vs HBP | Hard-F1 | +1,03 | 5,01 | 1/3 |
+| E2 vs HBP | Worst-F1 | +2,02 | 10,84 | 2/3 |
+
+Menurut gate numerik, E2 **PASS versus GAP** karena rerata Macro/Hard naik dan
+Worst tidak turun. Namun, peningkatannya kecil dibanding simpangan antar-seed;
+Worst hanya naik pada 1/3 seed. E2 **FAIL versus HBP** karena rerata Macro-F1
+turun 0,48 poin dan hanya naik pada 1/3 seed. Dengan demikian hasil seed 123
+adalah screening yang terlalu optimistis, bukan bukti superioritas stabil.
+
+Putusan akhir: E2 tidak menjadi metode utama, E3 tetap ditolak, adaptasi
+progressive multi-granularity dihentikan, dan test tetap tertutup. Artefak
+ringkas yang dapat diproses mesin disimpan pada
+`docs/results/PROGRESSIVE_MULTIGRANULARITY_CONFIRMATION.json`.
 
 ## 15. Arah aktif setelah pembekuan log
 
 Fokus aktif adalah **closed-set fine-grained classification**, bukan OSR,
 deteksi, atau domain adaptation. Kandidat selanjutnya harus merupakan algoritma
 fine-grained yang mempunyai mekanisme dan baseline terkontrol, bukan penambahan
-head secara acak. E2 progressive multi-granularity telah lolos screening seed
-123 dan sedang menunggu konfirmasi dua seed tambahan. E3 category consistency
-telah dihentikan.
+head secara acak. Jalur progressive multi-granularity (E2) dan
+category-consistency (E3) telah ditutup sebagai hasil negatif setelah
+konfirmasi tiga seed. Eksperimen berikutnya tidak boleh mengulang tuning E2/E3
+atau membuka test untuk menyelamatkan hasil.

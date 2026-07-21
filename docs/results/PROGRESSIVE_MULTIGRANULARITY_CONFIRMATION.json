@@ -1,0 +1,45 @@
+{
+  "experiment": "efficientnetv2_progressive_multigranularity",
+  "task": "closed_set_fine_grained_classification",
+  "dataset": "Coffee17 clean grouped fold_1",
+  "split": "validation",
+  "seeds": [42, 123, 2026],
+  "test_opened": false,
+  "models": {
+    "BE2G": {
+      "description": "EfficientNetV2-B0 + GAP",
+      "macro_f1_mean": 0.8877,
+      "hard_class_f1_mean": 0.8237,
+      "worst_class_f1_mean": 0.7111
+    },
+    "BE2H": {
+      "description": "EfficientNetV2-B0 + HBP",
+      "macro_f1_mean": 0.8993,
+      "hard_class_f1_mean": 0.8247,
+      "worst_class_f1_mean": 0.7009
+    },
+    "E2": {
+      "description": "EfficientNetV2-B0 progressive multi-granularity",
+      "macro_f1_mean": 0.8944,
+      "hard_class_f1_mean": 0.8350,
+      "worst_class_f1_mean": 0.7211
+    }
+  },
+  "comparisons": {
+    "BE2G_vs_E2": {
+      "macro_f1": {"delta_mean": 0.0067, "delta_std": 0.0184, "improved_seeds": 2},
+      "hard_class_f1": {"delta_mean": 0.0113, "delta_std": 0.0432, "improved_seeds": 2},
+      "worst_class_f1": {"delta_mean": 0.0099, "delta_std": 0.0881, "improved_seeds": 1},
+      "decision": "PASS"
+    },
+    "BE2H_vs_E2": {
+      "macro_f1": {"delta_mean": -0.0048, "delta_std": 0.0211, "improved_seeds": 1},
+      "hard_class_f1": {"delta_mean": 0.0103, "delta_std": 0.0501, "improved_seeds": 1},
+      "worst_class_f1": {"delta_mean": 0.0202, "delta_std": 0.1084, "improved_seeds": 2},
+      "decision": "FAIL"
+    }
+  },
+  "final_decision": "STOP",
+  "reason": "E2 did not improve mean Macro-F1 over HBP and its gains over GAP were small relative to seed variability. E3 had already failed the seed-123 screening.",
+  "next_action": "Do not open test and do not continue tuning E2 or E3."
+}
