@@ -271,6 +271,21 @@ python -u -m bilinear_lmmd.experiments.run_hong_classification_screening \
 Protokol: [docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md](docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md).
 Notebook: [notebooks/coffee17_hong_classification_colab.ipynb](notebooks/coffee17_hong_classification_colab.ipynb).
 
+Setelah screening menemukan DSConv-only sebagai satu-satunya komponen yang
+lolos, konfirmasi tiga seed dijalankan tanpa SPPF:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_hong_dsconv_confirmation \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/hong-classification \
+  --seeds 42 123 2026 \
+  --evaluation-split val
+```
+
+Protokol: [docs/protocols/HONG_DSCONV_CONFIRMATION.md](docs/protocols/HONG_DSCONV_CONFIRMATION.md).
+Notebook: [notebooks/coffee17_hong_dsconv_confirmation_colab.ipynb](notebooks/coffee17_hong_dsconv_confirmation_colab.ipynb).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat

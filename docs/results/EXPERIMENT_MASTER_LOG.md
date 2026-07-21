@@ -544,3 +544,12 @@ spekulatif dari putusan PASS/FAIL.
 
 Protokol lengkap:
 `docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md`.
+
+### 17.1 Konfirmasi HCD1
+
+**Status: PROTOCOL LOCKED — BELUM DIJALANKAN.** Hanya HCD1 diteruskan pada seed
+42, 123, dan 2026. HCD1 harus mengalahkan BE2G dan BE2H pada rata-rata
+Macro-F1 dan Hard-F1, meningkat minimal 2/3 seed untuk keduanya, serta menjaga
+rata-rata Worst-F1 dalam toleransi satu poin. Test tetap terkunci.
+
+Protokol lengkap: `docs/protocols/HONG_DSCONV_CONFIRMATION.md`.
