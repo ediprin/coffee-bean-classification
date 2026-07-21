@@ -602,6 +602,16 @@ def _contact_sheets(output_root: Path, manifest: list[dict]) -> list[str]:
     return outputs
 
 
+def ensure_imagefolder_directories(output_root: Path) -> None:
+    output_root.mkdir(parents=True, exist_ok=True)
+    for split in SPLITS:
+        for class_name in CANONICAL_CLASSES:
+            (output_root / "source" / split / class_name).mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+
 def prepare_sni_instance_crops(
     adrian_root: Path,
     faruq_root: Path,
@@ -635,10 +645,7 @@ def prepare_sni_instance_crops(
         instances_by_image[instance.image_uid].append(instance)
     group_ids, identity_audit = group_images(images)
     assignments = allocate_groups(images, instances, group_ids, seed)
-    output_root.mkdir(parents=True, exist_ok=True)
-    for split in SPLITS:
-        for class_name in CANONICAL_CLASSES:
-            (output_root / "source" / split / class_name).mkdir(parents=True)
+    ensure_imagefolder_directories(output_root)
     manifest: list[dict] = []
     crop_hashes: dict[str, list[str]] = defaultdict(list)
     resumed_crops = 0

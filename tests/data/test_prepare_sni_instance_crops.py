@@ -10,6 +10,7 @@ from bilinear_lmmd.data.preparation.prepare_sni_instance_crops import (
     InstanceRecord,
     allocate_groups,
     canonical_class,
+    ensure_imagefolder_directories,
     orient_to_coco_size,
     source_identity,
     square_crop,
@@ -82,6 +83,15 @@ def test_coco_dimension_mismatch_is_rejected():
     image = Image.new("RGB", (8, 4))
     with pytest.raises(ValueError, match="tidak cocok dengan metadata COCO"):
         orient_to_coco_size(image, (7, 4))
+
+
+def test_imagefolder_directory_creation_is_resume_safe(tmp_path):
+    output = tmp_path / "partial"
+    ensure_imagefolder_directories(output)
+    ensure_imagefolder_directories(output)
+    for split in ("train", "val", "test"):
+        for class_name in CANONICAL_CLASSES:
+            assert (output / "source" / split / class_name).is_dir()
 
 
 def _synthetic_records():
