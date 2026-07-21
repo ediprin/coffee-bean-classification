@@ -406,6 +406,27 @@ Notebook tersebut memvalidasi GPU dan Secrets, memulihkan dataset Coffee-17
 secara deterministik, membersihkan output preparasi parsial, lalu menjalankan
 restore/train/evaluate/sync dalam satu alur yang aman diulang setelah reset.
 
+## Fail-fast compact MPN-COV
+
+Eksperimen terakhir untuk refinement pooling membandingkan EfficientNetV2-B0
+dengan GAP (COV0), HBP (COV1), dan compact iSQRT-COV/MPN-COV (COV2). Jalankan
+validation seed 42 saja terlebih dahulu:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_covariance_pooling_screening \
+  --data-root data/coffee_clean/folds/fold_1 \
+  --output-root outputs/covariance_pooling \
+  --seeds 42 \
+  --evaluation-split val
+```
+
+Runner dapat diulang dan akan melanjutkan checkpoint yang belum lengkap.
+Kriteria berhenti, operasi matematis, sumber implementasi resmi, dan batas
+klaim dibekukan di
+[`COMPACT_MPNCOV_PROTOCOL.md`](docs/protocols/COMPACT_MPNCOV_PROTOCOL.md).
+Notebook siap Colab tersedia di
+[`coffee17_compact_mpncov_colab.ipynb`](notebooks/coffee17_compact_mpncov_colab.ipynb).
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:

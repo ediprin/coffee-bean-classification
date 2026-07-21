@@ -159,6 +159,91 @@ class GAPHead(nn.Module):
         return F.adaptive_avg_pool2d(features[-1], 1).flatten(1)
 
 
+class MatrixPowerNormalizedCovariancePooling(nn.Module):
+    """Compact iSQRT-COV / fast MPN-COV pooling.
+
+    The forward path follows the official fast MPN-COV implementation by Li
+    et al. (CVPR 2018): channel reduction, centered covariance pooling,
+    trace-normalized Newton--Schulz matrix square root, trace
+    post-compensation, and upper-triangular vectorization.  The reduction
+    dimension is configurable so the representation remains practical on the
+    small Coffee17 dataset.
+    """
+
+    def __init__(
+        self,
+        channels: int,
+        reduction_dim: int = 128,
+        iterations: int = 5,
+        epsilon: float = 1.0e-5,
+    ):
+        super().__init__()
+        if reduction_dim <= 1:
+            raise ValueError("mpncov_reduction_dim harus lebih besar dari satu.")
+        if iterations <= 0:
+            raise ValueError("mpncov_iterations harus lebih besar dari nol.")
+        if epsilon <= 0.0:
+            raise ValueError("mpncov_epsilon harus lebih besar dari nol.")
+        self.reduction_dim = int(reduction_dim)
+        self.iterations = int(iterations)
+        self.epsilon = float(epsilon)
+        self.reduction = nn.Sequential(
+            nn.Conv2d(channels, reduction_dim, kernel_size=1, bias=False),
+            nn.BatchNorm2d(reduction_dim),
+            nn.ReLU(inplace=True),
+        )
+        rows, columns = torch.triu_indices(reduction_dim, reduction_dim)
+        self.register_buffer("triu_rows", rows, persistent=False)
+        self.register_buffer("triu_columns", columns, persistent=False)
+        self.output_dim = reduction_dim * (reduction_dim + 1) // 2
+        self._reset_parameters()
+
+    def _reset_parameters(self) -> None:
+        nn.init.kaiming_normal_(
+            self.reduction[0].weight, mode="fan_out", nonlinearity="relu"
+        )
+        nn.init.ones_(self.reduction[1].weight)
+        nn.init.zeros_(self.reduction[1].bias)
+
+    def _matrix_square_root(self, covariance: Tensor) -> Tensor:
+        batch, channels, _ = covariance.shape
+        identity = torch.eye(
+            channels, device=covariance.device, dtype=covariance.dtype
+        ).expand(batch, -1, -1)
+        trace = covariance.diagonal(dim1=-2, dim2=-1).sum(-1).clamp_min(
+            self.epsilon
+        )
+        y = covariance / trace[:, None, None]
+        z = identity
+        three_identity = 3.0 * identity
+        for _ in range(self.iterations):
+            update = 0.5 * (three_identity - z.bmm(y))
+            y = y.bmm(update)
+            z = update.bmm(z)
+        result = y * torch.sqrt(trace)[:, None, None]
+        # Suppress tiny numerical asymmetry before upper-triangle extraction.
+        return 0.5 * (result + result.transpose(1, 2))
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        feature = self.reduction(features[-1])
+        output_dtype = feature.dtype
+        # Matrix iterations are intentionally float32 under mixed precision.
+        matrix_dtype = (
+            torch.float32
+            if feature.dtype in {torch.float16, torch.bfloat16}
+            else feature.dtype
+        )
+        feature = feature.to(dtype=matrix_dtype)
+        batch, channels, height, width = feature.shape
+        spatial = height * width
+        flattened = feature.reshape(batch, channels, spatial)
+        centered = flattened - flattened.mean(dim=2, keepdim=True)
+        covariance = centered.bmm(centered.transpose(1, 2)) / float(spatial)
+        square_root = self._matrix_square_root(covariance)
+        vector = square_root[:, self.triu_rows, self.triu_columns]
+        return vector.to(dtype=output_dtype)
+
+
 class FactorizedBilinearPooling(nn.Module):
     """Single-layer low-rank bilinear control on the deepest feature.
 
@@ -929,6 +1014,9 @@ class AdaptationModel(nn.Module):
         head: str = "hbp",
         out_indices: tuple[int, ...] = (1, 3, 4),
         projection_dim: int = 512,
+        mpncov_reduction_dim: int = 128,
+        mpncov_iterations: int = 5,
+        mpncov_epsilon: float = 1.0e-5,
         hbp_spatial_size: int = 14,
         bilinear_output_dim: int | None = None,
         hbp_mlp_dim: int = 672,
@@ -954,6 +1042,7 @@ class AdaptationModel(nn.Module):
         super().__init__()
         supported_heads = {
             "gap",
+            "mpncov",
             "hierarchical_gap",
             "sppf_attention_gap",
             "bilinear",
@@ -1001,6 +1090,13 @@ class AdaptationModel(nn.Module):
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
+        elif head == "mpncov":
+            self.pool = MatrixPowerNormalizedCovariancePooling(
+                channels[-1],
+                reduction_dim=mpncov_reduction_dim,
+                iterations=mpncov_iterations,
+                epsilon=mpncov_epsilon,
+            )
         elif head == "hierarchical_gap":
             self.pool = ProjectedHierarchicalGAP(channels, projection_dim)
         elif head == "hbp_linear":
@@ -1226,6 +1322,9 @@ def build_model(cfg: dict) -> nn.Module:
         head=head,
         out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
         projection_dim=int(cfg.get("projection_dim", 512)),
+        mpncov_reduction_dim=int(cfg.get("mpncov_reduction_dim", 128)),
+        mpncov_iterations=int(cfg.get("mpncov_iterations", 5)),
+        mpncov_epsilon=float(cfg.get("mpncov_epsilon", 1.0e-5)),
         hbp_spatial_size=int(cfg.get("hbp_spatial_size", 14)),
         bilinear_output_dim=(
             int(cfg["bilinear_output_dim"])
