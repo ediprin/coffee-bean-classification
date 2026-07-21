@@ -344,6 +344,22 @@ def test_hierarchical_gap_config_is_controlled_against_plain_gap():
     assert baseline["adaptation"] == candidate["adaptation"]
 
 
+def test_full_family_hierarchy_changes_only_parent_mapping_from_h0():
+    paired = load_config("configs/coffee17/H0_mobilenetv3_gap_hierarchical_source.yaml")
+    full = load_config(
+        "configs/coffee17/H0f_mobilenetv3_gap_full_family_hierarchical_source.yaml"
+    )
+
+    assert paired["hierarchy"]["weight"] == full["hierarchy"]["weight"] == 0.2
+    assert paired["model"]["hierarchy_num_parents"] == 14
+    assert full["model"]["hierarchy_num_parents"] == 7
+    assert len(full["hierarchy"]["groups"]) == 7
+    for key in ("backbone", "head", "out_indices", "classifier", "dropout"):
+        assert paired["model"][key] == full["model"][key]
+    assert paired["data"] == full["data"]
+    assert paired["adaptation"] == full["adaptation"]
+
+
 def test_sppf_attention_preserves_shape_and_backpropagates():
     module = SPPFAttention(channels=16, reduction=4)
     feature = torch.randn(2, 16, 9, 9, requires_grad=True)

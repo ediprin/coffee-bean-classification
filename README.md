@@ -191,6 +191,18 @@ hierarchy_factorial`. Pemetaan kelas, bobot loss yang dikunci, dan kriteria
 keputusan tersedia di
 [docs/protocols/HIERARCHICAL_HBP_PROTOCOL.md](docs/protocols/HIERARCHICAL_HBP_PROTOCOL.md).
 
+Setelah audit H0, hierarchy tujuh keluarga penuh dapat diuji sebagai eksperimen
+mapping exploratory dengan bobot yang tetap sama:
+
+```powershell
+python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
+  --data-root data/coffee_clean_for_synthetic/folds/fold_1 `
+  --output-root outputs/coffee17-gap-hierarchy `
+  --stage gap_hierarchy_full `
+  --seeds 42 `
+  --evaluation-split val
+```
+
 ### Screening SPPF-Attention sebelum HBP
 
 Adaptasi terkontrol dari Hong et al. (2026) memperbaiki feature map terdalam

@@ -19,6 +19,7 @@ arbitrer.
 |---|---|---|
 | M0 | MobileNetV3-Large + GAP | `CE_fine` |
 | H0 | MobileNetV3-Large + GAP | `CE_fine + 0.2 CE_parent` |
+| H0f | MobileNetV3-Large + GAP | `CE_fine + 0.2 CE_parent`, tujuh keluarga penuh |
 | M1 | MobileNetV3-Large + HBP | `CE_fine` |
 | H1 | MobileNetV3-Large + HBP | `CE_fine + 0.2 CE_parent` |
 
@@ -32,6 +33,23 @@ sebanding pada seed yang sama.
 
 Bobot `0.2` ditetapkan sebelum screening agar fine objective tetap dominan;
 tidak dilakukan pencarian lambda pada test.
+
+H0 memakai tiga parent berpasangan dan sebelas parent singleton agar identik
+dengan eksperimen H1 lama. Setelah audit per kelas H0, H0f didaftarkan sebagai
+eksperimen mapping terpisah yang lebih dekat dengan hierarchy deteksi. H0f
+membagi seluruh kelas menjadi tujuh keluarga:
+
+- Black: Full/Partial Black;
+- Sour: Full/Partial Sour;
+- Insect Damage: Severe/Slight Insect Damage;
+- Mechanical/Shape: Broken, Cut, Shell;
+- Processing Residue: Dry Cherry, Husk, Parchment;
+- Development/Drying: Immature, Withered, Fade, Floater;
+- Fungus: Fungus Damage.
+
+Bobot tetap `0.2`, sehingga H0 versus H0f hanya mengubah mapping dan jumlah
+parent. H0f bersifat exploratory karena didaftarkan setelah hasil H0 dilihat;
+ia tidak boleh dipresentasikan sebagai hipotesis awal H0.
 
 ## Keputusan
 
@@ -47,3 +65,8 @@ Screening `M0` versus `H0` mengisolasi hierarchy tanpa HBP. Jika lolos, H0
 dikonfirmasi pada seed 42, 123, dan 2026. Faktorial `M0/H0/M1/H1` dapat dipakai
 untuk mengukur apakah efek hierarchy bergantung pada pooling. SPPF-Attention
 tidak dimasukkan sehingga penyebab tetap dapat ditentukan.
+
+H0f menggunakan gate yang sama: Macro-F1 dan Hard-F1 harus meningkat serta
+Worst-F1 tidak boleh turun lebih dari satu poin pada validation seed 42. Jika
+gagal, tidak ada rescue mapping atau lambda tambahan. Jika lolos, mapping dan
+bobot dibekukan sebelum validation seed 123/2026 dan test.
