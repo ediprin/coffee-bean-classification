@@ -273,6 +273,23 @@ def test_hierarchical_hbp_adds_only_parent_head_and_backpropagates():
     assert model.pool.projections[0][0].weight.grad is not None
 
 
+def test_hierarchical_auxiliary_head_works_with_plain_gap():
+    model = AdaptationModel(
+        backbone="mobilenetv3_small_050",
+        num_classes=4,
+        head="gap",
+        out_indices=(4,),
+        hierarchy_num_parents=2,
+        pretrained=False,
+    )
+    output = model(torch.randn(2, 3, 96, 96))
+
+    assert output.logits.shape == (2, 4)
+    assert output.parent_logits.shape == (2, 2)
+    output.parent_logits.sum().backward()
+    assert model.parent_classifier.weight.grad is not None
+
+
 def test_hierarchical_hbp_preserves_same_seed_core_initialization():
     kwargs = {
         "backbone": "mobilenetv3_small_050",
@@ -309,6 +326,19 @@ def test_hierarchical_config_is_controlled_against_hbp():
     assert candidate["hierarchy"]["weight"] == 0.2
     assert candidate["model"]["hierarchy_num_parents"] == 14
     for key in ("backbone", "head", "out_indices", "projection_dim", "classifier", "dropout"):
+        assert baseline["model"][key] == candidate["model"][key]
+    assert baseline["data"] == candidate["data"]
+    assert baseline["adaptation"] == candidate["adaptation"]
+
+
+def test_hierarchical_gap_config_is_controlled_against_plain_gap():
+    baseline = load_config("configs/coffee17/M0_mobilenetv3_gap_source.yaml")
+    candidate = load_config("configs/coffee17/H0_mobilenetv3_gap_hierarchical_source.yaml")
+
+    assert candidate["hierarchy"]["enabled"] is True
+    assert candidate["hierarchy"]["weight"] == 0.2
+    assert candidate["model"]["hierarchy_num_parents"] == 14
+    for key in ("backbone", "head", "out_indices", "classifier", "dropout"):
         assert baseline["model"][key] == candidate["model"][key]
     assert baseline["data"] == candidate["data"]
     assert baseline["adaptation"] == candidate["adaptation"]

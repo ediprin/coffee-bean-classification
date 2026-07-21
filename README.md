@@ -170,22 +170,25 @@ mempertahankan test. Protokol dan
 batas klaim tersedia di
 [docs/protocols/ROAST_HBP_PROTOCOL.md](docs/protocols/ROAST_HBP_PROTOCOL.md).
 
-### Screening hierarchical HBP pada Coffee17
+### Screening auxiliary hierarchy pada GAP dan HBP
 
-H1 mempertahankan MobileNetV3-HBP dan classifier fine 17 kelas milik M1, lalu
+H0 mempertahankan MobileNetV3-GAP dan classifier fine 17 kelas milik M0, lalu
 menambahkan auxiliary parent loss untuk pasangan Black, Sour, dan Insect
-Damage. Screening terkontrol dijalankan pada validation:
+Damage. Dengan demikian hierarchy dapat diuji tanpa HBP. Screening terkontrol
+dijalankan pada validation seed 42:
 
 ```powershell
 python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
   --data-root data/coffee_clean_for_synthetic/folds/fold_1 `
   --output-root outputs/hierarchical-hbp `
-  --stage hierarchy `
+  --stage gap_hierarchy `
   --seeds 42 `
   --evaluation-split val
 ```
 
-Pemetaan kelas, bobot loss yang dikunci, dan kriteria keputusan tersedia di
+Faktorial lengkap `M0/H0/M1/H1` tersedia melalui `--stage
+hierarchy_factorial`. Pemetaan kelas, bobot loss yang dikunci, dan kriteria
+keputusan tersedia di
 [docs/protocols/HIERARCHICAL_HBP_PROTOCOL.md](docs/protocols/HIERARCHICAL_HBP_PROTOCOL.md).
 
 ### Screening SPPF-Attention sebelum HBP
