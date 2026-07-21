@@ -22,6 +22,11 @@ Indeks seluruh hasil positif, negatif, screening, lintas dataset, dan eksperimen
 yang telah dihentikan tersedia di
 [docs/results/EXPERIMENT_MASTER_LOG.md](docs/results/EXPERIMENT_MASTER_LOG.md).
 
+Dataset SNI detection dan instance-segmentation dapat dinormalisasi menjadi
+dataset klasifikasi per objek dengan 21 kelas bersama. Pipeline ini melakukan
+grouping per foto sumber, audit exact duplicate, crop bbox, dan mengunci test;
+lihat [protokol SNI instance-crop](docs/protocols/SNI_INSTANCE_CROP_PROTOCOL.md).
+
 Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
 preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di
 `engine`, orkestrasi studi di `experiments`, serta agregasi di `reporting`.
