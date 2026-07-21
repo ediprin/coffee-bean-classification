@@ -1,0 +1,68 @@
+{
+  "experiment": "Hong DSConv-only HCD1 three-seed confirmation",
+  "candidate": "HCD1",
+  "seeds": [42, 123, 2026],
+  "split": "val",
+  "comparisons": {
+    "BE2G_vs_HCD1": {
+      "baseline": "BE2G",
+      "macro_f1": {
+        "baseline_mean": 0.8877,
+        "candidate_mean": 0.8828,
+        "delta_mean": -0.0049,
+        "delta_std": 0.0185,
+        "improved_seeds": 2,
+        "total_seeds": 3
+      },
+      "hard_class_f1": {
+        "baseline_mean": 0.8237,
+        "candidate_mean": 0.8072,
+        "delta_mean": -0.0165,
+        "delta_std": 0.0343,
+        "improved_seeds": 2,
+        "total_seeds": 3
+      },
+      "worst_class_f1": {
+        "baseline_mean": 0.7111,
+        "candidate_mean": 0.6313,
+        "delta_mean": -0.0798,
+        "delta_std": 0.1931,
+        "improved_seeds": 1,
+        "total_seeds": 3
+      },
+      "decision": "FAIL"
+    },
+    "BE2H_vs_HCD1": {
+      "baseline": "BE2H",
+      "macro_f1": {
+        "baseline_mean": 0.8993,
+        "candidate_mean": 0.8828,
+        "delta_mean": -0.0165,
+        "delta_std": 0.0204,
+        "improved_seeds": 1,
+        "total_seeds": 3
+      },
+      "hard_class_f1": {
+        "baseline_mean": 0.8247,
+        "candidate_mean": 0.8072,
+        "delta_mean": -0.0175,
+        "delta_std": 0.0334,
+        "improved_seeds": 1,
+        "total_seeds": 3
+      },
+      "worst_class_f1": {
+        "baseline_mean": 0.7009,
+        "candidate_mean": 0.6313,
+        "delta_mean": -0.0695,
+        "delta_std": 0.0867,
+        "improved_seeds": 0,
+        "total_seeds": 3
+      },
+      "decision": "FAIL"
+    }
+  },
+  "final_decision": "FAIL",
+  "test_opened": false,
+  "dsconv_runtime_claim": false,
+  "follow_up": "STOP DSConv, SPPF, and DSConv+HBP post-hoc rescue"
+}

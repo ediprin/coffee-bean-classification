@@ -547,9 +547,19 @@ Protokol lengkap:
 
 ### 17.1 Konfirmasi HCD1
 
-**Status: PROTOCOL LOCKED — BELUM DIJALANKAN.** Hanya HCD1 diteruskan pada seed
+**Status: KONFIRMASI FAIL — DSCONV DIHENTIKAN.** Hanya HCD1 diteruskan pada seed
 42, 123, dan 2026. HCD1 harus mengalahkan BE2G dan BE2H pada rata-rata
 Macro-F1 dan Hard-F1, meningkat minimal 2/3 seed untuk keduanya, serta menjaga
 rata-rata Worst-F1 dalam toleransi satu poin. Test tetap terkunci.
+
+| Perbandingan | Macro baseline → HCD1 | Delta Macro | Delta Hard | Delta Worst |
+|---|---:|---:|---:|---:|
+| BE2G vs HCD1 | 88,77 → 88,28 | -0,49 ± 1,85 | -1,65 ± 3,43 | -7,98 ± 19,31 |
+| BE2H vs HCD1 | 89,93 → 88,28 | -1,65 ± 2,04 | -1,75 ± 3,34 | -6,95 ± 8,67 |
+
+Kedua perbandingan FAIL. Sinyal screening seed 123 tidak bertahan lintas seed;
+HCD1 menurunkan mean Macro, Hard, dan Worst. DSConv, SPPF, serta kombinasinya
+dihentikan. Test tidak dibuka dan DSConv+HBP tidak dijalankan sebagai tuning
+post-hoc.
 
 Protokol lengkap: `docs/protocols/HONG_DSCONV_CONFIRMATION.md`.

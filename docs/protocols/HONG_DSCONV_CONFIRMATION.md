@@ -34,3 +34,17 @@ baru boleh dibuka melalui protokol final terpisah.
 
 Tidak ada klaim runtime atau kompresi aktual karena DSConv masih berupa
 simulasi quantization-aware PyTorch.
+
+## Hasil
+
+**FINAL: FAIL.** Konfirmasi tiga seed menghasilkan:
+
+| Perbandingan | Delta Macro-F1 | Delta Hard-F1 | Delta Worst-F1 | Putusan |
+|---|---:|---:|---:|---|
+| BE2G vs HCD1 | -0,49 ± 1,85 | -1,65 ± 3,43 | -7,98 ± 19,31 | FAIL |
+| BE2H vs HCD1 | -1,65 ± 2,04 | -1,75 ± 3,34 | -6,95 ± 8,67 | FAIL |
+
+Angka menggunakan poin persentase. HCD1 gagal terhadap kedua baseline dan
+Worst-F1 turun besar. Sinyal positif seed 123 dinyatakan tidak stabil. Sesuai
+gate, test tidak dibuka dan kombinasi DSConv+HBP tidak dijalankan sebagai
+penyelamatan post-hoc.

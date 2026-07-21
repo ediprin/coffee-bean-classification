@@ -286,6 +286,10 @@ python -u -m bilinear_lmmd.experiments.run_hong_dsconv_confirmation \
 Protokol: [docs/protocols/HONG_DSCONV_CONFIRMATION.md](docs/protocols/HONG_DSCONV_CONFIRMATION.md).
 Notebook: [notebooks/coffee17_hong_dsconv_confirmation_colab.ipynb](notebooks/coffee17_hong_dsconv_confirmation_colab.ipynb).
 
+Konfirmasi tiga seed berstatus **FAIL**: HCD1 menurunkan Macro-F1 `-0,49`
+terhadap GAP dan `-1,65` terhadap HBP, dengan penurunan Worst-F1 masing-masing
+`-7,98` dan `-6,95` poin. DSConv/SPPF dihentikan dan test tidak dibuka.
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat
