@@ -443,6 +443,7 @@ python -u -m bilinear_lmmd.experiments.run_progressive_multigranularity \
   --baseline-root outputs/backbone-results \
   --output-root outputs/progressive-efficientnet \
   --seeds 123 \
+  --models E2 E3 \
   --evaluation-split val
 ```
 

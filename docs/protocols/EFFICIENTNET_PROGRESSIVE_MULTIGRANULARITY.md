@@ -111,12 +111,25 @@ python -u -m bilinear_lmmd.experiments.run_progressive_multigranularity \
   --baseline-root outputs/backbone-results \
   --output-root outputs/progressive-efficientnet \
   --seeds 123 \
+  --models E2 E3 \
   --evaluation-split val
 ```
 
 Runner membutuhkan `best.pt` E0/E1 pada `baseline-root`, melatih E2/E3 secara
 end-to-end, mendukung resume, menampilkan progress bar, mengevaluasi seluruh
 model, dan menyimpan `progressive_decision.json`.
+
+Setelah screening menolak E3, konfirmasi tidak boleh menjalankan E3 kembali:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_progressive_multigranularity \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/progressive-efficientnet \
+  --seeds 42 123 2026 \
+  --models E2 \
+  --evaluation-split val
+```
 
 ## Keterbatasan
 

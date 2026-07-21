@@ -133,10 +133,19 @@ def run_progressive_screening(
     baseline_root: Path,
     output_root: Path,
     seeds: list[int],
+    models: list[str],
     evaluation_split: str = "val",
 ) -> dict:
     print("=== EFFICIENTNET PROGRESSIVE MULTI-GRANULARITY ===", flush=True)
-    for code, config_path in MODEL_CONFIGS.items():
+    unknown = sorted(set(models).difference(MODEL_CONFIGS))
+    if unknown:
+        raise ValueError(f"Model progressive tidak dikenal: {unknown}")
+    if not models:
+        raise ValueError("Minimal satu model progressive harus dipilih.")
+    selected_configs = {
+        code: MODEL_CONFIGS[code] for code in MODEL_CONFIGS if code in models
+    }
+    for code, config_path in selected_configs.items():
         cfg = load_config(config_path)
         cfg["model"]["pretrained"] = False
         parameters = sum(
@@ -155,7 +164,7 @@ def run_progressive_screening(
             print(f"BASELINE {alias} menggunakan {baseline_code} seed {seed}", flush=True)
             _evaluate(checkpoint, destination, data_root, evaluation_split)
 
-    for code, config_path in MODEL_CONFIGS.items():
+    for code, config_path in selected_configs.items():
         cfg = load_config(config_path)
         epochs = int(cfg["training"]["epochs"])
         for seed in seeds:
@@ -185,7 +194,7 @@ def run_progressive_screening(
 
     comparisons = {}
     for baseline in ("BE2G", "BE2H"):
-        for candidate in ("E2", "E3"):
+        for candidate in selected_configs:
             key = f"{baseline}_vs_{candidate}"
             comparisons[key] = _compare(
                 baseline_root,
@@ -195,30 +204,36 @@ def run_progressive_screening(
                 seeds,
                 evaluation_split,
             )
-    comparisons["E2_vs_E3"] = _compare(
-        output_root,
-        output_root,
-        "E2",
-        "E3",
-        seeds,
-        evaluation_split,
-    )
     decision = {
         "seeds": seeds,
+        "models": list(selected_configs),
         "evaluation_split": evaluation_split,
-        "E2_vs_GAP": screening_decision(
-            comparisons["BE2G_vs_E2"]["summary"]
-        ),
-        "E3_vs_GAP": screening_decision(
-            comparisons["BE2G_vs_E3"]["summary"]
-        ),
-        "E3_vs_E2": screening_decision(comparisons["E2_vs_E3"]["summary"]),
     }
+    for candidate in selected_configs:
+        decision[f"{candidate}_vs_GAP"] = screening_decision(
+            comparisons[f"BE2G_vs_{candidate}"]["summary"]
+        )
+        decision[f"{candidate}_vs_HBP"] = screening_decision(
+            comparisons[f"BE2H_vs_{candidate}"]["summary"]
+        )
+    if {"E2", "E3"}.issubset(selected_configs):
+        comparisons["E2_vs_E3"] = _compare(
+            output_root,
+            output_root,
+            "E2",
+            "E3",
+            seeds,
+            evaluation_split,
+        )
+        decision["E3_vs_E2"] = screening_decision(
+            comparisons["E2_vs_E3"]["summary"]
+        )
     destination = _report_root(output_root, evaluation_split) / "progressive_decision.json"
     destination.write_text(json.dumps(decision, indent=2), encoding="utf-8")
     print("\n=== PUTUSAN ===")
-    for comparison in ("E2_vs_GAP", "E3_vs_GAP", "E3_vs_E2"):
-        print(f"{comparison:12s}: {decision[comparison]['decision']}")
+    for comparison, row in decision.items():
+        if isinstance(row, dict) and "decision" in row:
+            print(f"{comparison:12s}: {row['decision']}")
     print("SAVED:", destination)
     return decision
 
@@ -231,6 +246,12 @@ def main() -> None:
     parser.add_argument("--baseline-root", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--seeds", nargs="+", type=int, default=[123])
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        choices=tuple(MODEL_CONFIGS),
+        default=list(MODEL_CONFIGS),
+    )
     parser.add_argument("--evaluation-split", choices=("val", "test"), default="val")
     args = parser.parse_args()
     run_progressive_screening(
@@ -238,6 +259,7 @@ def main() -> None:
         args.baseline_root,
         args.output_root,
         args.seeds,
+        args.models,
         args.evaluation_split,
     )
 

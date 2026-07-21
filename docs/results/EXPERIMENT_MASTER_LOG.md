@@ -395,10 +395,37 @@ OSR dihentikan; runner dipertahankan hanya untuk reproduktibilitas sejarah.
    bagian tersebut telah ditandai dan tidak menjadi bukti utama.
 5. Hasil test yang sudah dibuka tidak boleh digunakan untuk tuning ulang model.
 
-## 14. Arah aktif setelah pembekuan log
+## 14. Progressive multi-granularity EfficientNetV2
+
+### Screening validation seed 123
+
+**Status: SCREENING PASS untuk E2; E3 dihentikan.** Seluruh model memakai
+EfficientNetV2-B0, input 224, dan split benchmark backbone yang sama.
+
+| Model | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|
+| E0/BE2G GAP | 88,24 | 81,59 | 66,67 |
+| E1/BE2H HBP | 88,65 | 80,36 | 66,67 |
+| **E2 progressive multi-granularity** | **90,46** | **87,14** | **76,92** |
+| E3 E2 + category consistency | 90,06 | 83,25 | 72,73 |
+
+E2 versus GAP: Macro `+2,21`, Hard `+5,54`, Worst `+10,26`. E2 versus HBP:
+Macro `+1,81`, Hard `+6,78`, Worst `+10,26`. E2 lolos seluruh gate.
+
+E3 versus E2 menurunkan Macro `-0,40`, Hard `-3,89`, dan Worst `-4,20`.
+Category consistency ditolak dan tidak dibawa ke seed konfirmasi. Hasil ini
+masih satu seed validation; test belum boleh dibuka.
+
+### Keputusan konfirmasi
+
+E2 dikunci tanpa tuning tambahan untuk validation seed 42 dan 2026. Konfirmasi
+akhir memakai E0/E1/E2 pada seed 42/123/2026. Hasil konfirmasi belum tersedia.
+
+## 15. Arah aktif setelah pembekuan log
 
 Fokus aktif adalah **closed-set fine-grained classification**, bukan OSR,
 deteksi, atau domain adaptation. Kandidat selanjutnya harus merupakan algoritma
 fine-grained yang mempunyai mekanisme dan baseline terkontrol, bukan penambahan
-head secara acak. PMG/PMG-V2 telah dipilih sebagai kandidat literatur berikutnya;
-hasilnya belum ada dan karena itu belum dicantumkan sebagai temuan.
+head secara acak. E2 progressive multi-granularity telah lolos screening seed
+123 dan sedang menunggu konfirmasi dua seed tambahan. E3 category consistency
+telah dihentikan.
