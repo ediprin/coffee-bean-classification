@@ -1,0 +1,13 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: gap
+  out_indices: [4]
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/COV0_efficientnetv2_gap_source

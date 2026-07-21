@@ -149,6 +149,7 @@ def test_finegrained_configs_form_controlled_ablation(
     "head",
     [
         "gap",
+        "mpncov",
         "bilinear",
         "hbp",
         "hierarchical_gap",

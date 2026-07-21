@@ -34,6 +34,7 @@ def test_configs_are_grouped_by_dataset_or_study() -> None:
         "backbones",
         "cbd",
         "coffee17",
+        "covariance",
         "granularity",
         "paper",
         "roast",

@@ -1,0 +1,16 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: mpncov
+  out_indices: [4]
+  mpncov_reduction_dim: 128
+  mpncov_iterations: 5
+  mpncov_epsilon: 1.0e-5
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/COV2_efficientnetv2_mpncov_source
