@@ -14,6 +14,7 @@ from bilinear_lmmd.modeling.models import build_model
 MODEL_CONFIGS = {
     "M0": Path("configs/coffee17/M0_mobilenetv3_gap_source.yaml"),
     "H0": Path("configs/coffee17/H0_mobilenetv3_gap_hierarchical_source.yaml"),
+    "H0f": Path("configs/coffee17/H0f_mobilenetv3_gap_full_family_hierarchical_source.yaml"),
     "M1": Path("configs/coffee17/M1_mobilenetv3_hbp_source.yaml"),
     "O0": Path("configs/coffee17/O0_mobilenetv3_gap_object_crop_source.yaml"),
     "O1": Path("configs/coffee17/O1_mobilenetv3_hbp_object_crop_source.yaml"),
@@ -37,6 +38,8 @@ STAGE_MODELS = {
     "object_crop": ["M0", "M1", "O0", "O1"],
     "hierarchy": ["M1", "H1"],
     "gap_hierarchy": ["M0", "H0"],
+    "gap_hierarchy_full": ["M0", "H0f"],
+    "gap_hierarchy_mapping": ["M0", "H0", "H0f"],
     "hierarchy_factorial": ["M0", "H0", "M1", "H1"],
     "sppf": ["M1", "S1"],
     "sppf_factorial": ["M0", "M1", "S0", "S1"],
@@ -45,7 +48,7 @@ STAGE_MODELS = {
     "resolution": ["M1", "F1"],
     "arcface224": ["M0", "M1", "A2", "A3"],
     "ablation": ["F0", "F1", "F2", "F3"],
-    "all": ["M0", "H0", "M1", "O0", "O1", "H1", "C1", "S0", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
+    "all": ["M0", "H0", "H0f", "M1", "O0", "O1", "H1", "C1", "S0", "S1", "M1s", "E1", "A2", "A3", "F0", "F1", "F2", "F3"],
 }
 
 COMPARISONS = (
@@ -56,6 +59,8 @@ COMPARISONS = (
     ("M1", "M1e", "efek EMA pada HBP"),
     ("M1", "H1", "efek hierarchical coarse-to-fine supervision"),
     ("M0", "H0", "efek auxiliary hierarchy pada GAP tanpa HBP"),
+    ("M0", "H0f", "efek full-family auxiliary hierarchy pada GAP"),
+    ("H0", "H0f", "efek mapping singleton-pair menjadi tujuh keluarga penuh"),
     ("H0", "H1", "efek HBP ketika auxiliary hierarchy aktif"),
     ("M1", "S1", "efek SPPF-Attention sebelum HBP"),
     ("M0", "S0", "efek SPPF-Attention sebelum GAP"),
@@ -277,6 +282,7 @@ def main() -> None:
         help=(
             "spatial=M1/M1s, hierarchy=M1/H1, "
             "gap_hierarchy=M0/H0, hierarchy_factorial=M0/H0/M1/H1, "
+            "gap_hierarchy_full=M0/H0f, gap_hierarchy_mapping=M0/H0/H0f, "
             "sppf=M1/S1, "
             "object_crop=M0/M1/O0/O1, "
             "sppf_factorial=M0/M1/S0/S1, "

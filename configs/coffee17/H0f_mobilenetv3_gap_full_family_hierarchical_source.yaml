@@ -1,0 +1,20 @@
+model:
+  backbone: mobilenetv3_large_100
+  head: gap
+  out_indices: [4]
+  hierarchy_num_parents: 7
+adaptation:
+  method: source_only
+training:
+  output_dir: outputs/H0f_mobilenetv3_gap_full_family_hierarchical_source
+hierarchy:
+  enabled: true
+  weight: 0.2
+  groups:
+    black: [Full Black, Partial Black]
+    sour: [Full Sour, Partial Sour]
+    insect_damage: [Severe Insect Damage, Slight Insect Damage]
+    mechanical_shape: [Broken, Cut, Shell]
+    processing_residue: [Dry Cherry, Husk, Parchment]
+    development_drying: [Immature, Withered, Fade, Floater]
+    fungus: [Fungus Damage]
