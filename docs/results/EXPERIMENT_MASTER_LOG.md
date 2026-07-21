@@ -457,3 +457,42 @@ head secara acak. Jalur progressive multi-granularity (E2) dan
 category-consistency (E3) telah ditutup sebagai hasil negatif setelah
 konfirmasi tiga seed. Eksperimen berikutnya tidak boleh mengulang tuning E2/E3
 atau membuka test untuk menyelamatkan hasil.
+
+## 16. Confusion-aware pairwise learning
+
+**Status: SCREENING FAIL — DIHENTIKAN.** Pola eksperimen sebelumnya
+menunjukkan bahwa penambahan statistik, kapasitas, attention, atau granularitas
+umumnya memindahkan kesalahan antarkelas dan tidak memberi superioritas stabil.
+Hipotesis baru secara langsung menargetkan batas antar pasangan kelas yang
+sering tertukar.
+
+| Kode | Model | Objective |
+|---|---|---|
+| BE2G | EfficientNetV2-B0 GAP | CE, checkpoint lama |
+| BE2H | EfficientNetV2-B0 HBP | CE, baseline terkuat lama |
+| CP1 | EfficientNetV2-B0 GAP | CE + vanilla SupCon |
+| CP2 | EfficientNetV2-B0 GAP | CE + train-only confusion-aware SupCon |
+
+Screening dikunci pada validation seed 123. CP2 harus mengalahkan CP1 untuk
+membuktikan kontribusi pembobotan confusion dan mengalahkan BE2H untuk menjadi
+kandidat utama. Projection head hanya untuk training dan dibuang dari
+checkpoint inference. Confusion validation hanya untuk audit diagnostik;
+sampler CP2 dibangun dinamis dari prediction train. Test belum boleh dibuka.
+
+Putusan yang dilaporkan runner:
+
+| Perbandingan | Putusan |
+|---|---|
+| BE2G vs CP1 | FAIL |
+| BE2H vs CP1 | FAIL |
+| BE2G vs CP2 | FAIL |
+| BE2H vs CP2 | FAIL |
+| CP1 vs CP2 | FAIL |
+| CP2 final | FAIL |
+
+Angka metrik tidak tersedia pada output yang diarsipkan dan tidak diisi ulang
+secara spekulatif. CP1/CP2 dihentikan pada screening; tiga seed dan test tidak
+dijalankan.
+
+Protokol lengkap:
+`docs/protocols/CONFUSION_AWARE_PAIRWISE.md`.

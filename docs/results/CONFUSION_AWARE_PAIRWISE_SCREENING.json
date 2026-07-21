@@ -1,0 +1,19 @@
+{
+  "experiment": "confusion-aware pairwise learning",
+  "dataset": "Coffee17 clean grouped fold 1",
+  "split": "validation",
+  "seed": 123,
+  "metrics_available": false,
+  "decisions": {
+    "BE2G_vs_CP1": "FAIL",
+    "BE2H_vs_CP1": "FAIL",
+    "BE2G_vs_CP2": "FAIL",
+    "BE2H_vs_CP2": "FAIL",
+    "CP1_vs_CP2": "FAIL",
+    "CP2_final": "FAIL"
+  },
+  "final_status": "STOP",
+  "test_opened": false,
+  "additional_seeds_authorized": false,
+  "notes": "Only gate decisions were supplied; metric values were not reconstructed."
+}
