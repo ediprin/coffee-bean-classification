@@ -38,6 +38,88 @@ class BalancedSoftmaxLoss(nn.Module):
         )
 
 
+class ConfusionAwareSupervisedContrastiveLoss(nn.Module):
+    """Supervised contrastive loss with optional class-pair weighting.
+
+    Positives are every other embedding with the same label. Different-class
+    embeddings remain negatives, but their contribution to the denominator is
+    multiplied by ``1 + confusion_strength * confusion[a, b]``. The confusion
+    matrix must be computed from training predictions only; a zero matrix
+    recovers ordinary supervised contrastive learning.
+    """
+
+    def __init__(self, temperature: float = 0.1, confusion_strength: float = 0.0):
+        super().__init__()
+        if temperature <= 0.0:
+            raise ValueError("contrastive temperature harus lebih besar dari nol.")
+        if confusion_strength < 0.0:
+            raise ValueError("confusion_strength tidak boleh negatif.")
+        self.temperature = float(temperature)
+        self.confusion_strength = float(confusion_strength)
+
+    def forward(
+        self,
+        embeddings: Tensor,
+        labels: Tensor,
+        class_confusion: Tensor | None = None,
+    ) -> Tensor:
+        if embeddings.ndim != 2:
+            raise ValueError("embeddings harus berbentuk [sample, feature].")
+        if labels.ndim != 1 or labels.shape[0] != embeddings.shape[0]:
+            raise ValueError("labels harus berbentuk [sample] dan sejajar embeddings.")
+        if embeddings.shape[0] < 2:
+            raise ValueError("SupCon membutuhkan minimal dua embedding.")
+
+        labels = labels.to(device=embeddings.device, dtype=torch.long)
+        normalized = F.normalize(embeddings, p=2, dim=1)
+        logits = normalized @ normalized.t() / self.temperature
+        sample_count = embeddings.shape[0]
+        self_mask = torch.eye(
+            sample_count, device=embeddings.device, dtype=torch.bool
+        )
+        positive_mask = labels[:, None].eq(labels[None, :]) & ~self_mask
+        positive_count = positive_mask.sum(dim=1)
+        if torch.any(positive_count == 0):
+            raise ValueError(
+                "Setiap anchor harus memiliki minimal satu positive sekelas."
+            )
+
+        log_weights = torch.zeros_like(logits)
+        if self.confusion_strength > 0.0:
+            if class_confusion is None:
+                raise ValueError(
+                    "class_confusion wajib saat confusion_strength > 0."
+                )
+            if class_confusion.ndim != 2 or class_confusion.shape[0] != class_confusion.shape[1]:
+                raise ValueError("class_confusion harus berupa matriks persegi.")
+            if labels.max().item() >= class_confusion.shape[0]:
+                raise ValueError("Label berada di luar dimensi class_confusion.")
+            confusion = class_confusion.to(
+                device=embeddings.device, dtype=embeddings.dtype
+            ).clamp_min(0.0)
+            pair_weights = 1.0 + self.confusion_strength * confusion[
+                labels[:, None], labels[None, :]
+            ]
+            # Positive terms stay unweighted; weighting only prioritizes hard
+            # negative class pairs in the partition function.
+            pair_weights = torch.where(
+                labels[:, None].eq(labels[None, :]),
+                torch.ones_like(pair_weights),
+                pair_weights,
+            )
+            log_weights = pair_weights.log()
+
+        denominator_logits = logits + log_weights
+        denominator_logits = denominator_logits.masked_fill(self_mask, -torch.inf)
+        log_denominator = torch.logsumexp(denominator_logits, dim=1)
+        positive_log_probability = logits - log_denominator[:, None]
+        per_anchor = -(
+            positive_log_probability.masked_fill(~positive_mask, 0.0).sum(dim=1)
+            / positive_count
+        )
+        return per_anchor.mean()
+
+
 class KnowledgeDistillationLoss(nn.Module):
     """Blend hard-label CE with temperature-scaled teacher KL divergence."""
 

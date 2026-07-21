@@ -457,6 +457,29 @@ Konfirmasi validation tiga seed telah selesai. E2 hanya memberi Macro-F1
 `+0,67 ± 1,84` terhadap GAP, tetapi `-0,48 ± 2,11` terhadap HBP. Karena tidak
 menunjukkan superioritas yang stabil, E2/E3 dihentikan dan test tidak dibuka.
 
+## Confusion-aware pairwise learning
+
+Eksperimen berikutnya tidak menambah pooling atau backbone. CP1 menguji
+EfficientNetV2-B0 GAP dengan CE + supervised contrastive learning. CP2 memakai
+model dan objective yang sama, tetapi memprioritaskan negative dari pasangan
+kelas yang tertukar pada train. Projection head dibuang dari checkpoint
+inference, sehingga model deployment tetap identik EfficientNetV2-GAP.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_pairwise_contrastive_screening \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/confusion-aware-pairwise \
+  --seeds 123 --models CP1 CP2 --evaluation-split val
+```
+
+Definisi objective, audit confusion, gate fail-fast, pijakan paper, dan batas
+klaim dibekukan di
+[`CONFUSION_AWARE_PAIRWISE.md`](docs/protocols/CONFUSION_AWARE_PAIRWISE.md).
+Notebook Colab dengan restore baseline, audit tiga seed, heartbeat, dan resume
+Google Drive tersedia di
+[`coffee17_confusion_pairwise_colab.ipynb`](notebooks/coffee17_confusion_pairwise_colab.ipynb).
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:

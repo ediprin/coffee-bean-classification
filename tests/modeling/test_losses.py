@@ -2,11 +2,51 @@ import torch
 
 from bilinear_lmmd.modeling.losses import (
     BalancedSoftmaxLoss,
+    ConfusionAwareSupervisedContrastiveLoss,
     KnowledgeDistillationLoss,
     LMMDLoss,
     MMDLoss,
     NonTargetExpertDiversityLoss,
 )
+
+
+def test_supcon_is_finite_and_backpropagates_with_two_views():
+    embeddings = torch.tensor(
+        [[1.0, 0.0], [0.9, 0.1], [0.0, 1.0], [0.1, 0.9]],
+        requires_grad=True,
+    )
+    labels = torch.tensor([0, 0, 1, 1])
+    loss = ConfusionAwareSupervisedContrastiveLoss(temperature=0.1)(
+        embeddings, labels
+    )
+    loss.backward()
+    assert torch.isfinite(loss)
+    assert embeddings.grad is not None
+
+
+def test_confusion_weight_increases_penalty_for_close_hard_negative():
+    embeddings = torch.tensor(
+        [[1.0, 0.0], [1.0, 0.0], [0.9, 0.1], [0.9, 0.1]]
+    )
+    labels = torch.tensor([0, 0, 1, 1])
+    confusion = torch.tensor([[0.0, 1.0], [1.0, 0.0]])
+    ordinary = ConfusionAwareSupervisedContrastiveLoss(
+        temperature=0.2, confusion_strength=0.0
+    )(embeddings, labels)
+    weighted = ConfusionAwareSupervisedContrastiveLoss(
+        temperature=0.2, confusion_strength=2.0
+    )(embeddings, labels, confusion)
+    assert weighted > ordinary
+
+
+def test_supcon_requires_positive_for_every_anchor():
+    criterion = ConfusionAwareSupervisedContrastiveLoss()
+    try:
+        criterion(torch.eye(3), torch.tensor([0, 1, 2]))
+    except ValueError as exc:
+        assert "positive" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for anchors without positives")
 
 
 def test_balanced_softmax_matches_ce_for_equal_class_counts():

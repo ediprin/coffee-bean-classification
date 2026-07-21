@@ -1,0 +1,26 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: gap
+  out_indices: [4]
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  scheduler: cosine
+  pairwise_mode: confusion_aware
+  contrastive_weight: 0.2
+  contrastive_temperature: 0.1
+  contrastive_projection_dim: 128
+  contrastive_hidden_dim: 512
+  confusion_strength: 2.0
+  confusion_warmup_epochs: 5
+  confusion_ema_decay: 0.8
+  output_dir: outputs/CP2_efficientnetv2_gap_confusion_pairwise
