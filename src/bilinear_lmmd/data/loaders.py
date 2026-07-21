@@ -23,6 +23,49 @@ class DomainLoaders:
     classes: list[str]
 
 
+class SameClassPairDataset:
+    """Add one independently augmented positive image to an ImageFolder sample."""
+
+    def __init__(self, dataset: datasets.ImageFolder):
+        self.dataset = dataset
+        self.samples = dataset.samples
+        self.targets = dataset.targets
+        self.classes = dataset.classes
+        self.class_to_idx = dataset.class_to_idx
+        self.indices_by_class: dict[int, list[int]] = {}
+        for index, target in enumerate(self.targets):
+            self.indices_by_class.setdefault(int(target), []).append(index)
+        singleton = [
+            self.classes[target]
+            for target, indices in self.indices_by_class.items()
+            if len(indices) < 2
+        ]
+        if singleton:
+            raise ValueError(
+                "Category consistency membutuhkan minimal dua sampel train per "
+                f"kelas; singleton={singleton}."
+            )
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, index: int):
+        image, target = self.dataset[index]
+        candidates = self.indices_by_class[int(target)]
+        positive_index = random.choice(candidates)
+        while positive_index == index:
+            positive_index = random.choice(candidates)
+        positive_path, positive_target = self.samples[positive_index]
+        positive = self.dataset.loader(positive_path)
+        if self.dataset.transform is not None:
+            positive = self.dataset.transform(positive)
+        if self.dataset.target_transform is not None:
+            positive_target = self.dataset.target_transform(positive_target)
+        if int(positive_target) != int(target):
+            raise RuntimeError("Positive pair berasal dari kelas yang berbeda.")
+        return image, positive, target
+
+
 class DiscreteRotation:
     """Choose one paper-aligned rotation without creating duplicate files."""
 

@@ -1,0 +1,22 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: progressive_multigranularity
+  out_indices: [1, 3, 4]
+  pmg_feature_dim: 256
+  pmg_branch_dim: 512
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  scheduler: cosine
+  pmg_grids: [8, 4, 2]
+  pmg_consistency_weights: [0.01, 0.05, 0.1]
+  output_dir: outputs/E2_efficientnetv2_progressive_multigranularity

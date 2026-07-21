@@ -430,6 +430,28 @@ klaim dibekukan di
 Notebook siap Colab tersedia di
 [`coffee17_compact_mpncov_colab.ipynb`](notebooks/coffee17_compact_mpncov_colab.ipynb).
 
+## Progressive multi-granularity EfficientNetV2
+
+E2 mengadaptasi progressive multi-granularity training PMG ke tiga endpoint
+EfficientNetV2-B0. E3 mempertahankan arsitektur yang sama dan menambahkan
+same-class category consistency dari PMG-V2. E0/BE2G dan E1/BE2H memakai ulang
+checkpoint GAP/HBP yang sudah ada:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_progressive_multigranularity \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/progressive-efficientnet \
+  --seeds 123 \
+  --evaluation-split val
+```
+
+Adaptasi ini tidak mengklaim ResNet-specific CCBC milik PMG-V2. Definisi
+metode, perbedaan dari kode resmi, gate, dan batas klaim tercatat di
+[`EFFICIENTNET_PROGRESSIVE_MULTIGRANULARITY.md`](docs/protocols/EFFICIENTNET_PROGRESSIVE_MULTIGRANULARITY.md).
+Notebook Colab dengan restore baseline dan resume dari Google Drive tersedia di
+[`coffee17_progressive_multigranularity_colab.ipynb`](notebooks/coffee17_progressive_multigranularity_colab.ipynb).
+
 ## Mengukur efisiensi
 
 Jalankan pada perangkat dan kondisi yang sama untuk setiap B0–B4:
