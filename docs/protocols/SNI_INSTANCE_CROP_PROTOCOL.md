@@ -60,7 +60,10 @@ Pipeline membentuk ulang split dengan target 70/15/15 dan aturan berikut:
    allocation;
 5. seluruh objek dari satu grup foto selalu masuk ke split yang sama;
 6. setiap kelas wajib hadir pada train, validation, dan test;
-7. crop identik lintas split menyebabkan pipeline berhenti.
+7. crop identik dengan label yang sama dideduplikasi dengan prioritas
+   mempertahankan test, lalu validation, lalu train;
+8. crop identik dengan label berbeda menyebabkan pipeline berhenti karena
+   konflik anotasi.
 
 Rasio 70/15/15 adalah target. Rasio aktual dapat sedikit berbeda karena satu
 foto padat tidak boleh dipecah antar-split. Nilai aktual dicatat di

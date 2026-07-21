@@ -674,6 +674,54 @@ def prepare_sni_instance_crops(
                 f"CROP {image_index}/{len(images)} images | {len(manifest)} instances",
                 flush=True,
             )
+
+    # Exact duplicate crops can still arise from separately encoded source
+    # photographs. Conflicting labels are unsafe and remain fatal. Same-label
+    # duplicates are removed deterministically, retaining test before val before
+    # train so no test sample is silently moved into model development data.
+    manifest_by_path = {row["crop_path"]: row for row in manifest}
+    original_duplicate_crop_groups = [
+        paths for paths in crop_hashes.values() if len(paths) > 1
+    ]
+    conflicting_duplicate_crops = [
+        paths
+        for paths in original_duplicate_crop_groups
+        if len({manifest_by_path[path]["canonical_class"] for path in paths}) > 1
+    ]
+    if conflicting_duplicate_crops:
+        failure = {
+            "status": "failed_conflicting_crop_labels",
+            "groups": conflicting_duplicate_crops[:100],
+        }
+        (output_root / "audit_failed.json").write_text(
+            json.dumps(failure, indent=2), encoding="utf-8"
+        )
+        raise RuntimeError(
+            "Crop identik memiliki label berbeda. Dataset tidak aman; "
+            "lihat audit_failed.json."
+        )
+    split_priority = {"test": 0, "val": 1, "train": 2}
+    removed_duplicate_paths: list[str] = []
+    for paths in original_duplicate_crop_groups:
+        ordered = sorted(
+            paths,
+            key=lambda path: (
+                split_priority[manifest_by_path[path]["generated_split"]],
+                path,
+            ),
+        )
+        removed_duplicate_paths.extend(ordered[1:])
+    if removed_duplicate_paths:
+        removed = set(removed_duplicate_paths)
+        for relative in removed_duplicate_paths:
+            (output_root / relative).unlink()
+        manifest = [row for row in manifest if row["crop_path"] not in removed]
+        print(
+            f"DEDUP: membuang {len(removed_duplicate_paths)} crop identik "
+            f"dari {len(original_duplicate_crop_groups)} grup",
+            flush=True,
+        )
+
     manifest_path = output_root / "manifest.csv"
     with manifest_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(manifest[0]))
@@ -721,47 +769,6 @@ def prepare_sni_instance_crops(
     }
     if generated_overlap:
         raise RuntimeError("Bug internal: satu foto sumber tersebar ke beberapa split.")
-    duplicate_crops = [paths for paths in crop_hashes.values() if len(paths) > 1]
-    crop_split_by_path = {
-        row["crop_path"]: row["generated_split"] for row in manifest
-    }
-    crop_class_by_path = {
-        row["crop_path"]: row["canonical_class"] for row in manifest
-    }
-    conflicting_duplicate_crops = [
-        paths
-        for paths in duplicate_crops
-        if len({crop_class_by_path[path] for path in paths}) > 1
-    ]
-    if conflicting_duplicate_crops:
-        failure = {
-            "status": "failed_conflicting_crop_labels",
-            "groups": conflicting_duplicate_crops[:100],
-        }
-        (output_root / "audit_failed.json").write_text(
-            json.dumps(failure, indent=2), encoding="utf-8"
-        )
-        raise RuntimeError(
-            "Crop identik memiliki label berbeda. Dataset tidak aman; "
-            "lihat audit_failed.json."
-        )
-    cross_split_duplicate_crops = [
-        paths
-        for paths in duplicate_crops
-        if len({crop_split_by_path[path] for path in paths}) > 1
-    ]
-    if cross_split_duplicate_crops:
-        failure = {
-            "status": "failed_cross_split_crop_duplicates",
-            "groups": cross_split_duplicate_crops[:100],
-        }
-        (output_root / "audit_failed.json").write_text(
-            json.dumps(failure, indent=2), encoding="utf-8"
-        )
-        raise RuntimeError(
-            "Crop identik ditemukan lintas split. Dataset tidak aman; "
-            "lihat audit_failed.json."
-        )
     contact_sheets = _contact_sheets(output_root, manifest)
     audit = {
         "status": "complete",
@@ -785,10 +792,15 @@ def prepare_sni_instance_crops(
         "split_ratios": split_ratios,
         "missing_classes_by_split": missing_by_split,
         "dataset_split_counts": dataset_split_counts,
-        "exact_duplicate_crop_groups": len(duplicate_crops),
+        "exact_duplicate_crop_groups_before_dedup": len(
+            original_duplicate_crop_groups
+        ),
+        "removed_exact_duplicate_crops": len(removed_duplicate_paths),
         "conflicting_exact_duplicate_crop_groups": 0,
-        "cross_split_exact_duplicate_crop_groups": 0,
-        "exact_duplicate_crop_examples": duplicate_crops[:100],
+        "cross_split_exact_duplicate_crop_groups_after_dedup": 0,
+        "exact_duplicate_crop_examples_before_dedup": (
+            original_duplicate_crop_groups[:100]
+        ),
         "crop_protocol": {
             "shape": "square centered on COCO bbox",
             "margin_fraction": margin_fraction,
