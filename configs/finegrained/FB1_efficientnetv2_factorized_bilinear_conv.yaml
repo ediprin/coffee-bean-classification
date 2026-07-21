@@ -1,0 +1,17 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: factorized_bilinear_conv
+  out_indices: [4]
+  fb_rank: 20
+  fb_dropfactor_keep_prob: 0.5
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  slow_start_lr_epochs: 3
+  slow_start_lr_factor: 0.1
+  output_dir: outputs/FB1_efficientnetv2_factorized_bilinear_conv

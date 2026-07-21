@@ -290,6 +290,24 @@ Konfirmasi tiga seed berstatus **FAIL**: HCD1 menurunkan Macro-F1 `-0,49`
 terhadap GAP dan `-1,65` terhadap HBP, dengan penurunan Worst-F1 masing-masing
 `-7,98` dan `-6,95` poin. DSConv/SPPF dihentikan dan test tidak dibuka.
 
+### Factorized Bilinear Conv
+
+Screening berikutnya menguji Conv-FBN 1x1 Li et al. (ICCV 2017) pada feature
+map terakhir EfficientNetV2. FB0 adalah kontrol linear dengan parameter identik;
+FB1 mengganti factor response menjadi kuadratik. Keduanya memakai Tanh, rank 20,
+DropFactor 0,5, dan slow-start LR tiga epoch.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_screening \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/factorized-bilinear-conv \
+  --seeds 42 --evaluation-split val
+```
+
+Protokol: [docs/protocols/FACTORIZED_BILINEAR_CONV_SCREENING.md](docs/protocols/FACTORIZED_BILINEAR_CONV_SCREENING.md).
+Notebook: [notebooks/coffee17_factorized_bilinear_conv_colab.ipynb](notebooks/coffee17_factorized_bilinear_conv_colab.ipynb).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat
