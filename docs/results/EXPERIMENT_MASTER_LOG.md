@@ -499,7 +499,7 @@ Protokol lengkap:
 
 ## 17. Adaptasi klasifikasi Hong: DSConv x SPPF-Attention
 
-**Status: PROTOCOL LOCKED — BELUM ADA HASIL.** Eksperimen ini mengadaptasi dua
+**Status: SCREENING SELESAI — KOMBINASI FAIL; DSConv-ONLY LOLOS.** Eksperimen ini mengadaptasi dua
 komponen representasi Hong et al. ke EfficientNetV2-B0 untuk klasifikasi
 Coffee17. Tidak ada YOLO, PConv, HBP, bounding-box loss, atau klaim detector.
 
@@ -519,6 +519,28 @@ attention, residual, lalu GAP.
 Screening dikunci pada validation seed 123. HCDS1 final harus mengalahkan BE2H,
 HCD1, dan HCS1 dengan Macro/Hard naik serta Worst tidak turun lebih dari satu
 poin. Jika gagal, tiga seed dan test tidak dijalankan.
+
+Putusan yang dilaporkan runner:
+
+| Perbandingan | Putusan |
+|---|---|
+| BE2G vs HCD1 | PASS |
+| BE2H vs HCD1 | PASS |
+| BE2G vs HCS1 | FAIL |
+| BE2H vs HCS1 | FAIL |
+| BE2G vs HCDS1 | FAIL |
+| BE2H vs HCDS1 | PASS |
+| HCD1 vs HCDS1 | FAIL |
+| HCS1 vs HCDS1 | PASS |
+| HCDS1 final | FAIL |
+
+Kesimpulan screening: kontribusi yang menjanjikan berasal dari **DSConv saja
+(HCD1)**. SPPF-Attention gagal sebagai modul tunggal dan, ketika ditambahkan
+ke HCD1, membuat kombinasi kalah dari HCD1. Karena itu HCS1 dan HCDS1
+dihentikan. HCD1 belum menjadi hasil final: ia hanya kandidat untuk protokol
+konfirmasi multi-seed terpisah. Test tetap terkunci dan tidak ada klaim runtime
+DSConv. Angka delta metrik belum diarsipkan dan tidak direkonstruksi secara
+spekulatif dari putusan PASS/FAIL.
 
 Protokol lengkap:
 `docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md`.

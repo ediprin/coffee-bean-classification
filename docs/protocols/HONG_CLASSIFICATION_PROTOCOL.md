@@ -97,6 +97,19 @@ HCDS1 final hanya PASS jika sekaligus:
 Jika final FAIL, eksperimen berhenti tanpa tiga seed, tanpa test, dan tanpa
 mengubah bit/block/stage berdasarkan validation.
 
+## Hasil screening seed 123
+
+Kombinasi final HCDS1 **FAIL**. HCD1 (DSConv-only) PASS terhadap BE2G dan BE2H,
+sedangkan HCS1 FAIL terhadap keduanya. HCDS1 PASS terhadap HCS1 dan BE2H,
+tetapi FAIL terhadap BE2G dan, yang terpenting, FAIL terhadap HCD1. Dengan
+demikian, SPPF-Attention tidak menjelaskan peningkatan HCD1 dan justru merusak
+kandidat DSConv-only.
+
+Eksperimen faktorial Hong dihentikan sesuai gate. HCS1/HCDS1 tidak diteruskan.
+HCD1 dicatat sebagai temuan komponen yang layak dirumuskan dalam protokol
+konfirmasi baru sebelum seed atau test tambahan. Test belum dibuka dan hasil
+ini tidak mendukung klaim percepatan DSConv.
+
 ## Menjalankan
 
 ```bash
