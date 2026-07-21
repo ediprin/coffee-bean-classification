@@ -1,0 +1,19 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: sppf_attention_gap
+  out_indices: [4]
+  classifier: linear
+  attention_reduction: 16
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  scheduler: cosine
+  output_dir: outputs/HCS1_efficientnetv2_sppf_attention_gap

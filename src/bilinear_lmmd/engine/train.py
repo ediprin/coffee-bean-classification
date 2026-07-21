@@ -369,13 +369,65 @@ def train(
     if method not in {"source_only", "mmd", "lmmd", "dann"}:
         raise ValueError("adaptation.method harus source_only, mmd, lmmd, atau dann.")
 
+    trainable_parameters = [
+        parameter for parameter in model.parameters() if parameter.requires_grad
+    ]
+    slow_start_epochs = int(training_cfg.get("slow_start_lr_epochs", 0))
+    slow_start_factor = float(training_cfg.get("slow_start_lr_factor", 0.1))
+    if slow_start_epochs < 0:
+        raise ValueError("training.slow_start_lr_epochs tidak boleh negatif.")
+    if not 0.0 < slow_start_factor <= 1.0:
+        raise ValueError("training.slow_start_lr_factor harus berada di (0, 1].")
+    slow_start_parameters = tuple(
+        parameter
+        for parameter in getattr(model, "slow_start_parameters", lambda: ())()
+        if parameter.requires_grad
+    )
+    if slow_start_epochs and slow_start_parameters:
+        slow_ids = {id(parameter) for parameter in slow_start_parameters}
+        regular_parameters = [
+            parameter
+            for parameter in trainable_parameters
+            if id(parameter) not in slow_ids
+        ]
+        optimizer_parameters = [
+            {"params": regular_parameters, "group_name": "regular"},
+            {"params": slow_start_parameters, "group_name": "slow_start"},
+        ]
+        print(
+            "SLOW START: FB layer lr "
+            f"{slow_start_factor:.2f} -> 1.00 selama "
+            f"{slow_start_epochs} epoch.",
+            flush=True,
+        )
+    else:
+        optimizer_parameters = trainable_parameters
     optimizer = torch.optim.AdamW(
-        [parameter for parameter in model.parameters() if parameter.requires_grad],
+        optimizer_parameters,
         lr=float(training_cfg["lr"]),
         weight_decay=float(training_cfg["weight_decay"]),
     )
     scheduler_name = str(training_cfg.get("scheduler", "cosine")).lower()
-    if scheduler_name == "cosine":
+    if slow_start_epochs and slow_start_parameters:
+        epochs = int(training_cfg["epochs"])
+
+        def regular_schedule(epoch: int) -> float:
+            if scheduler_name == "constant":
+                return 1.0
+            return 0.5 * (1.0 + math.cos(math.pi * epoch / max(epochs, 1)))
+
+        def slow_schedule(epoch: int) -> float:
+            progress = min(max(epoch, 0) / slow_start_epochs, 1.0)
+            warmup = slow_start_factor + (1.0 - slow_start_factor) * progress
+            return warmup * regular_schedule(epoch)
+
+        if scheduler_name not in {"cosine", "constant"}:
+            raise ValueError("training.scheduler harus 'cosine' atau 'constant'.")
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=[regular_schedule, slow_schedule],
+        )
+    elif scheduler_name == "cosine":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=int(training_cfg["epochs"])
         )

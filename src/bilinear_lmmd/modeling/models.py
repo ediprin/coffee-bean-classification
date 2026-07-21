@@ -9,6 +9,10 @@ from torch import Tensor, nn
 from torch.autograd import Function
 from torch.nn import functional as F
 
+from bilinear_lmmd.modeling.dsconv import (
+    replace_spatial_convolutions_with_dsconv,
+)
+
 try:
     import timm
 except ImportError as exc:  # pragma: no cover - actionable runtime message
@@ -157,6 +161,76 @@ class GAPHead(nn.Module):
 
     def forward(self, features: list[Tensor]) -> Tensor:
         return F.adaptive_avg_pool2d(features[-1], 1).flatten(1)
+
+
+class FactorizedBilinearConvClassifier(nn.Module):
+    """Position-wise 1x1 Conv-FBN classifier from Li et al. (ICCV 2017).
+
+    For each class, the layer adds a conventional linear response to a
+    symmetric low-rank quadratic response.  DropFactor drops complete rank
+    factors during training and scales all factors by the keep probability at
+    inference, matching the paper rather than inverted-dropout semantics.
+    """
+
+    def __init__(
+        self,
+        channels: int,
+        num_classes: int,
+        rank: int = 20,
+        keep_prob: float = 0.5,
+        *,
+        quadratic: bool = True,
+    ):
+        super().__init__()
+        if channels <= 0 or num_classes <= 0:
+            raise ValueError("Channel dan jumlah kelas FB Conv harus positif.")
+        if rank <= 0:
+            raise ValueError("fb_rank harus lebih besar dari nol.")
+        if not 0.0 < keep_prob <= 1.0:
+            raise ValueError("fb_dropfactor_keep_prob harus berada di (0, 1].")
+        self.channels = int(channels)
+        self.num_classes = int(num_classes)
+        self.rank = int(rank)
+        self.keep_prob = float(keep_prob)
+        self.quadratic = bool(quadratic)
+        self.linear = nn.Conv2d(channels, num_classes, kernel_size=1, bias=True)
+        self.factors = nn.Parameter(torch.empty(num_classes, rank, channels))
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        self.linear.reset_parameters()
+        # Keeps the summed rank paths O(1) at initialization. The original
+        # source release is unavailable; this adaptation choice is documented
+        # explicitly in the protocol rather than attributed to the paper.
+        nn.init.normal_(
+            self.factors,
+            mean=0.0,
+            std=1.0 / math.sqrt(self.channels * self.rank),
+        )
+
+    def _dropfactor(self, values: Tensor) -> Tensor:
+        if self.training:
+            mask = torch.empty(
+                (1, self.num_classes, self.rank, 1, 1),
+                device=values.device,
+                dtype=values.dtype,
+            ).bernoulli_(self.keep_prob)
+            return values * mask
+        return values * self.keep_prob
+
+    def forward(self, feature: Tensor) -> Tensor:
+        if feature.ndim != 4 or feature.shape[1] != self.channels:
+            raise ValueError(
+                "FB Conv mengharapkan feature map BCHW dengan "
+                f"C={self.channels}; diterima {tuple(feature.shape)}."
+            )
+        bounded = torch.tanh(feature)
+        linear_map = self.linear(bounded)
+        projected = torch.einsum("bchw,orc->borhw", bounded, self.factors)
+        factor_response = projected.square() if self.quadratic else projected
+        interaction_map = self._dropfactor(factor_response).sum(dim=2)
+        score_map = linear_map + interaction_map
+        return F.adaptive_avg_pool2d(score_map, 1).flatten(1)
 
 
 class MatrixPowerNormalizedCovariancePooling(nn.Module):
@@ -1017,6 +1091,8 @@ class AdaptationModel(nn.Module):
         mpncov_reduction_dim: int = 128,
         mpncov_iterations: int = 5,
         mpncov_epsilon: float = 1.0e-5,
+        fb_rank: int = 20,
+        fb_dropfactor_keep_prob: float = 0.5,
         hbp_spatial_size: int = 14,
         bilinear_output_dim: int | None = None,
         hbp_mlp_dim: int = 672,
@@ -1035,6 +1111,14 @@ class AdaptationModel(nn.Module):
         arcface_margin: float = 0.3,
         arpl_weight: float = 0.1,
         arpl_margin: float = 1.0,
+        dsconv_enabled: bool = False,
+        dsconv_bits: int = 4,
+        dsconv_block_size: int = 128,
+        dsconv_stage_prefixes: tuple[str, ...] = (
+            "blocks.0",
+            "blocks.1",
+            "blocks.2",
+        ),
         pretrained: bool = True,
         enable_domain_classifier: bool = False,
         hierarchy_num_parents: int = 0,
@@ -1043,6 +1127,8 @@ class AdaptationModel(nn.Module):
         supported_heads = {
             "gap",
             "mpncov",
+            "factorized_linear_conv_control",
+            "factorized_bilinear_conv",
             "hierarchical_gap",
             "sppf_attention_gap",
             "bilinear",
@@ -1087,6 +1173,14 @@ class AdaptationModel(nn.Module):
             features_only=True,
             out_indices=out_indices,
         )
+        self.dsconv_replaced_layers: list[str] = []
+        if dsconv_enabled:
+            self.dsconv_replaced_layers = replace_spatial_convolutions_with_dsconv(
+                self.encoder,
+                stage_prefixes=dsconv_stage_prefixes,
+                bits=dsconv_bits,
+                block_size=dsconv_block_size,
+            )
         channels = list(self.encoder.feature_info.channels())
         if head in {"hbp", "hbp_moe"}:
             self.pool = HierarchicalBilinearPooling(channels, projection_dim)
@@ -1164,7 +1258,23 @@ class AdaptationModel(nn.Module):
             self.pool = GAPHead(channels[-1])
         self.dropout = nn.Dropout(dropout)
         classifier = classifier.lower()
-        if classifier == "linear":
+        self.direct_classifier: FactorizedBilinearConvClassifier | None = None
+        if head in {
+            "factorized_linear_conv_control",
+            "factorized_bilinear_conv",
+        }:
+            if classifier != "linear":
+                raise ValueError("Conv-FBN hanya mendukung classifier linear langsung.")
+            self.direct_classifier = FactorizedBilinearConvClassifier(
+                channels[-1],
+                num_classes,
+                rank=fb_rank,
+                keep_prob=fb_dropfactor_keep_prob,
+                quadratic=head == "factorized_bilinear_conv",
+            )
+            self.classifier = nn.Identity()
+            self.classifier_type = "direct"
+        elif classifier == "linear":
             self.classifier = nn.Linear(self.pool.output_dim, num_classes)
         elif classifier == "arcface":
             self.classifier = ArcMarginClassifier(
@@ -1184,7 +1294,8 @@ class AdaptationModel(nn.Module):
             raise ValueError(
                 "model.classifier harus 'linear', 'arcface', atau 'arpl'."
             )
-        self.classifier_type = classifier
+        if self.direct_classifier is None:
+            self.classifier_type = classifier
 
         if hierarchy_num_parents < 0:
             raise ValueError("hierarchy_num_parents tidak boleh negatif.")
@@ -1247,7 +1358,10 @@ class AdaptationModel(nn.Module):
         features = self.encoder(x)
         embedding = self.pool(features)
         open_set_loss = None
-        if self.classifier_type == "arcface":
+        if self.direct_classifier is not None:
+            classifier_embedding = embedding
+            logits = self.direct_classifier(features[-1])
+        elif self.classifier_type == "arcface":
             logits = self.classifier(embedding, labels)
             classifier_embedding = embedding
         else:
@@ -1300,6 +1414,12 @@ class AdaptationModel(nn.Module):
             open_set_loss=open_set_loss,
         )
 
+    def slow_start_parameters(self):
+        """Parameters requiring the paper's FB-layer slow-start schedule."""
+        if self.direct_classifier is None:
+            return ()
+        return tuple(self.direct_classifier.parameters())
+
 
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
@@ -1347,6 +1467,10 @@ def build_model(cfg: dict) -> nn.Module:
         mpncov_reduction_dim=int(cfg.get("mpncov_reduction_dim", 128)),
         mpncov_iterations=int(cfg.get("mpncov_iterations", 5)),
         mpncov_epsilon=float(cfg.get("mpncov_epsilon", 1.0e-5)),
+        fb_rank=int(cfg.get("fb_rank", 20)),
+        fb_dropfactor_keep_prob=float(
+            cfg.get("fb_dropfactor_keep_prob", 0.5)
+        ),
         hbp_spatial_size=int(cfg.get("hbp_spatial_size", 14)),
         bilinear_output_dim=(
             int(cfg["bilinear_output_dim"])
@@ -1369,6 +1493,15 @@ def build_model(cfg: dict) -> nn.Module:
         arcface_margin=float(cfg.get("arcface_margin", 0.3)),
         arpl_weight=float(cfg.get("arpl_weight", 0.1)),
         arpl_margin=float(cfg.get("arpl_margin", 1.0)),
+        dsconv_enabled=bool(cfg.get("dsconv_enabled", False)),
+        dsconv_bits=int(cfg.get("dsconv_bits", 4)),
+        dsconv_block_size=int(cfg.get("dsconv_block_size", 128)),
+        dsconv_stage_prefixes=tuple(
+            cfg.get(
+                "dsconv_stage_prefixes",
+                ("blocks.0", "blocks.1", "blocks.2"),
+            )
+        ),
         pretrained=bool(cfg.get("pretrained", True)),
         enable_domain_classifier=bool(cfg.get("enable_domain_classifier", False)),
         hierarchy_num_parents=int(cfg.get("hierarchy_num_parents", 0)),

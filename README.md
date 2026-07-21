@@ -251,6 +251,76 @@ python -u -m bilinear_lmmd.experiments.run_finegrained_screening `
 Runner memakai ulang M1/S1 yang sudah lengkap dan hanya melatih C1, yaitu
 pointwise residual control dengan parameter yang cocok terhadap S1.
 
+### Adaptasi klasifikasi Hong: DSConv x SPPF-Attention
+
+Adaptasi validation-only ini menguji Distribution Shifting Convolution dan
+SPPF-Attention dari Hong et al. pada EfficientNetV2-B0 + GAP, tanpa YOLO,
+detection head, PConv, atau HBP. DSConv yang dimaksud adalah operator
+VQK/KDS/CDS Nascimento et al., bukan sekadar depthwise-separable convolution.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_hong_classification_screening \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/hong-classification \
+  --seeds 123 \
+  --models HCD1 HCS1 HCDS1 \
+  --evaluation-split val
+```
+
+Protokol: [docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md](docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md).
+Notebook: [notebooks/coffee17_hong_classification_colab.ipynb](notebooks/coffee17_hong_classification_colab.ipynb).
+
+Setelah screening menemukan DSConv-only sebagai satu-satunya komponen yang
+lolos, konfirmasi tiga seed dijalankan tanpa SPPF:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_hong_dsconv_confirmation \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/hong-classification \
+  --seeds 42 123 2026 \
+  --evaluation-split val
+```
+
+Protokol: [docs/protocols/HONG_DSCONV_CONFIRMATION.md](docs/protocols/HONG_DSCONV_CONFIRMATION.md).
+Notebook: [notebooks/coffee17_hong_dsconv_confirmation_colab.ipynb](notebooks/coffee17_hong_dsconv_confirmation_colab.ipynb).
+
+Konfirmasi tiga seed berstatus **FAIL**: HCD1 menurunkan Macro-F1 `-0,49`
+terhadap GAP dan `-1,65` terhadap HBP, dengan penurunan Worst-F1 masing-masing
+`-7,98` dan `-6,95` poin. DSConv/SPPF dihentikan dan test tidak dibuka.
+
+### Factorized Bilinear Conv
+
+Screening berikutnya menguji Conv-FBN 1x1 Li et al. (ICCV 2017) pada feature
+map terakhir EfficientNetV2. FB0 adalah kontrol linear dengan parameter identik;
+FB1 mengganti factor response menjadi kuadratik. Keduanya memakai Tanh, rank 20,
+DropFactor 0,5, dan slow-start LR tiga epoch.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_screening \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/factorized-bilinear-conv \
+  --seeds 42 --evaluation-split val
+```
+
+Protokol: [docs/protocols/FACTORIZED_BILINEAR_CONV_SCREENING.md](docs/protocols/FACTORIZED_BILINEAR_CONV_SCREENING.md).
+Notebook: [notebooks/coffee17_factorized_bilinear_conv_colab.ipynb](notebooks/coffee17_factorized_bilinear_conv_colab.ipynb).
+
+Jika screening seed 42 berstatus PASS, konfirmasi terkunci memakai seed 42,
+123, dan 2026. Seed 42 digunakan ulang; test tidak dibuka:
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_factorized_bilinear_conv_confirmation \
+  --data-root data/coffee17-clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/factorized-bilinear-conv \
+  --seeds 42 123 2026 --evaluation-split val
+```
+
+Notebook: [notebooks/coffee17_factorized_bilinear_conv_confirmation_colab.ipynb](notebooks/coffee17_factorized_bilinear_conv_confirmation_colab.ipynb).
+
 ### Benchmark domain sintetis terkontrol
 
 Jika domain target nyata belum tersedia, pipeline dapat diuji dengan empat

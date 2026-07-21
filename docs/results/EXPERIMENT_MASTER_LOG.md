@@ -496,3 +496,76 @@ dijalankan.
 
 Protokol lengkap:
 `docs/protocols/CONFUSION_AWARE_PAIRWISE.md`.
+
+## 17. Adaptasi klasifikasi Hong: DSConv x SPPF-Attention
+
+**Status: SCREENING SELESAI — KOMBINASI FAIL; DSConv-ONLY LOLOS.** Eksperimen ini mengadaptasi dua
+komponen representasi Hong et al. ke EfficientNetV2-B0 untuk klasifikasi
+Coffee17. Tidak ada YOLO, PConv, HBP, bounding-box loss, atau klaim detector.
+
+| Kode | DSConv | SPPF-Attention | Head |
+|---|---:|---:|---|
+| BE2G | tidak | tidak | GAP + CE, baseline lama |
+| HCD1 | ya | tidak | GAP + CE |
+| HCS1 | tidak | ya | GAP + CE |
+| HCDS1 | ya | ya | GAP + CE |
+
+DSConv adalah Distribution Shifting Convolution VQK/KDS/CDS 4-bit, block size
+128, pada lima full spatial convolution stage awal/menengah. Forward PyTorch
+merupakan simulasi quantization-aware; tidak ada klaim speedup atau ukuran
+checkpoint integer. SPPF mengikuti tiga max-pool 5x5 berurutan, channel/spatial
+attention, residual, lalu GAP.
+
+Screening dikunci pada validation seed 123. HCDS1 final harus mengalahkan BE2H,
+HCD1, dan HCS1 dengan Macro/Hard naik serta Worst tidak turun lebih dari satu
+poin. Jika gagal, tiga seed dan test tidak dijalankan.
+
+Putusan yang dilaporkan runner:
+
+| Perbandingan | Putusan |
+|---|---|
+| BE2G vs HCD1 | PASS |
+| BE2H vs HCD1 | PASS |
+| BE2G vs HCS1 | FAIL |
+| BE2H vs HCS1 | FAIL |
+| BE2G vs HCDS1 | FAIL |
+| BE2H vs HCDS1 | PASS |
+| HCD1 vs HCDS1 | FAIL |
+| HCS1 vs HCDS1 | PASS |
+| HCDS1 final | FAIL |
+
+Kesimpulan screening: kontribusi yang menjanjikan berasal dari **DSConv saja
+(HCD1)**. SPPF-Attention gagal sebagai modul tunggal dan, ketika ditambahkan
+ke HCD1, membuat kombinasi kalah dari HCD1. Karena itu HCS1 dan HCDS1
+dihentikan. HCD1 belum menjadi hasil final: ia hanya kandidat untuk protokol
+konfirmasi multi-seed terpisah. Test tetap terkunci dan tidak ada klaim runtime
+DSConv. Angka delta metrik belum diarsipkan dan tidak direkonstruksi secara
+spekulatif dari putusan PASS/FAIL.
+
+Protokol lengkap:
+`docs/protocols/HONG_CLASSIFICATION_PROTOCOL.md`.
+
+### 17.1 Konfirmasi HCD1
+
+**Status: KONFIRMASI FAIL — DSCONV DIHENTIKAN.** Hanya HCD1 diteruskan pada seed
+42, 123, dan 2026. HCD1 harus mengalahkan BE2G dan BE2H pada rata-rata
+Macro-F1 dan Hard-F1, meningkat minimal 2/3 seed untuk keduanya, serta menjaga
+rata-rata Worst-F1 dalam toleransi satu poin. Test tetap terkunci.
+
+| Perbandingan | Macro baseline → HCD1 | Delta Macro | Delta Hard | Delta Worst |
+|---|---:|---:|---:|---:|
+| BE2G vs HCD1 | 88,77 → 88,28 | -0,49 ± 1,85 | -1,65 ± 3,43 | -7,98 ± 19,31 |
+| BE2H vs HCD1 | 89,93 → 88,28 | -1,65 ± 2,04 | -1,75 ± 3,34 | -6,95 ± 8,67 |
+
+Kedua perbandingan FAIL. Sinyal screening seed 123 tidak bertahan lintas seed;
+HCD1 menurunkan mean Macro, Hard, dan Worst. DSConv, SPPF, serta kombinasinya
+dihentikan. Test tidak dibuka dan DSConv+HBP tidak dijalankan sebagai tuning
+post-hoc.
+
+Audit per-seed mengonfirmasi bahwa seed 123 tidak berubah: HCD1 masih memberi
+Macro `+0,90` vs GAP dan `+0,50` vs HBP. Namun seed 2026 jatuh `-2,59/-3,57`
+poin Macro, `-5,60/-4,86` Hard, dan `-30,00/-16,67` Worst terhadap GAP/HBP.
+Dengan demikian kegagalan agregat berasal dari ketidakstabilan nyata, bukan
+perubahan checkpoint seed 123.
+
+Protokol lengkap: `docs/protocols/HONG_DSCONV_CONFIRMATION.md`.

@@ -1,0 +1,25 @@
+{
+  "experiment": "Hong classification DSConv x SPPF-Attention",
+  "split": "val",
+  "screening_seed": 123,
+  "metrics_available": false,
+  "decisions": {
+    "BE2G_vs_HCD1": "PASS",
+    "BE2H_vs_HCD1": "PASS",
+    "BE2G_vs_HCS1": "FAIL",
+    "BE2H_vs_HCS1": "FAIL",
+    "BE2G_vs_HCDS1": "FAIL",
+    "BE2H_vs_HCDS1": "PASS",
+    "HCD1_vs_HCDS1": "FAIL",
+    "HCS1_vs_HCDS1": "PASS",
+    "HCDS1_final": "FAIL"
+  },
+  "component_outcome": {
+    "HCD1_dsconv_only": "SCREENING_PASS",
+    "HCS1_sppf_attention_only": "STOP",
+    "HCDS1_combination": "STOP"
+  },
+  "test_opened": false,
+  "dsconv_runtime_claim": false,
+  "next_status": "HCD1 requires a separately locked multi-seed confirmation protocol"
+}

@@ -1,0 +1,98 @@
+{
+  "experiment": "Hong DSConv-only HCD1 three-seed confirmation",
+  "candidate": "HCD1",
+  "seeds": [42, 123, 2026],
+  "split": "val",
+  "comparisons": {
+    "BE2G_vs_HCD1": {
+      "baseline": "BE2G",
+      "macro_f1": {
+        "baseline_mean": 0.8877,
+        "candidate_mean": 0.8828,
+        "delta_mean": -0.0049,
+        "delta_std": 0.0185,
+        "improved_seeds": 2,
+        "total_seeds": 3,
+        "deltas": {
+          "42": 0.0020693454949511914,
+          "123": 0.009048631107454574,
+          "2026": -0.025886368533427406
+        }
+      },
+      "hard_class_f1": {
+        "baseline_mean": 0.8237,
+        "candidate_mean": 0.8072,
+        "delta_mean": -0.0165,
+        "delta_std": 0.0343,
+        "improved_seeds": 2,
+        "total_seeds": 3,
+        "deltas": {
+          "42": 0.0010618058412176223,
+          "123": 0.0055028509072626575,
+          "2026": -0.05600649350649345
+        }
+      },
+      "worst_class_f1": {
+        "baseline_mean": 0.7111,
+        "candidate_mean": 0.6313,
+        "delta_mean": -0.0798,
+        "delta_std": 0.1931,
+        "improved_seeds": 1,
+        "total_seeds": 3,
+        "deltas": {
+          "42": 0.06060606060606066,
+          "123": 0.0,
+          "2026": -0.30000000000000004
+        }
+      },
+      "decision": "FAIL"
+    },
+    "BE2H_vs_HCD1": {
+      "baseline": "BE2H",
+      "macro_f1": {
+        "baseline_mean": 0.8993,
+        "candidate_mean": 0.8828,
+        "delta_mean": -0.0165,
+        "delta_std": 0.0204,
+        "improved_seeds": 1,
+        "total_seeds": 3,
+        "deltas": {
+          "42": -0.018686532613868212,
+          "123": 0.004999076279353143,
+          "2026": -0.035687198230450745
+        }
+      },
+      "hard_class_f1": {
+        "baseline_mean": 0.8247,
+        "candidate_mean": 0.8072,
+        "delta_mean": -0.0175,
+        "delta_std": 0.0334,
+        "improved_seeds": 1,
+        "total_seeds": 3,
+        "deltas": {
+          "42": -0.02176016385575208,
+          "123": 0.017876567876567884,
+          "2026": -0.048562568966980635
+        }
+      },
+      "worst_class_f1": {
+        "baseline_mean": 0.7009,
+        "candidate_mean": 0.6313,
+        "delta_mean": -0.0695,
+        "delta_std": 0.0867,
+        "improved_seeds": 0,
+        "total_seeds": 3,
+        "deltas": {
+          "42": -0.04195804195804198,
+          "123": 0.0,
+          "2026": -0.16666666666666663
+        }
+      },
+      "decision": "FAIL"
+    }
+  },
+  "final_decision": "FAIL",
+  "test_opened": false,
+  "dsconv_runtime_claim": false,
+  "follow_up": "STOP DSConv, SPPF, and DSConv+HBP post-hoc rescue"
+}
