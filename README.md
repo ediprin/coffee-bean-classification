@@ -18,6 +18,9 @@ Catatan protokol rinci tersedia di [docs/protocols/RESEARCH_PROTOCOL.md](docs/pr
 Hasil test M0/M1 tiga seed yang telah dikunci, keputusan model, batas klaim,
 dan benchmark efisiensi dicatat di
 [docs/results/FINAL_HBP_RESULTS.md](docs/results/FINAL_HBP_RESULTS.md).
+Indeks seluruh hasil positif, negatif, screening, lintas dataset, dan eksperimen
+yang telah dihentikan tersedia di
+[docs/results/EXPERIMENT_MASTER_LOG.md](docs/results/EXPERIMENT_MASTER_LOG.md).
 
 Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
 preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di
