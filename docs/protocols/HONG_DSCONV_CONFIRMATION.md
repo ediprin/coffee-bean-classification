@@ -48,3 +48,11 @@ Angka menggunakan poin persentase. HCD1 gagal terhadap kedua baseline dan
 Worst-F1 turun besar. Sinyal positif seed 123 dinyatakan tidak stabil. Sesuai
 gate, test tidak dibuka dan kombinasi DSConv+HBP tidak dijalankan sebagai
 penyelamatan post-hoc.
+
+Audit delta per seed memastikan tidak ada pembalikan hasil seed 123. Terhadap
+BE2G, delta Macro seed 42/123/2026 adalah `+0,21`, `+0,90`, dan `-2,59` poin;
+delta Hard `+0,11`, `+0,55`, dan `-5,60`; delta Worst `+6,06`, `0,00`, dan
+`-30,00`. Terhadap BE2H, hanya seed 123 yang menaikkan Macro/Hard (`+0,50` dan
+`+1,79` poin), sedangkan seed 42 dan 2026 negatif. Jadi screening seed 123
+konsisten secara artefak, tetapi merupakan estimasi optimistis yang tidak
+bertahan pada seed konfirmasi.

@@ -562,4 +562,10 @@ HCD1 menurunkan mean Macro, Hard, dan Worst. DSConv, SPPF, serta kombinasinya
 dihentikan. Test tidak dibuka dan DSConv+HBP tidak dijalankan sebagai tuning
 post-hoc.
 
+Audit per-seed mengonfirmasi bahwa seed 123 tidak berubah: HCD1 masih memberi
+Macro `+0,90` vs GAP dan `+0,50` vs HBP. Namun seed 2026 jatuh `-2,59/-3,57`
+poin Macro, `-5,60/-4,86` Hard, dan `-30,00/-16,67` Worst terhadap GAP/HBP.
+Dengan demikian kegagalan agregat berasal dari ketidakstabilan nyata, bukan
+perubahan checkpoint seed 123.
+
 Protokol lengkap: `docs/protocols/HONG_DSCONV_CONFIRMATION.md`.
