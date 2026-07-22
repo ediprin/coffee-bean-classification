@@ -16,6 +16,7 @@ from bilinear_lmmd.data.preparation.prepare_sni_instance_crops import (
     source_identity,
     square_crop,
     valid_polygon_segmentation,
+    write_crop_checkpoint,
 )
 
 
@@ -151,6 +152,43 @@ def test_square_image_is_not_mistaken_for_swapped_dimensions():
     assert oriented.size == (8, 8)
     assert exif_changed is False
     assert metadata_swap is False
+
+
+def test_crop_checkpoint_is_sharded_and_idempotent(tmp_path):
+    output = tmp_path / "output"
+    crop = output / "source/train/biji_normal/example.jpg"
+    crop.parent.mkdir(parents=True)
+    crop.write_bytes(b"jpeg-placeholder")
+    (output / ".orientation_v2_complete").write_text("v2")
+    checkpoint_root = tmp_path / "drive/shards"
+
+    first = write_crop_checkpoint(
+        output,
+        checkpoint_root,
+        ["source/train/biji_normal/example.jpg"],
+        1,
+        250,
+    )
+    second = write_crop_checkpoint(
+        output,
+        checkpoint_root,
+        ["source/train/biji_normal/example.jpg"],
+        1,
+        250,
+    )
+    assert first == second
+    assert first.is_file()
+
+    restored = tmp_path / "restored"
+    restored.mkdir()
+    import tarfile
+
+    with tarfile.open(first, "r") as archive:
+        archive.extractall(restored, filter="data")
+    assert (restored / "source/train/biji_normal/example.jpg").read_bytes() == (
+        b"jpeg-placeholder"
+    )
+    assert (restored / ".orientation_v2_complete").is_file()
 
 
 def _synthetic_records():

@@ -7,6 +7,8 @@ import json
 import math
 import random
 import re
+import shutil
+import tarfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -672,6 +674,38 @@ def resolve_duplicate_crops(
     }
 
 
+def write_crop_checkpoint(
+    output_root: Path,
+    checkpoint_root: Path,
+    relative_paths: list[str],
+    start_image: int,
+    end_image: int,
+) -> Path | None:
+    if not relative_paths:
+        return None
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
+    destination = checkpoint_root / (
+        f"crop_shard_{start_image:05d}_{end_image:05d}.tar"
+    )
+    if destination.is_file():
+        return destination
+    temporary = output_root / f".{destination.name}.tmp"
+    with tarfile.open(temporary, "w") as archive:
+        for relative in sorted(set(relative_paths)):
+            path = output_root / relative
+            if path.is_file():
+                archive.add(path, arcname=relative, recursive=False)
+        marker = output_root / ".orientation_v2_complete"
+        if marker.is_file():
+            archive.add(marker, arcname=marker.name, recursive=False)
+    partial = destination.with_suffix(".tar.partial")
+    shutil.copy2(temporary, partial)
+    partial.replace(destination)
+    temporary.unlink()
+    print(f"CHECKPOINT DRIVE: {destination.name}", flush=True)
+    return destination
+
+
 def prepare_sni_instance_crops(
     adrian_root: Path,
     faruq_root: Path,
@@ -680,7 +714,11 @@ def prepare_sni_instance_crops(
     seed: int = 42,
     margin_fraction: float = 0.10,
     jpeg_quality: int = 95,
+    checkpoint_root: Path | None = None,
+    checkpoint_every_images: int = 250,
 ) -> dict:
+    if checkpoint_every_images <= 0:
+        raise ValueError("checkpoint_every_images harus lebih besar dari nol.")
     audit_path = output_root / "audit.json"
     if audit_path.is_file():
         audit = json.loads(audit_path.read_text(encoding="utf-8"))
@@ -713,6 +751,11 @@ def prepare_sni_instance_crops(
     metadata_swap_rotated_images = 0
     orientation_v2_marker = output_root / ".orientation_v2_complete"
     repair_orientation_v2 = resuming_partial and not orientation_v2_marker.is_file()
+    if not resuming_partial:
+        orientation_v2_marker.write_text(
+            "SNI crop orientation protocol v2\n",
+            encoding="utf-8",
+        )
     legacy_failed_audit = output_root / "audit_failed.json"
     legacy_swapped_orientation_complete = False
     if legacy_failed_audit.is_file():
@@ -720,6 +763,8 @@ def prepare_sni_instance_crops(
         legacy_swapped_orientation_complete = (
             legacy_failure.get("status") == "failed_conflicting_crop_labels"
         )
+    checkpoint_block_paths: list[str] = []
+    checkpoint_block_start = 1
     for image_index, image_record in enumerate(images, start=1):
         image_instances = instances_by_image.get(image_record.uid, [])
         if not image_instances:
@@ -759,6 +804,7 @@ def prepare_sni_instance_crops(
                     crop.close()
                 digest = _sha256(destination)
                 relative = destination.relative_to(output_root).as_posix()
+                checkpoint_block_paths.append(relative)
                 crop_hashes[digest].append(relative)
                 x, y, width, height = instance.bbox
                 manifest.append(
@@ -790,6 +836,22 @@ def prepare_sni_instance_crops(
                 f"| resumed={resumed_crops}",
                 flush=True,
             )
+        if (
+            checkpoint_root is not None
+            and (
+                image_index % checkpoint_every_images == 0
+                or image_index == len(images)
+            )
+        ):
+            write_crop_checkpoint(
+                output_root,
+                checkpoint_root,
+                checkpoint_block_paths,
+                checkpoint_block_start,
+                image_index,
+            )
+            checkpoint_block_paths = []
+            checkpoint_block_start = image_index + 1
     orientation_v2_marker.write_text(
         "EXIF, clockwise swapped-dimension, and square-image repair complete\n",
         encoding="utf-8",
@@ -910,6 +972,23 @@ def prepare_sni_instance_crops(
         ),
     }
     audit_path.write_text(json.dumps(audit, indent=2), encoding="utf-8")
+    if checkpoint_root is not None:
+        artifact_root = checkpoint_root.parent
+        artifact_root.mkdir(parents=True, exist_ok=True)
+        for path in [audit_path, manifest_path, *(output_root / item for item in contact_sheets)]:
+            shutil.copy2(path, artifact_root / path.name)
+        (artifact_root / "complete.json").write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "protocol": audit["protocol"],
+                    "output_crops": audit["output_crops"],
+                    "shards": len(list(checkpoint_root.glob("crop_shard_*.tar"))),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
     print("\n=== SNI INSTANCE-CROP DATASET ===")
     print(f"Images input : {len(images):,}")
     print(f"Crops output : {len(manifest):,}")
@@ -933,6 +1012,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--margin", type=float, default=0.10)
     parser.add_argument("--jpeg-quality", type=int, default=95)
+    parser.add_argument("--checkpoint-root", type=Path)
+    parser.add_argument("--checkpoint-every-images", type=int, default=250)
     args = parser.parse_args()
     prepare_sni_instance_crops(
         args.adrian_root,
@@ -941,6 +1022,8 @@ def main() -> None:
         seed=args.seed,
         margin_fraction=args.margin,
         jpeg_quality=args.jpeg_quality,
+        checkpoint_root=args.checkpoint_root,
+        checkpoint_every_images=args.checkpoint_every_images,
     )
 
 

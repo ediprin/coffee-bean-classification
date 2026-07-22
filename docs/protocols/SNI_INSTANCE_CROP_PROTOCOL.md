@@ -129,3 +129,9 @@ sni-instance-crops/
   contact_sheet_adrian_detection.jpg
   contact_sheet_faruq_segmentation.jpg
 ```
+
+Pada Colab, `--checkpoint-root` menyimpan crop sebagai shard TAR setiap 250
+foto langsung ke Google Drive. Jika runtime reset, shard yang sudah selesai
+diekstrak kembali dan hanya blok yang belum mempunyai shard yang dikerjakan
+ulang. Setelah preparasi lengkap, audit, manifest, contact sheet, serta
+`complete.json` juga disalin ke Drive. JPEG tidak dikompresi ulang di dalam TAR.
