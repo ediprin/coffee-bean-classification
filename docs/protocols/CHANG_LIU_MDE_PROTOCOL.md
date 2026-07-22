@@ -81,3 +81,26 @@ The Colab notebook is
 `notebooks/coffee17_chang_liu_mde_colab.ipynb`.  It restores BE2G/BE2H from
 Hugging Face, stores MDE checkpoints directly on Google Drive, prints a
 one-minute heartbeat, and resumes incomplete runs after a reset.
+
+## Recorded screening result
+
+**Status: FAIL -- MDE stopped.** The locked seed-42 validation screening
+produced a total parameter gap of only `0.0022%` between MDE0 and MDE1.
+
+| Comparison | Macro-F1 | Hard-F1 | Worst-F1 | Decision |
+|---|---:|---:|---:|---|
+| BE2G -> MDE0 | 88.71 -> 87.64 (-1.07) | 82.20 -> 81.30 (-0.91) | 66.67 -> 66.67 (+0.00) | FAIL |
+| BE2H -> MDE0 | 90.79 -> 87.64 (-3.15) | 84.49 -> 81.30 (-3.19) | 76.92 -> 66.67 (-10.26) | FAIL |
+| BE2G -> MDE1 | 88.71 -> 89.36 (+0.65) | 82.20 -> 81.54 (-0.66) | 66.67 -> 66.67 (+0.00) | FAIL |
+| BE2H -> MDE1 | 90.79 -> 89.36 (-1.43) | 84.49 -> 81.54 (-2.94) | 76.92 -> 66.67 (-10.26) | FAIL |
+| MDE0 -> MDE1 | 87.64 -> 89.36 (+1.72) | 81.30 -> 81.54 (+0.25) | 66.67 -> 66.67 (+0.00) | PASS |
+
+All metric values are percentages and parenthesized values are percentage-point
+deltas. MDE1 beating MDE0 shows that the spatial `3x3/5x5` operator carries
+signal beyond matched parameter capacity. It nevertheless fails the primary
+gate because Hard-F1 decreases relative to BE2G and all three metrics remain
+below BE2H. Seeds 123/2026 are therefore not authorized, Coffee17 test remains
+locked, and this candidate must not be promoted as the main method.
+
+Machine-readable record:
+`docs/results/CHANG_LIU_MDE_SCREENING.json`.

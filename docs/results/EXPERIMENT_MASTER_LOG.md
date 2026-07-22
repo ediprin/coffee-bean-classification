@@ -569,3 +569,28 @@ Dengan demikian kegagalan agregat berasal dari ketidakstabilan nyata, bukan
 perubahan checkpoint seed 123.
 
 Protokol lengkap: `docs/protocols/HONG_DSCONV_CONFIRMATION.md`.
+
+## 18. Chang-Liu multiscale defect extraction
+
+**Status: SCREENING FAIL -- DIHENTIKAN.** Adaptasi ini menempatkan cabang
+konvolusi standar 3x3 dan 5x5 secara paralel pada feature terdalam
+EfficientNetV2-B0, melakukan fusi 1x1 dan residual add, lalu GAP + CE. MDE0
+adalah kontrol residual pointwise tanpa receptive field spasial. Selisih total
+parameter MDE0/MDE1 hanya `0,0022%`.
+
+| Perbandingan | Delta Macro | Delta Hard | Delta Worst | Putusan |
+|---|---:|---:|---:|---|
+| BE2G vs MDE0 | -1,07 | -0,91 | +0,00 | FAIL |
+| BE2H vs MDE0 | -3,15 | -3,19 | -10,26 | FAIL |
+| BE2G vs MDE1 | +0,65 | -0,66 | +0,00 | FAIL |
+| BE2H vs MDE1 | -1,43 | -2,94 | -10,26 | FAIL |
+| MDE0 vs MDE1 | +1,72 | +0,25 | +0,00 | PASS |
+
+MDE1 mengalahkan kontrol kapasitas, sehingga operator spasial multiscale
+memiliki sinyal kausal pada screening ini. Namun MDE1 menurunkan Hard-F1
+terhadap GAP dan tertinggal dari HBP pada semua metrik. Sesuai gate yang
+dibekukan, seed 123/2026 tidak dijalankan dan test tidak dibuka.
+
+Protokol dan angka lengkap:
+`docs/protocols/CHANG_LIU_MDE_PROTOCOL.md` dan
+`docs/results/CHANG_LIU_MDE_SCREENING.json`.

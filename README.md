@@ -1207,3 +1207,8 @@ python -u -m bilinear_lmmd.experiments.run_multiscale_defect_screening \
 Screening hanya memakai validation seed 42 dan tidak membuka test. Detail
 adaptasi, kontrol kapasitas, dan gate keputusan tersedia di
 [`docs/protocols/CHANG_LIU_MDE_PROTOCOL.md`](docs/protocols/CHANG_LIU_MDE_PROTOCOL.md).
+
+Hasil screening final adalah **FAIL**. MDE1 mengungguli capacity-control MDE0
+pada Macro/Hard/Worst (`+1,72/+0,25/+0,00` poin), tetapi terhadap GAP hanya
+menaikkan Macro `+0,65` sambil menurunkan Hard `-0,66`, dan tetap kalah dari
+HBP. Karena itu seed 123/2026 serta test tidak dibuka.

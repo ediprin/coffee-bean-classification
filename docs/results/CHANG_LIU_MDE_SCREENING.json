@@ -1,0 +1,47 @@
+{
+  "experiment": "Chang-Liu-inspired multiscale defect extraction screening",
+  "dataset": "Coffee17 clean grouped fold 1",
+  "split": "validation",
+  "seeds": [42],
+  "capacity_gap_total_parameters": "0.0022%",
+  "metrics_percent": {
+    "BE2G": {
+      "macro_f1": 88.71,
+      "hard_class_f1": 82.20,
+      "worst_class_f1": 66.67
+    },
+    "BE2H": {
+      "macro_f1": 90.79,
+      "hard_class_f1": 84.49,
+      "worst_class_f1": 76.92
+    },
+    "MDE0": {
+      "macro_f1": 87.64,
+      "hard_class_f1": 81.30,
+      "worst_class_f1": 66.67
+    },
+    "MDE1": {
+      "macro_f1": 89.36,
+      "hard_class_f1": 81.54,
+      "worst_class_f1": 66.67
+    }
+  },
+  "delta_percentage_points": {
+    "BE2G_vs_MDE0": {"macro_f1": -1.07, "hard_class_f1": -0.91, "worst_class_f1": 0.00},
+    "BE2H_vs_MDE0": {"macro_f1": -3.15, "hard_class_f1": -3.19, "worst_class_f1": -10.26},
+    "BE2G_vs_MDE1": {"macro_f1": 0.65, "hard_class_f1": -0.66, "worst_class_f1": 0.00},
+    "BE2H_vs_MDE1": {"macro_f1": -1.43, "hard_class_f1": -2.94, "worst_class_f1": -10.26},
+    "MDE0_vs_MDE1": {"macro_f1": 1.72, "hard_class_f1": 0.25, "worst_class_f1": 0.00}
+  },
+  "decisions": {
+    "BE2G_vs_MDE0": "FAIL",
+    "BE2H_vs_MDE0": "FAIL",
+    "BE2G_vs_MDE1": "FAIL",
+    "BE2H_vs_MDE1": "FAIL",
+    "MDE0_vs_MDE1": "PASS",
+    "final": "FAIL"
+  },
+  "interpretation": "The 3x3/5x5 operator improves over matched pointwise capacity but does not improve Hard-F1 over GAP and remains below HBP.",
+  "next_action": "Stop MDE; do not run seeds 123/2026 and do not open test.",
+  "test_opened": false
+}
