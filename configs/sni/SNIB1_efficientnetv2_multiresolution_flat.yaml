@@ -12,6 +12,9 @@ model:
 adaptation:
   method: source_only
 training:
+  precision: amp_fp16
+  channels_last: true
+  non_blocking: true
   classification_loss: cross_entropy
   output_dir: outputs/SNIB1_efficientnetv2_multiresolution_flat
 evaluation:

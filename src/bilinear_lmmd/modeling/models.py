@@ -382,7 +382,9 @@ class HierarchicalBilinearPooling(nn.Module):
             feature = projection(feature)
             if feature.shape[-2:] != target_size:
                 feature = F.adaptive_avg_pool2d(feature, target_size)
-            projected.append(feature)
+            # Keep the second-order product and its normalization in FP32.
+            # The learned projections may still use autocast/Tensor Cores.
+            projected.append(feature.float())
 
         pairwise = []
         for left, right in ((0, 1), (0, 2), (1, 2)):
@@ -435,7 +437,9 @@ class ProjectedHierarchicalGAP(nn.Module):
             feature = projection(feature)
             if feature.shape[-2:] != target_size:
                 feature = F.adaptive_avg_pool2d(feature, target_size)
-            pooled.append(self._normalize(feature.flatten(2).mean(-1)))
+            # Match HBP's numerical policy: projections may use autocast, but
+            # pooling and normalization remain FP32 for a fair ablation.
+            pooled.append(self._normalize(feature.float().flatten(2).mean(-1)))
         return torch.cat(pooled, dim=1)
 
 

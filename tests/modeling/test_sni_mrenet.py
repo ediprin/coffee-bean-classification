@@ -86,3 +86,23 @@ def test_sni_configs_form_the_frozen_b0_b3_ablation():
         assert cfg["model"]["num_classes"] == 21
         assert cfg["model"]["head"] == head
         assert cfg["adaptation"]["method"] == "source_only"
+        assert cfg["training"]["precision"] == "amp_fp16"
+        assert cfg["training"]["channels_last"] is True
+        assert cfg["training"]["non_blocking"] is True
+
+
+def test_sni_second_order_and_control_statistics_stay_fp32_under_autocast():
+    hbp = HierarchicalBilinearPooling([8, 8, 8], projection_dim=4).eval()
+    gap = ProjectedHierarchicalGAP([8, 8, 8], projection_dim=4).eval()
+    features = [
+        torch.randn(2, 8, 16, 16),
+        torch.randn(2, 8, 8, 8),
+        torch.randn(2, 8, 4, 4),
+    ]
+
+    with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+        hbp_embedding = hbp(features)
+        gap_embedding = gap(features)
+
+    assert hbp_embedding.dtype == torch.float32
+    assert gap_embedding.dtype == torch.float32

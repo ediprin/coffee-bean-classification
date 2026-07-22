@@ -69,6 +69,21 @@ pertama versus perkalian fitur berpasangan.
 Tidak ada attention, metric loss, domain adaptation, atau grading SNI pada
 protokol v1. Komponen tersebut tidak boleh ditambahkan selama ablation ini.
 
+## Optimasi komputasi yang dibekukan
+
+Keempat konfigurasi memakai AMP FP16 dan layout `channels_last` pada CUDA,
+serta transfer batch non-blocking dari DataLoader yang memakai pinned memory.
+Ini adalah optimasi eksekusi, bukan perubahan metode: resolusi 224, batch 32,
+50 epoch, optimizer, scheduler, augmentasi, split, dan seluruh parameter model
+tetap sama. Proyeksi convolutional boleh memakai autocast, tetapi perkalian
+orde kedua, spatial mean, signed-square-root, dan L2 normalization pada HBP
+selalu dihitung dalam FP32. Kontrol `ProjectedHierarchicalGAP` memakai kebijakan
+presisi FP32 yang sama agar perbandingan SNIB2--SNIB3 tetap adil.
+
+Checkpoint `last.pt` menyimpan state `GradScaler`. Checkpoint FP32 lama tetap
+dapat dilanjutkan; bila state scaler belum ada, scaler AMP diinisialisasi baru
+tanpa membuang state model, optimizer, scheduler, atau epoch.
+
 ## Data dan evaluasi
 
 Gunakan output lengkap dari protokol `SNI_INSTANCE_CROP_PROTOCOL.md`:

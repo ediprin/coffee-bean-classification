@@ -52,6 +52,28 @@ def resolve_device(name: str) -> torch.device:
     return torch.device(name)
 
 
+def prepare_images(
+    images: torch.Tensor,
+    device: torch.device,
+    *,
+    non_blocking: bool,
+    channels_last: bool,
+) -> torch.Tensor:
+    images = images.to(device, non_blocking=non_blocking)
+    if channels_last:
+        images = images.contiguous(memory_format=torch.channels_last)
+    return images
+
+
+def build_grad_scaler(enabled: bool):
+    """Build a CUDA GradScaler across the supported PyTorch API variants."""
+
+    try:
+        return torch.amp.GradScaler("cuda", enabled=enabled)
+    except (AttributeError, TypeError):  # PyTorch 2.2 compatibility
+        return torch.cuda.amp.GradScaler(enabled=enabled)
+
+
 def atomic_torch_save(payload: dict, destination: Path) -> None:
     """Write a checkpoint completely before replacing the visible file."""
 
@@ -281,12 +303,20 @@ def evaluate(
     class_names: list[str],
     hard_groups: dict[str, list[str]],
     prediction_head: str = "fused",
+    non_blocking: bool = False,
+    channels_last: bool = False,
 ) -> dict:
     model.eval()
     predictions: list[int] = []
     labels: list[int] = []
     for images, targets in loader:
-        output = model(images.to(device))
+        images = prepare_images(
+            images,
+            device,
+            non_blocking=non_blocking,
+            channels_last=channels_last,
+        )
+        output = model(images)
         if prediction_head == "fused":
             logits = output.logits
         else:
@@ -360,8 +390,28 @@ def train(
             "Model memiliki parent classifier tetapi hierarchy.enabled=false."
         )
 
-    model = build_model(cfg["model"]).to(device)
     training_cfg = cfg["training"]
+    precision = str(training_cfg.get("precision", "fp32")).lower()
+    if precision not in {"fp32", "amp_fp16"}:
+        raise ValueError("training.precision harus 'fp32' atau 'amp_fp16'.")
+    amp_enabled = precision == "amp_fp16" and device.type == "cuda"
+    channels_last = bool(training_cfg.get("channels_last", False))
+    non_blocking = bool(training_cfg.get("non_blocking", False))
+    if precision == "amp_fp16" and not amp_enabled:
+        print(
+            "WARNING: AMP FP16 diminta tanpa CUDA; fallback ke FP32.",
+            flush=True,
+        )
+    model = build_model(cfg["model"]).to(device)
+    if channels_last:
+        model = model.to(memory_format=torch.channels_last)
+    grad_scaler = build_grad_scaler(amp_enabled)
+    print(
+        "TRAINING COMPUTE: "
+        f"precision={'AMP FP16' if amp_enabled else 'FP32'} | "
+        f"channels_last={channels_last} | non_blocking={non_blocking}",
+        flush=True,
+    )
     freeze_backbone = bool(training_cfg.get("freeze_backbone", False))
     if freeze_backbone:
         model.encoder.requires_grad_(False)
@@ -588,6 +638,16 @@ def train(
                 model.load_state_dict(checkpoint["model"])
                 optimizer.load_state_dict(checkpoint["optimizer"])
                 scheduler.load_state_dict(checkpoint["scheduler"])
+                if amp_enabled:
+                    scaler_state = checkpoint.get("grad_scaler")
+                    if scaler_state:
+                        grad_scaler.load_state_dict(scaler_state)
+                    else:
+                        print(
+                            "RESUME: checkpoint lama tanpa GradScaler; "
+                            "AMP dimulai dengan scaler baru.",
+                            flush=True,
+                        )
                 if ema is not None:
                     ema_started = bool(checkpoint["ema_started"])
                     if ema_started:
@@ -628,62 +688,90 @@ def train(
 
         progress = tqdm(loaders.source_train, desc=f"epoch {epoch + 1}/{epochs}")
         for batch_index, source_batch in enumerate(progress):
-            source_images, source_labels = (x.to(device) for x in source_batch)
+            source_images = prepare_images(
+                source_batch[0],
+                device,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
+            source_labels = source_batch[1].to(
+                device, non_blocking=non_blocking
+            )
             optimizer.zero_grad(set_to_none=True)
 
-            if method == "source_only":
-                source_output = model(source_images, labels=source_labels)
-                loss, supervised_components = supervised_objective(
-                    source_output,
-                    source_labels,
-                    classification_loss,
-                    expert_diversity_loss,
-                    expert_aux_weight,
-                    expert_diversity_weight,
-                    parent_mapping,
-                    hierarchy_weight,
-                )
-            else:
-                target_images, _ = next(target_batches)
-                target_images = target_images.to(device)
-                domain_strength = factor if method == "dann" else None
-                source_output = model(
-                    source_images,
-                    labels=source_labels,
-                    domain_strength=domain_strength,
-                )
-                target_output = model(target_images, domain_strength=domain_strength)
-                cls_loss, supervised_components = supervised_objective(
-                    source_output,
-                    source_labels,
-                    classification_loss,
-                    expert_diversity_loss,
-                    expert_aux_weight,
-                    expert_diversity_weight,
-                    parent_mapping,
-                    hierarchy_weight,
-                )
-
-                if method == "mmd":
-                    adapt_loss = mmd_loss(source_output.embedding, target_output.embedding)
-                elif method == "lmmd":
-                    adapt_loss = lmmd_loss(
-                        source_output.embedding,
-                        target_output.embedding,
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.float16,
+                enabled=amp_enabled,
+            ):
+                if method == "source_only":
+                    source_output = model(source_images, labels=source_labels)
+                    loss, supervised_components = supervised_objective(
+                        source_output,
                         source_labels,
-                        target_output.logits,
+                        classification_loss,
+                        expert_diversity_loss,
+                        expert_aux_weight,
+                        expert_diversity_weight,
+                        parent_mapping,
+                        hierarchy_weight,
                     )
                 else:
-                    source_domain = torch.zeros(
-                        source_images.shape[0], dtype=torch.long, device=device
+                    target_images, _ = next(target_batches)
+                    target_images = prepare_images(
+                        target_images,
+                        device,
+                        non_blocking=non_blocking,
+                        channels_last=channels_last,
                     )
-                    target_domain = torch.ones(
-                        target_images.shape[0], dtype=torch.long, device=device
+                    domain_strength = factor if method == "dann" else None
+                    source_output = model(
+                        source_images,
+                        labels=source_labels,
+                        domain_strength=domain_strength,
                     )
-                    adapt_loss = F.cross_entropy(
-                        source_output.domain_logits, source_domain
-                    ) + F.cross_entropy(target_output.domain_logits, target_domain)
-                loss = cls_loss + adapt_weight * adapt_loss
+                    target_output = model(
+                        target_images, domain_strength=domain_strength
+                    )
+                    cls_loss, supervised_components = supervised_objective(
+                        source_output,
+                        source_labels,
+                        classification_loss,
+                        expert_diversity_loss,
+                        expert_aux_weight,
+                        expert_diversity_weight,
+                        parent_mapping,
+                        hierarchy_weight,
+                    )
+
+                    if method == "mmd":
+                        adapt_loss = mmd_loss(
+                            source_output.embedding, target_output.embedding
+                        )
+                    elif method == "lmmd":
+                        adapt_loss = lmmd_loss(
+                            source_output.embedding,
+                            target_output.embedding,
+                            source_labels,
+                            target_output.logits,
+                        )
+                    else:
+                        source_domain = torch.zeros(
+                            source_images.shape[0],
+                            dtype=torch.long,
+                            device=device,
+                        )
+                        target_domain = torch.ones(
+                            target_images.shape[0],
+                            dtype=torch.long,
+                            device=device,
+                        )
+                        adapt_loss = F.cross_entropy(
+                            source_output.domain_logits, source_domain
+                        ) + F.cross_entropy(
+                            target_output.domain_logits, target_domain
+                        )
+                    loss = cls_loss + adapt_weight * adapt_loss
 
             if (
                 batch_index == 0
@@ -697,8 +785,9 @@ def train(
                     model.shared_parameters_for_audit(),
                 )
 
-            loss.backward()
-            optimizer.step()
+            grad_scaler.scale(loss).backward()
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
             if ema is not None and epoch >= ema_start_epoch:
                 if ema_started:
                     ema.update(model)
@@ -724,7 +813,13 @@ def train(
 
         scheduler.step()
         source_metrics_raw = evaluate(
-            model, loaders.source_val, device, loaders.classes, hard_groups
+            model,
+            loaders.source_val,
+            device,
+            loaders.classes,
+            hard_groups,
+            non_blocking=non_blocking,
+            channels_last=channels_last,
         )
         source_expert_metrics_raw = {
             name: evaluate(
@@ -734,21 +829,47 @@ def train(
                 loaders.classes,
                 hard_groups,
                 prediction_head=name,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
             )
             for name in dual_expert_names
         }
         target_metrics_raw = (
-            evaluate(model, loaders.target_val, device, loaders.classes, hard_groups)
+            evaluate(
+                model,
+                loaders.target_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
             if loaders.target_val is not None
             else None
         )
         source_metrics_ema = (
-            evaluate(ema.model, loaders.source_val, device, loaders.classes, hard_groups)
+            evaluate(
+                ema.model,
+                loaders.source_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
             if ema is not None and ema_started
             else None
         )
         target_metrics_ema = (
-            evaluate(ema.model, loaders.target_val, device, loaders.classes, hard_groups)
+            evaluate(
+                ema.model,
+                loaders.target_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
             if ema is not None and ema_started and loaders.target_val is not None
             else None
         )
@@ -855,6 +976,7 @@ def train(
             "history": history,
             "best_f1": best_f1,
             "best_expert_f1": best_expert_f1,
+            "grad_scaler": grad_scaler.state_dict(),
         }
         if ema is not None:
             checkpoint["ema_model"] = ema.model.state_dict() if ema_started else None

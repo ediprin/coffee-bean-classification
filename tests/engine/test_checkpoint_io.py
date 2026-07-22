@@ -6,6 +6,7 @@ from bilinear_lmmd.engine.train import (
     ExponentialMovingAverage,
     atomic_torch_save,
     load_resume_checkpoint,
+    prepare_images,
 )
 
 
@@ -27,6 +28,19 @@ def test_corrupt_resume_checkpoint_is_ignored(tmp_path: Path, capsys):
 
     assert loaded is None
     assert "Training dimulai ulang" in capsys.readouterr().out
+
+
+def test_prepare_images_can_use_channels_last_without_changing_values():
+    images = torch.randn(2, 3, 8, 8)
+    prepared = prepare_images(
+        images,
+        torch.device("cpu"),
+        non_blocking=True,
+        channels_last=True,
+    )
+
+    assert prepared.is_contiguous(memory_format=torch.channels_last)
+    torch.testing.assert_close(prepared, images)
 
 
 def test_ema_averages_parameters_and_copies_buffers():
