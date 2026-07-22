@@ -44,6 +44,8 @@ DEFAULTS: dict[str, Any] = {
         "residual_gap_dim": 128,
         "attention_reduction": 16,
         "capacity_hidden_dim": 1259,
+        "mde_branch_channels": 16,
+        "mde_control_hidden_dim": 287,
         "moe_local_dim": 256,
         "moe_gate_hidden": 32,
         "moe_hbp_prior": 0.8,

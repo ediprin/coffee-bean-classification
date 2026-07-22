@@ -577,6 +577,96 @@ class SPPFAttentionGAP(nn.Module):
         return F.adaptive_avg_pool2d(refined, 1).flatten(1)
 
 
+class MultiScaleDefectExtraction(nn.Module):
+    """Residual 3x3/5x5 feature extractor inspired by Chang and Liu (2024).
+
+    The paper uses parallel standard convolutions to retain fine defect lines
+    and coarser bean contours.  This adaptation applies the same causal
+    operator to the deepest feature map of a modern pretrained backbone and
+    adds a residual connection so the experiment measures refinement rather
+    than replacing the pretrained representation outright.
+    """
+
+    def __init__(self, channels: int, branch_channels: int = 16):
+        super().__init__()
+        if channels <= 0 or branch_channels <= 0:
+            raise ValueError("Channel MDE harus lebih besar dari nol.")
+        self.channels = int(channels)
+        self.branch_channels = int(branch_channels)
+        self.branch_3x3 = nn.Sequential(
+            nn.Conv2d(
+                channels,
+                branch_channels,
+                kernel_size=3,
+                padding=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(branch_channels),
+            nn.ReLU(inplace=True),
+        )
+        self.branch_5x5 = nn.Sequential(
+            nn.Conv2d(
+                channels,
+                branch_channels,
+                kernel_size=5,
+                padding=2,
+                bias=False,
+            ),
+            nn.BatchNorm2d(branch_channels),
+            nn.ReLU(inplace=True),
+        )
+        self.fuse = nn.Sequential(
+            nn.Conv2d(
+                branch_channels * 2,
+                channels,
+                kernel_size=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(channels),
+        )
+
+    def forward(self, feature: Tensor) -> Tensor:
+        fine = self.branch_3x3(feature)
+        coarse = self.branch_5x5(feature)
+        return feature + self.fuse(torch.cat((fine, coarse), dim=1))
+
+
+class MultiScaleDefectGAP(nn.Module):
+    """Chang-Liu multiscale refinement followed by ordinary GAP."""
+
+    def __init__(self, channels: int, branch_channels: int = 16):
+        super().__init__()
+        # Do not shift the baseline classifier initialization or the global
+        # RNG stream.  At a paired seed, only this refinement is additional.
+        rng_state = torch.random.get_rng_state()
+        self.refinement = MultiScaleDefectExtraction(channels, branch_channels)
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = channels
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if not features:
+            raise ValueError("MDE-GAP membutuhkan feature map.")
+        refined = self.refinement(features[-1])
+        return F.adaptive_avg_pool2d(refined, 1).flatten(1)
+
+
+class CapacityResidualGAP(nn.Module):
+    """Pointwise capacity control for the MDE 3x3/5x5 spatial operator."""
+
+    def __init__(self, channels: int, hidden_channels: int):
+        super().__init__()
+        rng_state = torch.random.get_rng_state()
+        self.refinement = PointwiseResidualCapacity(channels, hidden_channels)
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = channels
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if not features:
+            raise ValueError("Capacity-Residual-GAP membutuhkan feature map.")
+        refined = self.refinement(features[-1])
+        return F.adaptive_avg_pool2d(refined, 1).flatten(1)
+
+
 class SPPFAttentionHBP(nn.Module):
     """Refine only the deepest feature with SPPF-Attention before HBP."""
 
@@ -1102,6 +1192,8 @@ class AdaptationModel(nn.Module):
         residual_gap_dim: int = 128,
         attention_reduction: int = 16,
         capacity_hidden_dim: int = 1259,
+        mde_branch_channels: int = 16,
+        mde_control_hidden_dim: int = 287,
         moe_local_dim: int = 256,
         moe_gate_hidden: int = 32,
         moe_hbp_prior: float = 0.8,
@@ -1131,6 +1223,8 @@ class AdaptationModel(nn.Module):
             "factorized_bilinear_conv",
             "hierarchical_gap",
             "sppf_attention_gap",
+            "multiscale_defect_gap",
+            "capacity_residual_gap",
             "bilinear",
             "hbp",
             "hbp_linear",
@@ -1202,6 +1296,16 @@ class AdaptationModel(nn.Module):
             self.pool = SPPFAttentionGAP(
                 channels[-1],
                 attention_reduction,
+            )
+        elif head == "multiscale_defect_gap":
+            self.pool = MultiScaleDefectGAP(
+                channels[-1],
+                mde_branch_channels,
+            )
+        elif head == "capacity_residual_gap":
+            self.pool = CapacityResidualGAP(
+                channels[-1],
+                mde_control_hidden_dim,
             )
         elif head == "sppf_attention_hbp":
             self.pool = SPPFAttentionHBP(
@@ -1484,6 +1588,8 @@ def build_model(cfg: dict) -> nn.Module:
         residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
         attention_reduction=int(cfg.get("attention_reduction", 16)),
         capacity_hidden_dim=int(cfg.get("capacity_hidden_dim", 1259)),
+        mde_branch_channels=int(cfg.get("mde_branch_channels", 16)),
+        mde_control_hidden_dim=int(cfg.get("mde_control_hidden_dim", 287)),
         moe_local_dim=int(cfg.get("moe_local_dim", 256)),
         moe_gate_hidden=int(cfg.get("moe_gate_hidden", 32)),
         moe_hbp_prior=float(cfg.get("moe_hbp_prior", 0.8)),

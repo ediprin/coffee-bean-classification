@@ -1187,3 +1187,23 @@ python -u -m bilinear_lmmd.experiments.run_osr_vim_screening \
 Fitting ViM hanya memakai known-train dan threshold hanya memakai
 known-validation. Formula resmi, gate multi-seed, dan batas klaim tersedia di
 [`docs/protocols/COFFEE17_OSR_VIM_POSTHOC.md`](docs/protocols/COFFEE17_OSR_VIM_POSTHOC.md).
+
+### Chang–Liu multiscale defect extraction
+
+Adaptasi terkendali paper Chang dan Liu (2024) menambahkan cabang konvolusi
+standar 3x3/5x5 pada feature terdalam EfficientNetV2-B0 sebelum GAP. Kandidat
+`MDE1` dibandingkan dengan BE2G/BE2H serta `MDE0`, yaitu residual pointwise
+dengan kapasitas hampir identik tetapi tanpa receptive field multiscale.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_multiscale_defect_screening \
+  --data-root data/coffee_clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/chang-liu-mde \
+  --seeds 42 \
+  --evaluation-split val
+```
+
+Screening hanya memakai validation seed 42 dan tidak membuka test. Detail
+adaptasi, kontrol kapasitas, dan gate keputusan tersedia di
+[`docs/protocols/CHANG_LIU_MDE_PROTOCOL.md`](docs/protocols/CHANG_LIU_MDE_PROTOCOL.md).
