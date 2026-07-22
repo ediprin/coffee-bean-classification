@@ -24,6 +24,31 @@ COMPARISONS = (
     ("SNIB2", "SNIB3"),
     ("SNIB0", "SNIB3"),
 )
+STAGE_MODELS = {
+    "backbone": ("SNIB0", "SNIB1"),
+    "ontology": ("SNIB2",),
+    "bilinear": ("SNIB3",),
+    "all": tuple(MODEL_CONFIGS),
+}
+STAGE_COMPARISONS = {
+    "backbone": (("SNIB0", "SNIB1"),),
+    "ontology": (("SNIB1", "SNIB2"),),
+    "bilinear": (("SNIB2", "SNIB3"), ("SNIB0", "SNIB3")),
+    "all": COMPARISONS,
+}
+
+
+def screening_decision(summary: dict) -> dict:
+    criteria = {
+        "macro_f1_improved": float(summary["macro_f1"]["delta_mean"]) > 0.0,
+        "hard_f1_improved": float(summary["hard_class_f1"]["delta_mean"]) > 0.0,
+        "worst_f1_preserved": float(summary["worst_class_f1"]["delta_mean"])
+        >= -0.01,
+    }
+    return {
+        "decision": "PASS" if all(criteria.values()) else "FAIL",
+        "criteria": criteria,
+    }
 
 
 def _run(command: list[str]) -> None:
@@ -133,7 +158,10 @@ def run_sni_mrenet_screening(
     data_root: Path,
     output_root: Path,
     seeds: list[int],
+    stage: str = "all",
 ) -> dict:
+    if stage not in STAGE_MODELS:
+        raise ValueError(f"Stage harus salah satu dari {sorted(STAGE_MODELS)}.")
     _validate_dataset(data_root)
     audits = _audit_models()
     print("=== SNI-MRENET VALIDATION-ONLY PROTOCOL ===", flush=True)
@@ -145,7 +173,8 @@ def run_sni_mrenet_screening(
         )
     print("SNIB2/SNIB3 capacity match: PASS", flush=True)
 
-    for code, config_path in MODEL_CONFIGS.items():
+    for code in STAGE_MODELS[stage]:
+        config_path = MODEL_CONFIGS[code]
         epochs = int(load_config(config_path)["training"]["epochs"])
         for seed in seeds:
             run_dir = output_root / "outputs" / f"{code}_seed{seed}"
@@ -177,24 +206,49 @@ def run_sni_mrenet_screening(
             )
 
     comparisons = {}
-    for baseline, candidate in COMPARISONS:
+    decisions = {}
+    for baseline, candidate in STAGE_COMPARISONS[stage]:
         key = f"{baseline}_vs_{candidate}"
-        comparisons[key] = _compare(
-            output_root, baseline, candidate, seeds
-        )["summary"]
+        missing = [
+            path
+            for code in (baseline, candidate)
+            for seed in seeds
+            if not (path := _metrics_path(output_root, code, seed)).is_file()
+        ]
+        if missing:
+            raise FileNotFoundError(
+                f"Stage {stage} membutuhkan hasil tahap sebelumnya: {missing}"
+            )
+        summary = _compare(output_root, baseline, candidate, seeds)["summary"]
+        comparisons[key] = summary
+        decisions[key] = screening_decision(summary)
+
+    final_decision = (
+        "PASS"
+        if decisions and all(row["decision"] == "PASS" for row in decisions.values())
+        else "FAIL"
+    )
 
     report = {
         "method": "SNI Ontology-Guided Multi-Resolution Expert Network",
         "classes": list(SNI_CLASSES),
+        "stage": stage,
         "seeds": seeds,
         "selection_split": "val",
         "test_opened": False,
         "audits": audits,
         "capacity_matched_comparison": ["SNIB2", "SNIB3"],
         "comparisons": comparisons,
+        "decisions": decisions,
+        "final_decision": final_decision,
     }
-    destination = output_root / "val_reports" / "sni_mrenet_screening.json"
+    destination = output_root / "val_reports" / f"sni_mrenet_{stage}.json"
+    destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(f"\n=== PUTUSAN STAGE {stage.upper()} ===")
+    for name, row in decisions.items():
+        print(f"{name}: {row['decision']} | {row['criteria']}")
+    print("FINAL:", final_decision)
     print("\nTEST TETAP TERKUNCI: True")
     print("SAVED:", destination)
     return report
@@ -207,9 +261,17 @@ def main() -> None:
     parser.add_argument("--data-root", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--seeds", nargs="+", type=int, default=[42])
+    parser.add_argument(
+        "--stage",
+        choices=tuple(STAGE_MODELS),
+        default="all",
+        help="Jalankan satu tahap fail-fast atau seluruh ablation.",
+    )
     parser.add_argument("--evaluation-split", choices=("val",), default="val")
     args = parser.parse_args()
-    run_sni_mrenet_screening(args.data_root, args.output_root, args.seeds)
+    run_sni_mrenet_screening(
+        args.data_root, args.output_root, args.seeds, stage=args.stage
+    )
 
 
 if __name__ == "__main__":

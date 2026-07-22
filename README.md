@@ -30,6 +30,8 @@ Metode klasifikasi 21 kelas yang dibekukan adalah SNI-MRENet: EfficientNetV2
 multiresolusi, conditional ontology experts, dan HBP selektif hanya pada
 kondisi biji. Arsitektur, batas klaim, dan ablation B0-B3 tersedia di
 [protokol SNI-MRENet](docs/protocols/SNI_MRENET_PROTOCOL.md).
+Runner Colab bertahap dan resumable tersedia di
+[notebooks/sni_mrenet_failfast_colab.ipynb](notebooks/sni_mrenet_failfast_colab.ipynb).
 
 Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
 preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di

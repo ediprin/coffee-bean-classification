@@ -84,9 +84,11 @@ worst-class F1, per-class F1, dan hard-group F1 untuk variasi hitam, jumlah
 lubang, ukuran kulit, serta ukuran benda asing. Hasil juga harus dilaporkan per
 dataset asal untuk mendeteksi shortcut domain.
 
-Screening awal memakai seed 42. Hanya metode yang sudah dibekukan yang boleh
-dikonfirmasi dengan seed 42, 123, dan 2026. Test dibuka sekali setelah putusan
-validation final.
+Screening awal memakai seed 42 secara fail-fast. Stage `backbone` menjalankan
+SNIB0/SNIB1, stage `ontology` hanya menjalankan SNIB2 setelah stage pertama
+PASS, dan stage `bilinear` hanya menjalankan SNIB3 setelah stage kedua PASS.
+Metode final yang lolos baru boleh dikonfirmasi dengan seed 42, 123, dan 2026.
+Test dibuka sekali setelah putusan validation final.
 
 ## Runner validation-only
 
@@ -95,9 +97,15 @@ python -u -m bilinear_lmmd.experiments.run_sni_mrenet_screening \
   --data-root /content/sni-instance-crops \
   --output-root /content/sni-mrenet-results \
   --seeds 42 \
+  --stage backbone \
   --evaluation-split val
 ```
 
 Runner memverifikasi urutan 21 kelas, mengaudit capacity match SNIB2/SNIB3,
 menampilkan progress epoch dari engine training, mengevaluasi validation, dan
 tidak mempunyai opsi untuk membuka test.
+
+Notebook Colab resumable tersedia di
+`notebooks/sni_mrenet_failfast_colab.ipynb`. Dataset dipulihkan dari shard
+Google Drive yang dibuat notebook preparasi; checkpoint dan report ditulis
+langsung ke Drive agar runtime reset tidak menghapus hasil.
