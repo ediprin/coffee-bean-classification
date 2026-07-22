@@ -76,6 +76,9 @@ foto padat tidak boleh dipecah antar-split. Nilai aktual dicatat di
 - crop berbentuk persegi, berpusat pada bbox;
 - orientasi EXIF diterapkan sebelum bbox COCO digunakan; ukuran hasil orientasi
   wajib sama dengan metadata COCO;
+- untuk JPEG Faruq tanpa EXIF dengan dimensi tepat terbalik, rotasi 90 derajat
+  clockwise diterapkan; arah ini dibekukan setelah audit visual bbox pada citra
+  sumber dan jumlah koreksinya dilaporkan di `audit.json`;
 - margin konteks: 10% pada setiap sisi;
 - area di luar gambar dipad dengan rata-rata RGB foto sumber;
 - tidak ada resize atau augmentasi offline;

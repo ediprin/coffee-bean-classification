@@ -74,8 +74,9 @@ def test_exif_orientation_is_applied_before_coco_crop(tmp_path):
     image.save(path, exif=exif)
 
     with Image.open(path) as opened:
-        oriented, changed = orient_to_coco_size(opened, (4, 8))
-    assert changed is True
+        oriented, exif_changed, metadata_swap = orient_to_coco_size(opened, (4, 8))
+    assert exif_changed is True
+    assert metadata_swap is False
     assert oriented.size == (4, 8)
 
 
@@ -83,6 +84,14 @@ def test_coco_dimension_mismatch_is_rejected():
     image = Image.new("RGB", (8, 4))
     with pytest.raises(ValueError, match="tidak cocok dengan metadata COCO"):
         orient_to_coco_size(image, (7, 4))
+
+
+def test_missing_exif_swapped_size_uses_audited_clockwise_rotation():
+    image = Image.new("RGB", (8, 4))
+    oriented, exif_changed, metadata_swap = orient_to_coco_size(image, (4, 8))
+    assert oriented.size == (4, 8)
+    assert exif_changed is False
+    assert metadata_swap is True
 
 
 def test_imagefolder_directory_creation_is_resume_safe(tmp_path):

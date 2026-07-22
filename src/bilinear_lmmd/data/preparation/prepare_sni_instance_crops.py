@@ -558,16 +558,27 @@ def square_crop(
 def orient_to_coco_size(
     image: Image.Image,
     expected_size: tuple[int, int],
-) -> tuple[Image.Image, bool]:
+) -> tuple[Image.Image, bool, bool]:
     raw_size = image.size
     exif_orientation = image.getexif().get(274, 1)
     oriented = ImageOps.exif_transpose(image)
+    metadata_swap_rotated = False
+    if oriented.size == (expected_size[1], expected_size[0]):
+        # The Faruq Roboflow export contains portrait COCO coordinates but a
+        # subset of JPEG files is stored landscape without an EXIF tag. A
+        # visual bbox audit fixed the missing transform as 90 degrees clockwise.
+        oriented = oriented.transpose(Image.Transpose.ROTATE_270)
+        metadata_swap_rotated = True
     if oriented.size != expected_size:
         raise ValueError(
             "Ukuran gambar setelah EXIF transpose tidak cocok dengan metadata COCO: "
             f"raw={raw_size}, oriented={oriented.size}, coco={expected_size}"
         )
-    return oriented.convert("RGB"), exif_orientation not in (None, 1)
+    return (
+        oriented.convert("RGB"),
+        exif_orientation not in (None, 1),
+        metadata_swap_rotated,
+    )
 
 
 def _contact_sheets(output_root: Path, manifest: list[dict]) -> list[str]:
@@ -650,17 +661,20 @@ def prepare_sni_instance_crops(
     crop_hashes: dict[str, list[str]] = defaultdict(list)
     resumed_crops = 0
     exif_transposed_images = 0
+    metadata_swap_rotated_images = 0
     for image_index, image_record in enumerate(images, start=1):
         image_instances = instances_by_image.get(image_record.uid, [])
         if not image_instances:
             continue
         split = assignments[group_ids[image_record.uid]]
         with Image.open(image_record.path) as opened:
-            image, exif_transposed = orient_to_coco_size(
+            image, exif_transposed, metadata_swap_rotated = orient_to_coco_size(
                 opened,
                 (image_record.width, image_record.height),
             )
             exif_transposed_images += int(exif_transposed)
+            metadata_swap_rotated_images += int(metadata_swap_rotated)
+            orientation_corrected = exif_transposed or metadata_swap_rotated
             for instance in image_instances:
                 filename = (
                     f"{image_record.dataset}__{image_record.archive_split}__"
@@ -669,7 +683,7 @@ def prepare_sni_instance_crops(
                 destination = output_root / "source" / split / instance.canonical_class / filename
                 # A crop created without applying EXIF orientation is unsafe;
                 # regenerate it even when a partial-run file already exists.
-                if destination.is_file() and not exif_transposed:
+                if destination.is_file() and not orientation_corrected:
                     with Image.open(destination) as existing:
                         crop_width, crop_height = existing.size
                     resumed_crops += 1
@@ -821,6 +835,7 @@ def prepare_sni_instance_crops(
         "resumed_partial_run": resuming_partial,
         "resumed_existing_crops": resumed_crops,
         "exif_transposed_images": exif_transposed_images,
+        "clockwise_metadata_swap_rotated_images": metadata_swap_rotated_images,
         "split_strategy": "deterministic_grouped_multilabel_70_15_15",
         "grouping_rule": (
             "Semua gambar dengan dataset+nama sumber Roboflow yang sama atau SHA256 "
