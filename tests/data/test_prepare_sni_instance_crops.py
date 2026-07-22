@@ -12,6 +12,7 @@ from bilinear_lmmd.data.preparation.prepare_sni_instance_crops import (
     canonical_class,
     ensure_imagefolder_directories,
     orient_to_coco_size,
+    resolve_duplicate_crops,
     source_identity,
     square_crop,
     valid_polygon_segmentation,
@@ -101,6 +102,55 @@ def test_imagefolder_directory_creation_is_resume_safe(tmp_path):
     for split in ("train", "val", "test"):
         for class_name in CANONICAL_CLASSES:
             assert (output / "source" / split / class_name).is_dir()
+
+
+def test_duplicate_resolution_quarantines_conflicts_and_keeps_test_copy(tmp_path):
+    paths = {
+        "conflict_a": "source/train/biji_hitam/a.jpg",
+        "conflict_b": "source/val/biji_muda/b.jpg",
+        "same_train": "source/train/biji_normal/c.jpg",
+        "same_test": "source/test/biji_normal/d.jpg",
+        "unique": "source/train/biji_pecah/e.jpg",
+    }
+    rows = []
+    specifications = [
+        ("conflict_a", "train", "biji_hitam"),
+        ("conflict_b", "val", "biji_muda"),
+        ("same_train", "train", "biji_normal"),
+        ("same_test", "test", "biji_normal"),
+        ("unique", "train", "biji_pecah"),
+    ]
+    for key, split, class_name in specifications:
+        relative = paths[key]
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(key.encode())
+        rows.append(
+            {
+                "crop_path": relative,
+                "generated_split": split,
+                "canonical_class": class_name,
+            }
+        )
+    crop_hashes = {
+        "conflict": [paths["conflict_a"], paths["conflict_b"]],
+        "same": [paths["same_train"], paths["same_test"]],
+        "unique": [paths["unique"]],
+    }
+    filtered, audit = resolve_duplicate_crops(tmp_path, rows, crop_hashes)
+    remaining = {row["crop_path"] for row in filtered}
+    assert remaining == {paths["same_test"], paths["unique"]}
+    assert audit["conflicting_exact_duplicate_crop_groups"] == 1
+    assert audit["quarantined_conflicting_crops"] == 2
+    assert audit["removed_same_label_duplicate_crops"] == 1
+
+
+def test_square_image_is_not_mistaken_for_swapped_dimensions():
+    image = Image.new("RGB", (8, 8))
+    oriented, exif_changed, metadata_swap = orient_to_coco_size(image, (8, 8))
+    assert oriented.size == (8, 8)
+    assert exif_changed is False
+    assert metadata_swap is False
 
 
 def _synthetic_records():

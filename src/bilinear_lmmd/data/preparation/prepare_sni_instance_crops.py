@@ -563,7 +563,10 @@ def orient_to_coco_size(
     exif_orientation = image.getexif().get(274, 1)
     oriented = ImageOps.exif_transpose(image)
     metadata_swap_rotated = False
-    if oriented.size == (expected_size[1], expected_size[0]):
+    if (
+        expected_size[0] != expected_size[1]
+        and oriented.size == (expected_size[1], expected_size[0])
+    ):
         # The Faruq Roboflow export contains portrait COCO coordinates but a
         # subset of JPEG files is stored landscape without an EXIF tag. A
         # visual bbox audit fixed the missing transform as 90 degrees clockwise.
@@ -623,6 +626,52 @@ def ensure_imagefolder_directories(output_root: Path) -> None:
             )
 
 
+def resolve_duplicate_crops(
+    output_root: Path,
+    manifest: list[dict],
+    crop_hashes: dict[str, list[str]],
+) -> tuple[list[dict], dict]:
+    manifest_by_path = {row["crop_path"]: row for row in manifest}
+    duplicate_groups = [paths for paths in crop_hashes.values() if len(paths) > 1]
+    conflicting_groups = [
+        paths
+        for paths in duplicate_groups
+        if len({manifest_by_path[path]["canonical_class"] for path in paths}) > 1
+    ]
+    quarantined_conflicts = {
+        path for paths in conflicting_groups for path in paths
+    }
+    split_priority = {"test": 0, "val": 1, "train": 2}
+    removed_same_label: set[str] = set()
+    for paths in duplicate_groups:
+        if any(path in quarantined_conflicts for path in paths):
+            continue
+        ordered = sorted(
+            paths,
+            key=lambda path: (
+                split_priority[manifest_by_path[path]["generated_split"]],
+                path,
+            ),
+        )
+        removed_same_label.update(ordered[1:])
+    removed_paths = quarantined_conflicts | removed_same_label
+    for relative in sorted(removed_paths):
+        path = output_root / relative
+        if path.is_file():
+            path.unlink()
+    filtered = [row for row in manifest if row["crop_path"] not in removed_paths]
+    return filtered, {
+        "exact_duplicate_crop_groups_before_resolution": len(duplicate_groups),
+        "conflicting_exact_duplicate_crop_groups": len(conflicting_groups),
+        "quarantined_conflicting_crops": len(quarantined_conflicts),
+        "removed_same_label_duplicate_crops": len(removed_same_label),
+        "conflicting_crop_examples": conflicting_groups[:100],
+        "same_label_duplicate_examples": [
+            paths for paths in duplicate_groups if paths not in conflicting_groups
+        ][:100],
+    }
+
+
 def prepare_sni_instance_crops(
     adrian_root: Path,
     faruq_root: Path,
@@ -662,6 +711,8 @@ def prepare_sni_instance_crops(
     resumed_crops = 0
     exif_transposed_images = 0
     metadata_swap_rotated_images = 0
+    orientation_v2_marker = output_root / ".orientation_v2_complete"
+    repair_orientation_v2 = resuming_partial and not orientation_v2_marker.is_file()
     for image_index, image_record in enumerate(images, start=1):
         image_instances = instances_by_image.get(image_record.uid, [])
         if not image_instances:
@@ -675,6 +726,9 @@ def prepare_sni_instance_crops(
             exif_transposed_images += int(exif_transposed)
             metadata_swap_rotated_images += int(metadata_swap_rotated)
             orientation_corrected = exif_transposed or metadata_swap_rotated
+            force_regenerate = repair_orientation_v2 and (
+                orientation_corrected or opened.size[0] == opened.size[1]
+            )
             for instance in image_instances:
                 filename = (
                     f"{image_record.dataset}__{image_record.archive_split}__"
@@ -683,7 +737,7 @@ def prepare_sni_instance_crops(
                 destination = output_root / "source" / split / instance.canonical_class / filename
                 # A crop created without applying EXIF orientation is unsafe;
                 # regenerate it even when a partial-run file already exists.
-                if destination.is_file() and not orientation_corrected:
+                if destination.is_file() and not force_regenerate:
                     with Image.open(destination) as existing:
                         crop_width, crop_height = existing.size
                     resumed_crops += 1
@@ -725,53 +779,30 @@ def prepare_sni_instance_crops(
                 f"| resumed={resumed_crops}",
                 flush=True,
             )
+    orientation_v2_marker.write_text(
+        "EXIF, clockwise swapped-dimension, and square-image repair complete\n",
+        encoding="utf-8",
+    )
 
-    # Exact duplicate crops can still arise from separately encoded source
-    # photographs. Conflicting labels are unsafe and remain fatal. Same-label
-    # duplicates are removed deterministically, retaining test before val before
-    # train so no test sample is silently moved into model development data.
-    manifest_by_path = {row["crop_path"]: row for row in manifest}
-    original_duplicate_crop_groups = [
-        paths for paths in crop_hashes.values() if len(paths) > 1
-    ]
-    conflicting_duplicate_crops = [
-        paths
-        for paths in original_duplicate_crop_groups
-        if len({manifest_by_path[path]["canonical_class"] for path in paths}) > 1
-    ]
-    if conflicting_duplicate_crops:
-        failure = {
-            "status": "failed_conflicting_crop_labels",
-            "groups": conflicting_duplicate_crops[:100],
-        }
-        (output_root / "audit_failed.json").write_text(
-            json.dumps(failure, indent=2), encoding="utf-8"
-        )
-        raise RuntimeError(
-            "Crop identik memiliki label berbeda. Dataset tidak aman; "
-            "lihat audit_failed.json."
-        )
-    split_priority = {"test": 0, "val": 1, "train": 2}
-    removed_duplicate_paths: list[str] = []
-    for paths in original_duplicate_crop_groups:
-        ordered = sorted(
-            paths,
-            key=lambda path: (
-                split_priority[manifest_by_path[path]["generated_split"]],
-                path,
-            ),
-        )
-        removed_duplicate_paths.extend(ordered[1:])
-    if removed_duplicate_paths:
-        removed = set(removed_duplicate_paths)
-        for relative in removed_duplicate_paths:
-            (output_root / relative).unlink()
-        manifest = [row for row in manifest if row["crop_path"] not in removed]
+    manifest, duplicate_audit = resolve_duplicate_crops(
+        output_root,
+        manifest,
+        crop_hashes,
+    )
+    removed_duplicate_count = (
+        duplicate_audit["quarantined_conflicting_crops"]
+        + duplicate_audit["removed_same_label_duplicate_crops"]
+    )
+    if removed_duplicate_count:
         print(
-            f"DEDUP: membuang {len(removed_duplicate_paths)} crop identik "
-            f"dari {len(original_duplicate_crop_groups)} grup",
+            "DEDUP: "
+            f"quarantine_conflict={duplicate_audit['quarantined_conflicting_crops']} "
+            f"remove_same_label={duplicate_audit['removed_same_label_duplicate_crops']}",
             flush=True,
         )
+    failed_audit_path = output_root / "audit_failed.json"
+    if failed_audit_path.is_file():
+        failed_audit_path.unlink()
 
     manifest_path = output_root / "manifest.csv"
     with manifest_path.open("w", newline="", encoding="utf-8") as handle:
@@ -847,15 +878,9 @@ def prepare_sni_instance_crops(
         "split_ratios": split_ratios,
         "missing_classes_by_split": missing_by_split,
         "dataset_split_counts": dataset_split_counts,
-        "exact_duplicate_crop_groups_before_dedup": len(
-            original_duplicate_crop_groups
-        ),
-        "removed_exact_duplicate_crops": len(removed_duplicate_paths),
-        "conflicting_exact_duplicate_crop_groups": 0,
+        **duplicate_audit,
+        "removed_exact_duplicate_crops": removed_duplicate_count,
         "cross_split_exact_duplicate_crop_groups_after_dedup": 0,
-        "exact_duplicate_crop_examples_before_dedup": (
-            original_duplicate_crop_groups[:100]
-        ),
         "crop_protocol": {
             "shape": "square centered on COCO bbox",
             "margin_fraction": margin_fraction,
