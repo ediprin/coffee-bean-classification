@@ -107,6 +107,85 @@ def load_resume_checkpoint(
         return None
 
 
+def load_initialization_checkpoint(
+    model: nn.Module,
+    checkpoint_path: Path,
+    expected_classes: list[str],
+    required_prefixes: tuple[str, ...],
+) -> dict:
+    """Warm-start compatible shared modules while leaving new heads untouched."""
+
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    if checkpoint.get("classes") != expected_classes:
+        raise ValueError("Urutan kelas checkpoint initialization berbeda dari dataset.")
+    source_state = checkpoint.get("model")
+    if not isinstance(source_state, dict):
+        raise ValueError("Checkpoint initialization tidak memiliki model state.")
+    target_state = model.state_dict()
+    compatible = {
+        name: value
+        for name, value in source_state.items()
+        if name in target_state and target_state[name].shape == value.shape
+    }
+    required = {
+        name
+        for name in target_state
+        if name.startswith(required_prefixes)
+    }
+    missing_required = sorted(required.difference(compatible))
+    if missing_required:
+        preview = ", ".join(missing_required[:5])
+        raise ValueError(
+            "Checkpoint initialization tidak kompatibel dengan modul wajib: "
+            f"{preview}"
+        )
+    model.load_state_dict(compatible, strict=False)
+    return {
+        "path": str(checkpoint_path),
+        "source_epoch": checkpoint.get("epoch"),
+        "loaded_tensors": len(compatible),
+        "required_prefixes": list(required_prefixes),
+    }
+
+
+def configure_trainable_modules(
+    model: nn.Module,
+    module_names: list[str],
+) -> tuple[nn.Module, ...]:
+    """Freeze the complete model, then enable only explicitly named modules."""
+
+    if not module_names:
+        return ()
+    if len(set(module_names)) != len(module_names):
+        raise ValueError("training.trainable_modules tidak boleh berisi duplikat.")
+    model.requires_grad_(False)
+    modules = []
+    for name in module_names:
+        try:
+            module = model.get_submodule(name)
+        except AttributeError as exc:
+            raise ValueError(f"Modul trainable tidak ditemukan: {name}") from exc
+        module.requires_grad_(True)
+        modules.append(module)
+    if not any(parameter.requires_grad for parameter in model.parameters()):
+        raise ValueError("Tidak ada parameter yang dapat dilatih.")
+    return tuple(modules)
+
+
+def set_selective_training_mode(
+    model: nn.Module,
+    trainable_modules: tuple[nn.Module, ...],
+) -> None:
+    """Keep every frozen BN/dropout in eval while training selected modules."""
+
+    if not trainable_modules:
+        model.train()
+        return
+    model.eval()
+    for module in trainable_modules:
+        module.train()
+
+
 def current_git_commit() -> str | None:
     repo_root = Path(__file__).resolve().parents[2]
     try:
@@ -341,6 +420,7 @@ def train(
     artifact_repo: str | None = None,
     artifact_path: str | None = None,
     artifact_sync_every: int = 5,
+    init_checkpoint: str | None = None,
 ) -> None:
     cfg = load_config(config_path)
     if seed_override is not None:
@@ -412,10 +492,38 @@ def train(
         f"channels_last={channels_last} | non_blocking={non_blocking}",
         flush=True,
     )
+    initialization = None
+    if init_checkpoint is not None:
+        initialization = load_initialization_checkpoint(
+            model,
+            Path(init_checkpoint),
+            loaders.classes,
+            ("encoder.", "fusion.", "flat_classifier."),
+        )
+        training_cfg["resolved_init_checkpoint"] = initialization
+        print(
+            "WARM START: "
+            f"{init_checkpoint} | tensors={initialization['loaded_tensors']} | "
+            f"source_epoch={initialization['source_epoch']}",
+            flush=True,
+        )
     freeze_backbone = bool(training_cfg.get("freeze_backbone", False))
+    trainable_module_names = list(training_cfg.get("trainable_modules", []))
+    if freeze_backbone and trainable_module_names:
+        raise ValueError(
+            "Gunakan freeze_backbone atau trainable_modules, bukan keduanya."
+        )
     if freeze_backbone:
         model.encoder.requires_grad_(False)
         print("TRANSFER LEARNING: backbone frozen; head saja dilatih.", flush=True)
+    selective_train_modules = configure_trainable_modules(
+        model, trainable_module_names
+    )
+    if selective_train_modules:
+        print(
+            "SELECTIVE TRAINING: " + ", ".join(trainable_module_names),
+            flush=True,
+        )
     if method not in {"source_only", "mmd", "lmmd", "dann"}:
         raise ValueError("adaptation.method harus source_only, mmd, lmmd, atau dann.")
 
@@ -597,6 +705,7 @@ def train(
         "data_root": str(cfg["data"]["root"]),
         "artifact_repo": artifact_repo,
         "artifact_path": resolved_artifact_path,
+        "initialization": initialization,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     epochs = int(training_cfg["epochs"])
@@ -670,7 +779,7 @@ def train(
                 )
 
     for epoch in range(start_epoch, epochs):
-        model.train()
+        set_selective_training_mode(model, selective_train_modules)
         if freeze_backbone:
             model.encoder.eval()
         factor = adaptation_schedule(
@@ -1086,6 +1195,13 @@ def main() -> None:
         default=5,
         help="Upload last.pt dan metadata setiap N epoch (default: 5).",
     )
+    parser.add_argument(
+        "--init-checkpoint",
+        help=(
+            "Warm-start encoder, fusion, dan flat classifier dari checkpoint "
+            "kompatibel; head baru tetap memakai inisialisasi config/model."
+        ),
+    )
     args = parser.parse_args()
     train(
         args.config,
@@ -1096,6 +1212,7 @@ def main() -> None:
         artifact_repo=args.artifact_repo,
         artifact_path=args.artifact_path,
         artifact_sync_every=args.artifact_sync_every,
+        init_checkpoint=args.init_checkpoint,
     )
 
 

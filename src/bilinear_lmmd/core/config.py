@@ -83,6 +83,7 @@ DEFAULTS: dict[str, Any] = {
         "classification_loss": "cross_entropy",
         "label_smoothing": 0.1,
         "freeze_backbone": False,
+        "trainable_modules": [],
         "scheduler": "cosine",
         "ema_decay": 0.0,
         "ema_start_epoch": 0,

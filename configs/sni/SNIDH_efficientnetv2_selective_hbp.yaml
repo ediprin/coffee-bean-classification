@@ -1,0 +1,47 @@
+seed: 42
+device: auto
+data:
+  image_size: 224
+  augmentation_mode: standard
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: false
+  head: sni_flat_residual_hbp
+  num_classes: 21
+  out_indices: [1, 2, 3, 4]
+  sni_feature_dim: 128
+  projection_dim: 128
+  dropout: 0.2
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  epochs: 10
+  lr: 0.0003
+  weight_decay: 0.0001
+  precision: amp_fp16
+  channels_last: true
+  non_blocking: true
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  scheduler: cosine
+  trainable_modules:
+    - bean_pool
+    - bean_residual_classifier
+    - residual_dropout
+  output_dir: outputs/SNIDH_efficientnetv2_selective_hbp
+evaluation:
+  hard_groups:
+    black_variant: [biji_hitam, biji_hitam_pecah, biji_hitam_sebagian]
+    hole_count: [biji_berlubang_satu, biji_berlubang_lebih_satu]
+    skin_size:
+      - kulit_kopi_ukuran_besar
+      - kulit_kopi_ukuran_kecil
+      - kulit_kopi_ukuran_sedang
+      - kulit_tanduk_ukuran_besar
+      - kulit_tanduk_ukuran_kecil
+      - kulit_tanduk_ukuran_sedang
+    foreign_size:
+      - tanah_batu_ranting_besar
+      - tanah_batu_ranting_kecil
+      - tanah_batu_ranting_sedang

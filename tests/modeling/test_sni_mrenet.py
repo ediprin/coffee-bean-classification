@@ -106,3 +106,46 @@ def test_sni_second_order_and_control_statistics_stay_fp32_under_autocast():
 
     assert hbp_embedding.dtype == torch.float32
     assert gap_embedding.dtype == torch.float32
+
+
+def test_selective_residual_models_are_capacity_matched_and_start_as_snib1():
+    base = _small_model("configs/sni/SNIB1_efficientnetv2_multiresolution_flat.yaml")
+    gap = _small_model("configs/sni/SNIDG_efficientnetv2_selective_gap.yaml")
+    hbp = _small_model("configs/sni/SNIDH_efficientnetv2_selective_hbp.yaml")
+    base_state = base.state_dict()
+    for candidate in (gap, hbp):
+        candidate.load_state_dict(
+            {
+                name: value
+                for name, value in base_state.items()
+                if name in candidate.state_dict()
+            },
+            strict=False,
+        )
+    assert sum(parameter.numel() for parameter in gap.parameters()) == sum(
+        parameter.numel() for parameter in hbp.parameters()
+    )
+
+    images = torch.randn(2, 3, 64, 64)
+    base.eval()
+    gap.eval()
+    hbp.eval()
+    with torch.no_grad():
+        base_logits = base(images).logits
+        torch.testing.assert_close(gap(images).logits, base_logits)
+        torch.testing.assert_close(hbp(images).logits, base_logits)
+
+
+def test_selective_residual_can_only_change_bean_condition_logits():
+    model = _small_model("configs/sni/SNIDH_efficientnetv2_selective_hbp.yaml")
+    assert model.bean_residual_classifier is not None
+    with torch.no_grad():
+        model.bean_residual_classifier.bias.fill_(1.0)
+    model.eval()
+    images = torch.randn(2, 3, 64, 64)
+    with torch.no_grad():
+        features = model.fusion(model.encoder(images))
+        baseline = model.flat_classifier(model.dropout(model._global_embedding(features)))
+        delta = model(images).logits - baseline
+    torch.testing.assert_close(delta[:, :12], torch.ones_like(delta[:, :12]))
+    torch.testing.assert_close(delta[:, 12:], torch.zeros_like(delta[:, 12:]))

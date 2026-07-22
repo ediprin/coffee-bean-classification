@@ -36,6 +36,12 @@ negatif lengkap dicatat di
 [hasil screening SNI-MRENet](docs/results/SNI_MRENET_SEED42_SCREENING.md).
 Runner Colab bertahap dan resumable tersedia di
 [notebooks/sni_mrenet_failfast_colab.ipynb](notebooks/sni_mrenet_failfast_colab.ipynb).
+Sesudah kegagalan ontology, eksperimen lanjutan yang diizinkan hanya diagnostik
+murah residual HBP selektif pada flat head SNIB1, disertai projected-GAP control
+berkapasitas sama. Protokolnya ada di
+[docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md](docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md)
+dan notebook-nya di
+[notebooks/sni_selective_hbp_diagnostic_colab.ipynb](notebooks/sni_selective_hbp_diagnostic_colab.ipynb).
 
 Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
 preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di

@@ -1533,6 +1533,8 @@ def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
     if head in {
         "sni_multiresolution_flat",
+        "sni_flat_residual_gap",
+        "sni_flat_residual_hbp",
         "sni_mre_ontology_gap",
         "sni_mrenet",
     }:
@@ -1544,6 +1546,8 @@ def build_model(cfg: dict) -> nn.Module:
             raise ValueError("SNI-MRENet hanya mendukung classifier linear.")
         mode = {
             "sni_multiresolution_flat": "flat",
+            "sni_flat_residual_gap": "flat_residual_gap",
+            "sni_flat_residual_hbp": "flat_residual_hbp",
             "sni_mre_ontology_gap": "ontology_gap",
             "sni_mrenet": "ontology_hbp",
         }[head]

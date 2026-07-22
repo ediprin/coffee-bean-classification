@@ -99,7 +99,13 @@ class SNIMultiResolutionExpertModel(nn.Module):
     dimension-matched; only first-order versus multiplicative pooling differs.
     """
 
-    MODES = {"flat", "ontology_gap", "ontology_hbp"}
+    MODES = {
+        "flat",
+        "flat_residual_gap",
+        "flat_residual_hbp",
+        "ontology_gap",
+        "ontology_hbp",
+    }
 
     def __init__(
         self,
@@ -128,6 +134,8 @@ class SNIMultiResolutionExpertModel(nn.Module):
         self.mode = mode
         self.head = {
             "flat": "sni_multiresolution_flat",
+            "flat_residual_gap": "sni_flat_residual_gap",
+            "flat_residual_hbp": "sni_flat_residual_hbp",
             "ontology_gap": "sni_mre_ontology_gap",
             "ontology_hbp": "sni_mrenet",
         }[mode]
@@ -143,13 +151,33 @@ class SNIMultiResolutionExpertModel(nn.Module):
         self.global_dim = feature_dim * 4
 
         self.flat_classifier: nn.Linear | None = None
+        self.bean_residual_classifier: nn.Linear | None = None
+        self.residual_dropout: nn.Dropout | None = None
         self.router: nn.Linear | None = None
         self.bean_pool: nn.Module | None = None
         self.expert_classifiers = nn.ModuleList()
 
-        if mode == "flat":
+        if mode.startswith("flat"):
             self.flat_classifier = nn.Linear(self.global_dim, num_classes)
             self.embedding_dim = self.global_dim
+            if mode != "flat":
+                pool_type = (
+                    ProjectedHierarchicalGAP
+                    if mode == "flat_residual_gap"
+                    else HierarchicalBilinearPooling
+                )
+                self.bean_pool = pool_type([feature_dim] * 3, projection_dim)
+                self.bean_residual_classifier = nn.Linear(
+                    self.bean_pool.output_dim,
+                    SNI_GROUP_SIZES[0],
+                )
+                # A warm-started residual model must initially reproduce SNIB1
+                # exactly. Learning, rather than random initialization, decides
+                # whether the selective correction should depart from zero.
+                nn.init.zeros_(self.bean_residual_classifier.weight)
+                nn.init.zeros_(self.bean_residual_classifier.bias)
+                self.residual_dropout = nn.Dropout(dropout)
+                self.embedding_dim += self.bean_pool.output_dim
         else:
             self.router = nn.Linear(self.global_dim, len(SNI_GROUP_SIZES))
             pool_type = (
@@ -189,11 +217,30 @@ class SNIMultiResolutionExpertModel(nn.Module):
         features = self.fusion(self.encoder(x))
         global_embedding = self._global_embedding(features)
 
-        if self.mode == "flat":
+        if self.mode.startswith("flat"):
             if self.flat_classifier is None:
                 raise RuntimeError("Flat classifier belum diinisialisasi.")
+            logits = self.flat_classifier(self.dropout(global_embedding))
             embedding = global_embedding
-            logits = self.flat_classifier(self.dropout(embedding))
+            if self.mode != "flat":
+                if (
+                    self.bean_pool is None
+                    or self.bean_residual_classifier is None
+                    or self.residual_dropout is None
+                ):
+                    raise RuntimeError("Selective residual head belum diinisialisasi.")
+                interaction = self.bean_pool(features[:3])
+                bean_residual = self.bean_residual_classifier(
+                    self.residual_dropout(interaction)
+                )
+                # SNI_CLASSES is contiguous: the first 12 labels are physical
+                # bean conditions. Residual evidence must not alter material or
+                # foreign-object logits (indices 12..20).
+                logits = logits + F.pad(
+                    bean_residual,
+                    (0, len(SNI_CLASSES) - SNI_GROUP_SIZES[0]),
+                )
+                embedding = torch.cat((global_embedding, interaction), dim=1)
             return ModelOutput(logits=logits, embedding=embedding)
 
         if self.router is None or self.bean_pool is None:
