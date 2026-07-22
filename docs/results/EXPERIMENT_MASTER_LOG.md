@@ -1,6 +1,6 @@
 # Master log eksperimen klasifikasi biji kopi
 
-Terakhir diperbarui: **21 Juli 2026**.
+Terakhir diperbarui: **23 Juli 2026**.
 
 Dokumen ini mengonsolidasikan hasil yang sebelumnya tersebar di report, output
 Colab/Kaggle, README, dan percakapan eksperimen. Tujuannya adalah mencegah
@@ -38,6 +38,7 @@ final.
 | LMMD/synthetic robustness | Diarsipkan | Sinyal pada illumination, gagal cross-shift dan bukan validasi nyata |
 | OSR | Dihentikan/diarsipkan | HBP dan ARPL fail-fast gagal |
 | OMSL taxonomy contrastive | Dihentikan | Delta dataset-Macro hanya +0,08 |
+| SNI-MRENet v1 | Dihentikan pada ontology gate | SNIB1 multiresolusi PASS; SNIB2 Macro -0,32 dan Worst -12,37; SNIB3/test tidak dijalankan |
 
 ---
 
@@ -594,3 +595,31 @@ dibekukan, seed 123/2026 tidak dijalankan dan test tidak dibuka.
 Protokol dan angka lengkap:
 `docs/protocols/CHANG_LIU_MDE_PROTOCOL.md` dan
 `docs/results/CHANG_LIU_MDE_SCREENING.json`.
+
+## 19. SNI-MRENet pada dataset instance-crop 21 kelas
+
+**Status: SCREENING SEED 42 -- MULTIRESOLUSI PASS, ONTOLOGY FAIL.** Dataset
+terdiri atas 21.273 crop train, 4.969 validation, dan 4.832 test. Checkpoint
+dipilih berdasarkan Macro-F1 validation; test tetap terkunci.
+
+| Model | Epoch terbaik | Accuracy | Balanced | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|---:|---:|---:|
+| SNIB0 final-stage GAP | 17 | 92,43 | 83,06 | 82,91 | 83,38 | 39,18 |
+| SNIB1 multiresolusi | 43 | **93,52** | **85,16** | **84,64** | 85,19 | **46,46** |
+| SNIB2 ontology + projected GAP | 40 | 93,02 | 84,43 | 84,32 | **85,67** | 34,09 |
+
+SNIB1 mengalahkan SNIB0: Macro `+1,73`, Hard `+1,81`, dan Worst `+7,29`
+poin, sehingga stage backbone PASS. SNIB2 terhadap SNIB1 memberi Macro
+`-0,32`, Hard `+0,48`, dan Worst `-12,37`; ontology gate FAIL. Penurunan
+terbesar terjadi pada `biji_muda` (`46,46% -> 34,09%`), sementara kenaikan
+Hard-F1 terutama berasal dari grup variasi hitam (`+3,77` poin).
+
+SNIB3 selective HBP tidak dijalankan sesuai fail-fast gate. Hasil tidak dapat
+diatribusikan kepada router saja karena SNIB2 sekaligus menambahkan ontology
+experts dan projected hierarchical GAP. Usulan SNI-MRENet v1 dihentikan;
+SNIB1 hanya dipertahankan sebagai kandidat baseline multiresolusi seed 42,
+bukan hasil multi-seed atau locked-test.
+
+Angka, audit per kelas, parameter, dan batas interpretasi lengkap:
+`docs/results/SNI_MRENET_SEED42_SCREENING.md` dan
+`docs/results/SNI_MRENET_SEED42_SCREENING.json`.

@@ -124,3 +124,11 @@ Notebook Colab resumable tersedia di
 `notebooks/sni_mrenet_failfast_colab.ipynb`. Dataset dipulihkan dari shard
 Google Drive yang dibuat notebook preparasi; checkpoint dan report ditulis
 langsung ke Drive agar runtime reset tidak menghapus hasil.
+
+## Hasil screening seed 42
+
+Stage backbone SNIB0--SNIB1 PASS, tetapi stage ontology SNIB1--SNIB2 FAIL.
+SNIB3 dan test tidak dijalankan sesuai gate yang dibekukan. Protokol v1 selesai
+dengan status dihentikan; hasil ini tidak boleh ditulis sebagai SNI-MRENet yang
+berhasil. Angka lengkap dan audit per kelas tersedia di
+`docs/results/SNI_MRENET_SEED42_SCREENING.md`.

@@ -26,10 +26,14 @@ Dataset SNI detection dan instance-segmentation dapat dinormalisasi menjadi
 dataset klasifikasi per objek dengan 21 kelas bersama. Pipeline ini melakukan
 grouping per foto sumber, audit exact duplicate, crop bbox, dan mengunci test;
 lihat [protokol SNI instance-crop](docs/protocols/SNI_INSTANCE_CROP_PROTOCOL.md).
-Metode klasifikasi 21 kelas yang dibekukan adalah SNI-MRENet: EfficientNetV2
+Usulan klasifikasi 21 kelas yang diuji adalah SNI-MRENet: EfficientNetV2
 multiresolusi, conditional ontology experts, dan HBP selektif hanya pada
-kondisi biji. Arsitektur, batas klaim, dan ablation B0-B3 tersedia di
-[protokol SNI-MRENet](docs/protocols/SNI_MRENET_PROTOCOL.md).
+kondisi biji. Screening seed 42 mempertahankan fusi multiresolusi SNIB1,
+tetapi menghentikan paket ontology SNIB2; SNIB3 dan test tidak dijalankan.
+Arsitektur dan batas klaim tersedia di
+[protokol SNI-MRENet](docs/protocols/SNI_MRENET_PROTOCOL.md), sedangkan hasil
+negatif lengkap dicatat di
+[hasil screening SNI-MRENet](docs/results/SNI_MRENET_SEED42_SCREENING.md).
 Runner Colab bertahap dan resumable tersedia di
 [notebooks/sni_mrenet_failfast_colab.ipynb](notebooks/sni_mrenet_failfast_colab.ipynb).
 
