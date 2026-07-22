@@ -15,55 +15,15 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps, ImageStat
 
+from bilinear_lmmd.data.sni_ontology import (
+    SNI_CLASSES,
+    SNI_DEFECT_WEIGHTS,
+)
+
 
 SPLITS = ("train", "val", "test")
 ARCHIVE_SPLITS = {"train": "train", "valid": "val", "val": "val", "test": "test"}
-CANONICAL_CLASSES = (
-    "biji_berkulit_tanduk",
-    "biji_berlubang_lebih_satu",
-    "biji_berlubang_satu",
-    "biji_bertutul_tutul",
-    "biji_coklat",
-    "biji_hitam",
-    "biji_hitam_pecah",
-    "biji_hitam_sebagian",
-    "biji_muda",
-    "biji_normal",
-    "biji_pecah",
-    "kopi_gelondong",
-    "kulit_kopi_ukuran_besar",
-    "kulit_kopi_ukuran_kecil",
-    "kulit_kopi_ukuran_sedang",
-    "kulit_tanduk_ukuran_besar",
-    "kulit_tanduk_ukuran_kecil",
-    "kulit_tanduk_ukuran_sedang",
-    "tanah_batu_ranting_besar",
-    "tanah_batu_ranting_kecil",
-    "tanah_batu_ranting_sedang",
-)
-SNI_DEFECT_WEIGHTS = {
-    "biji_hitam": 1.0,
-    "biji_hitam_sebagian": 0.5,
-    "biji_hitam_pecah": 0.5,
-    "kopi_gelondong": 1.0,
-    "biji_coklat": 0.25,
-    "kulit_kopi_ukuran_besar": 1.0,
-    "kulit_kopi_ukuran_sedang": 0.5,
-    "kulit_kopi_ukuran_kecil": 0.2,
-    "biji_berkulit_tanduk": 0.5,
-    "kulit_tanduk_ukuran_besar": 0.5,
-    "kulit_tanduk_ukuran_sedang": 0.2,
-    "kulit_tanduk_ukuran_kecil": 0.1,
-    "biji_pecah": 0.2,
-    "biji_muda": 0.2,
-    "biji_berlubang_satu": 0.1,
-    "biji_berlubang_lebih_satu": 0.2,
-    "biji_bertutul_tutul": 0.1,
-    "tanah_batu_ranting_besar": 5.0,
-    "tanah_batu_ranting_sedang": 2.0,
-    "tanah_batu_ranting_kecil": 1.0,
-    "biji_normal": 0.0,
-}
+CANONICAL_CLASSES = SNI_CLASSES
 ROBOFLOW_SUFFIX = re.compile(r"\.rf\.[a-z0-9_-]+$", re.IGNORECASE)
 
 

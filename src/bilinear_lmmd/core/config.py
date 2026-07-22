@@ -31,6 +31,7 @@ DEFAULTS: dict[str, Any] = {
         "num_classes": 17,
         "out_indices": [1, 3, 4],
         "projection_dim": 512,
+        "sni_feature_dim": 128,
         "mpncov_reduction_dim": 128,
         "mpncov_iterations": 5,
         "mpncov_epsilon": 1.0e-5,

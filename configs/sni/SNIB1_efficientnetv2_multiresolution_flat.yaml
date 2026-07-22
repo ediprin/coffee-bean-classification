@@ -1,0 +1,31 @@
+data:
+  image_size: 224
+  augmentation_mode: standard
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: sni_multiresolution_flat
+  num_classes: 21
+  out_indices: [1, 2, 3, 4]
+  sni_feature_dim: 128
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  output_dir: outputs/SNIB1_efficientnetv2_multiresolution_flat
+evaluation:
+  hard_groups:
+    black_variant: [biji_hitam, biji_hitam_pecah, biji_hitam_sebagian]
+    hole_count: [biji_berlubang_satu, biji_berlubang_lebih_satu]
+    skin_size:
+      - kulit_kopi_ukuran_besar
+      - kulit_kopi_ukuran_kecil
+      - kulit_kopi_ukuran_sedang
+      - kulit_tanduk_ukuran_besar
+      - kulit_tanduk_ukuran_kecil
+      - kulit_tanduk_ukuran_sedang
+    foreign_size:
+      - tanah_batu_ranting_besar
+      - tanah_batu_ranting_kecil
+      - tanah_batu_ranting_sedang

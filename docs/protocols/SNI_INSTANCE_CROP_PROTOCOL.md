@@ -101,9 +101,10 @@ sumber, group ID, split baru, label asli, label canonical, bbox, dan hash crop.
 6. Setelah oracle-crop classification valid, ukur sistem end-to-end dengan
    detector yang menghasilkan crop pada foto baru.
 
-Baseline minimum tahap berikutnya adalah EfficientNetV2-B0 + GAP. Kandidat
-fine-grained dibandingkan dalam faktorial terkontrol dengan backbone dan split
-yang sama; belum ada model yang dianggap unggul sebelum eksperimen ini.
+Baseline minimum tahap berikutnya adalah EfficientNetV2-B0 + GAP. Ablation
+backbone multiresolusi, ontology experts, dan selective HBP sudah dibekukan di
+`SNI_MRENET_PROTOCOL.md`; belum ada model yang dianggap unggul sebelum
+validation terkontrol tersebut selesai.
 
 ## Perintah
 

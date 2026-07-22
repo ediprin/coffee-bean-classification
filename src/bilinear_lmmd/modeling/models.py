@@ -1528,6 +1528,32 @@ class AdaptationModel(nn.Module):
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
     if head in {
+        "sni_multiresolution_flat",
+        "sni_mre_ontology_gap",
+        "sni_mrenet",
+    }:
+        from bilinear_lmmd.modeling.sni_mrenet import (
+            SNIMultiResolutionExpertModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("SNI-MRENet hanya mendukung classifier linear.")
+        mode = {
+            "sni_multiresolution_flat": "flat",
+            "sni_mre_ontology_gap": "ontology_gap",
+            "sni_mrenet": "ontology_hbp",
+        }[head]
+        return SNIMultiResolutionExpertModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 2, 3, 4))),
+            feature_dim=int(cfg.get("sni_feature_dim", 128)),
+            projection_dim=int(cfg.get("projection_dim", 128)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            mode=mode,
+        )
+    if head in {
         "progressive_multigranularity",
         "progressive_multigranularity_consistency",
     }:
