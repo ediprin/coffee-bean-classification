@@ -713,6 +713,13 @@ def prepare_sni_instance_crops(
     metadata_swap_rotated_images = 0
     orientation_v2_marker = output_root / ".orientation_v2_complete"
     repair_orientation_v2 = resuming_partial and not orientation_v2_marker.is_file()
+    legacy_failed_audit = output_root / "audit_failed.json"
+    legacy_swapped_orientation_complete = False
+    if legacy_failed_audit.is_file():
+        legacy_failure = json.loads(legacy_failed_audit.read_text(encoding="utf-8"))
+        legacy_swapped_orientation_complete = (
+            legacy_failure.get("status") == "failed_conflicting_crop_labels"
+        )
     for image_index, image_record in enumerate(images, start=1):
         image_instances = instances_by_image.get(image_record.uid, [])
         if not image_instances:
@@ -727,7 +734,11 @@ def prepare_sni_instance_crops(
             metadata_swap_rotated_images += int(metadata_swap_rotated)
             orientation_corrected = exif_transposed or metadata_swap_rotated
             force_regenerate = repair_orientation_v2 and (
-                orientation_corrected or opened.size[0] == opened.size[1]
+                opened.size[0] == opened.size[1]
+                or (
+                    orientation_corrected
+                    and not legacy_swapped_orientation_complete
+                )
             )
             for instance in image_instances:
                 filename = (
@@ -867,6 +878,9 @@ def prepare_sni_instance_crops(
         "resumed_existing_crops": resumed_crops,
         "exif_transposed_images": exif_transposed_images,
         "clockwise_metadata_swap_rotated_images": metadata_swap_rotated_images,
+        "migrated_legacy_orientation_conflict_run": (
+            legacy_swapped_orientation_complete
+        ),
         "split_strategy": "deterministic_grouped_multilabel_70_15_15",
         "grouping_rule": (
             "Semua gambar dengan dataset+nama sumber Roboflow yang sama atau SHA256 "
