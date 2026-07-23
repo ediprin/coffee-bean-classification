@@ -42,6 +42,10 @@ berkapasitas sama. Protokolnya ada di
 [docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md](docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md)
 dan notebook-nya di
 [notebooks/sni_selective_hbp_diagnostic_colab.ipynb](notebooks/sni_selective_hbp_diagnostic_colab.ipynb).
+Diagnostik tersebut telah selesai dengan keputusan **STOP**: residual HBP gagal
+mengalahkan SNIB1 dan kontrol residual GAP. Seed tambahan serta test tidak
+dijalankan; catatan hasil tersedia di
+[docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.md](docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.md).
 
 Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
 preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di

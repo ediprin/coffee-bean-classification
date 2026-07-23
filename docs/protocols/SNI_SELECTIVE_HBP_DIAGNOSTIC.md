@@ -71,3 +71,16 @@ Gunakan `notebooks/sni_selective_hbp_diagnostic_colab.ipynb`. Notebook meminta:
 Artefak diagnostik ditulis langsung ke
 `MyDrive/sni-selective-hbp-diagnostic-v1`, sehingga dapat dilanjutkan setelah
 runtime Colab reset.
+
+## Hasil seed 42
+
+**Status: SELESAI -- STOP.** Pada validation seed 42:
+
+- `SNIB1_vs_SNIDH`: FAIL karena Macro-F1 dan Hard-F1 tidak meningkat;
+  Worst-F1 masih memenuhi batas preservasi.
+- `SNIDG_vs_SNIDH`: FAIL karena Macro-F1 tidak meningkat dan Worst-F1 tidak
+  terjaga, walaupun Hard-F1 meningkat.
+
+Keputusan akhir sesuai aturan praregistrasi adalah menghentikan residual HBP.
+Seed 123/2026 dan split test tidak dijalankan. Detail keputusan tersedia di
+`docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.md`.

@@ -39,6 +39,7 @@ final.
 | OSR | Dihentikan/diarsipkan | HBP dan ARPL fail-fast gagal |
 | OMSL taxonomy contrastive | Dihentikan | Delta dataset-Macro hanya +0,08 |
 | SNI-MRENet v1 | Dihentikan pada ontology gate | SNIB1 multiresolusi PASS; SNIB2 Macro -0,32 dan Worst -12,37; SNIB3/test tidak dijalankan |
+| Residual HBP selektif SNI | Dihentikan | Gagal terhadap SNIB1 dan residual GAP capacity control; seed tambahan/test tidak dijalankan |
 
 ---
 
@@ -623,3 +624,31 @@ bukan hasil multi-seed atau locked-test.
 Angka, audit per kelas, parameter, dan batas interpretasi lengkap:
 `docs/results/SNI_MRENET_SEED42_SCREENING.md` dan
 `docs/results/SNI_MRENET_SEED42_SCREENING.json`.
+
+## 20. Residual HBP selektif di atas SNIB1
+
+**Status: SCREENING SEED 42 -- STOP, TEST TERKUNCI.** Diagnostik murah
+melakukan warm-start dari checkpoint SNIB1, membekukan encoder, fusi
+multiresolusi, dan flat classifier, kemudian melatih selama 10 epoch salah satu
+dari dua residual head yang berkapasitas sama:
+
+- `SNIDG`: projected hierarchical GAP residual untuk 12 kelas kondisi biji;
+- `SNIDH`: HBP residual untuk 12 kelas kondisi biji.
+
+Hasil gate yang dibekukan:
+
+| Perbandingan | Macro meningkat | Hard meningkat | Worst terjaga | Putusan |
+|---|---:|---:|---:|---|
+| SNIB1 vs SNIDH | Tidak | Tidak | Ya | **FAIL** |
+| SNIDG vs SNIDH | Tidak | Ya | Tidak | **FAIL** |
+
+Keputusan final `STOP`. HBP orde kedua tidak memberi tambahan yang konsisten
+di atas SNIB1 maupun kontrol first-order dengan kapasitas sama. Sesuai protokol,
+seed 123/2026 dan test tidak dijalankan. Catatan ini tidak memuat angka delta
+karena yang disalin dari keluaran Colab pada saat pencatatan hanya keputusan
+dan boolean kriteria; angka lengkap tetap berada pada artefak Drive
+`sni-selective-hbp-diagnostic-v1/val_reports/selective_residual_diagnostic.json`.
+
+Protokol dan record machine-readable:
+`docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md` dan
+`docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.json`.

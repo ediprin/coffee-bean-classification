@@ -1,0 +1,29 @@
+{
+  "protocol": "selective residual HBP head-only diagnostic v1",
+  "seed": 42,
+  "epochs": 10,
+  "selection_split": "val",
+  "test_opened": false,
+  "comparisons": {
+    "SNIB1_vs_SNIDH": {
+      "decision": "FAIL",
+      "criteria": {
+        "macro_f1_improved": false,
+        "hard_f1_improved": false,
+        "worst_f1_preserved": true
+      }
+    },
+    "SNIDG_vs_SNIDH": {
+      "decision": "FAIL",
+      "criteria": {
+        "macro_f1_improved": false,
+        "hard_f1_improved": true,
+        "worst_f1_preserved": false
+      }
+    }
+  },
+  "final_decision": "STOP",
+  "additional_seeds_run": false,
+  "numeric_metrics_recorded": false,
+  "numeric_metrics_source": "MyDrive/sni-selective-hbp-diagnostic-v1/val_reports/selective_residual_diagnostic.json"
+}
