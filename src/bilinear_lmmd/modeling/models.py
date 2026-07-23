@@ -1531,7 +1531,11 @@ class AdaptationModel(nn.Module):
 
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
-    if head in {"multistage_fixed", "multistage_adaptive"}:
+    if head in {
+        "multistage_fixed",
+        "multistage_channel_control",
+        "multistage_adaptive",
+    }:
         from bilinear_lmmd.modeling.multistage_recalibration import (
             MultistageRecalibrationModel,
         )
@@ -1547,7 +1551,11 @@ def build_model(cfg: dict) -> nn.Module:
             gate_hidden_dim=int(cfg.get("multistage_gate_hidden", 96)),
             dropout=float(cfg.get("dropout", 0.2)),
             pretrained=bool(cfg.get("pretrained", True)),
-            mode=("fixed" if head.endswith("_fixed") else "adaptive"),
+            mode={
+                "multistage_fixed": "fixed",
+                "multistage_channel_control": "channel_control",
+                "multistage_adaptive": "adaptive",
+            }[head],
         )
     if head in {
         "swin_gap",

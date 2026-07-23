@@ -24,10 +24,20 @@ MODEL_CONFIGS = {
     "MSF1": Path(
         "configs/finegrained/MSF1_efficientnetv2_adaptive_multistage.yaml"
     ),
+    "MSFC": Path(
+        "configs/finegrained/MSFC_efficientnetv2_channel_control.yaml"
+    ),
+}
+STAGE_CONFIGS = {
+    "screen": ("MSF0", "MSF1"),
+    "capacity": ("MSFC",),
 }
 BASELINES = ("BE2G", "BE2H")
 SCREENING_SEEDS = (42,)
-REQUIRED_COMPARISONS = ("MSF0_vs_MSF1", "BE2G_vs_MSF1")
+REQUIRED_COMPARISONS = {
+    "screen": ("MSF0_vs_MSF1", "BE2G_vs_MSF1"),
+    "capacity": ("MSFC_vs_MSF1",),
+}
 
 
 def _paired_summary(baseline: list[float], candidate: list[float]) -> dict:
@@ -181,11 +191,13 @@ def _audit_models() -> dict:
             ),
             "fusion_dim": int(cfg["model"]["multistage_fusion_dim"]),
             "out_indices": list(cfg["model"]["out_indices"]),
-            "adaptive_gate": getattr(model, "gate", None) is not None,
+            "mode": getattr(model, "mode", None),
         }
     rows["MSF1"]["parameter_delta_vs_MSF0"] = (
         rows["MSF1"]["parameters"] - rows["MSF0"]["parameters"]
     )
+    if rows["MSFC"]["parameters"] != rows["MSF1"]["parameters"]:
+        raise AssertionError("MSFC dan MSF1 tidak capacity-matched.")
     return rows
 
 
@@ -222,10 +234,13 @@ def run_multistage_recalibration_screening(
     output_root: Path,
     seeds: list[int],
     *,
+    stage: str = "screen",
     hf_repo: str | None = None,
     hf_namespace: str = "coffee17-multistage-recalibration-v1",
     hf_sync_every: int = 1,
 ) -> dict:
+    if stage not in STAGE_CONFIGS:
+        raise ValueError(f"Stage harus salah satu dari {sorted(STAGE_CONFIGS)}.")
     if tuple(seeds) != SCREENING_SEEDS:
         raise ValueError(
             "Screening v1 dikunci pada seed 42. Seed 123/2026 hanya boleh "
@@ -241,9 +256,36 @@ def run_multistage_recalibration_screening(
                 "Repo checkpoint Hugging Face tidak dapat ditulis. "
                 "Training dibatalkan sebelum dimulai."
             ) from exc
+        restore_artifacts(
+            hf_repo,
+            f"{hf_namespace}/val_reports",
+            output_root / "val_reports",
+            filenames=("multistage_recalibration_screening.json",),
+            overwrite=False,
+        )
+    screening_path = (
+        output_root
+        / "val_reports"
+        / "multistage_recalibration_screening.json"
+    )
+    if stage == "capacity":
+        if not screening_path.is_file():
+            raise FileNotFoundError(
+                "Capacity control membutuhkan report screening MSF0/MSF1."
+            )
+        screening_report = json.loads(
+            screening_path.read_text(encoding="utf-8")
+        )
+        if screening_report.get("final_decision") != "PASS":
+            raise RuntimeError(
+                "Capacity control tidak diizinkan karena screening belum PASS."
+            )
 
     audits = _audit_models()
-    print("=== COFFEE17 MULTISTAGE RECALIBRATION FAIL-FAST ===", flush=True)
+    print(
+        f"=== COFFEE17 MULTISTAGE RECALIBRATION: {stage.upper()} ===",
+        flush=True,
+    )
     print("Split: validation | Seed: 42 | Test locked", flush=True)
     print(
         f"Checkpoint: {hf_repo + '/' + hf_namespace if hf_repo else output_root}",
@@ -251,7 +293,7 @@ def run_multistage_recalibration_screening(
     )
     for code, row in audits.items():
         print(
-            f"{code}: head={row['head']} adaptive={row['adaptive_gate']} "
+            f"{code}: head={row['head']} mode={row['mode']} "
             f"params={row['parameters']:,}",
             flush=True,
         )
@@ -276,7 +318,27 @@ def run_multistage_recalibration_screening(
                 )
             _evaluate(run_dir / "best.pt", report_dir, data_root)
 
-    for code, config_path in MODEL_CONFIGS.items():
+    reference_codes = ("MSF0", "MSF1") if stage == "capacity" else ()
+    for code in reference_codes:
+        for seed in seeds:
+            run_dir = output_root / "outputs" / f"{code}_seed{seed}"
+            report_dir = output_root / "val_reports" / f"{code}_seed{seed}"
+            if hf_repo:
+                restored = _restore_run_and_report(
+                    hf_repo,
+                    f"{hf_namespace}/outputs/{code}_seed{seed}",
+                    f"{hf_namespace}/val_reports/{code}_seed{seed}",
+                    run_dir,
+                    report_dir,
+                )
+                print(
+                    f"HF RESTORE {code} seed {seed}: {restored} file",
+                    flush=True,
+                )
+            _evaluate(run_dir / "best.pt", report_dir, data_root)
+
+    for code in STAGE_CONFIGS[stage]:
+        config_path = MODEL_CONFIGS[code]
         epochs = int(load_config(config_path)["training"]["epochs"])
         for seed in seeds:
             run_dir = output_root / "outputs" / f"{code}_seed{seed}"
@@ -347,23 +409,48 @@ def run_multistage_recalibration_screening(
                 )
 
     comparisons = {}
-    for candidate in MODEL_CONFIGS:
+    if stage == "screen":
+        for candidate in STAGE_CONFIGS["screen"]:
+            for baseline in BASELINES:
+                key = f"{baseline}_vs_{candidate}"
+                comparisons[key] = _compare(
+                    baseline_root,
+                    output_root,
+                    baseline,
+                    candidate,
+                    seeds,
+                )["summary"]
+        comparisons["MSF0_vs_MSF1"] = _compare(
+            output_root,
+            output_root,
+            "MSF0",
+            "MSF1",
+            seeds,
+        )["summary"]
+    else:
         for baseline in BASELINES:
-            key = f"{baseline}_vs_{candidate}"
+            key = f"{baseline}_vs_MSFC"
             comparisons[key] = _compare(
                 baseline_root,
                 output_root,
                 baseline,
-                candidate,
+                "MSFC",
                 seeds,
             )["summary"]
-    comparisons["MSF0_vs_MSF1"] = _compare(
-        output_root,
-        output_root,
-        "MSF0",
-        "MSF1",
-        seeds,
-    )["summary"]
+        comparisons["MSF0_vs_MSFC"] = _compare(
+            output_root,
+            output_root,
+            "MSF0",
+            "MSFC",
+            seeds,
+        )["summary"]
+        comparisons["MSFC_vs_MSF1"] = _compare(
+            output_root,
+            output_root,
+            "MSFC",
+            "MSF1",
+            seeds,
+        )["summary"]
     decisions = {
         key: screening_decision(summary)
         for key, summary in comparisons.items()
@@ -372,27 +459,29 @@ def run_multistage_recalibration_screening(
         "PASS"
         if all(
             decisions[key]["decision"] == "PASS"
-            for key in REQUIRED_COMPARISONS
+            for key in REQUIRED_COMPARISONS[stage]
         )
         else "FAIL"
     )
     report = {
         "method": "class-supervised multistage recalibration",
         "dataset": "Coffee17 clean grouped fold 1",
+        "stage": stage,
         "seeds": seeds,
         "selection_split": "val",
         "test_opened": False,
         "audits": audits,
         "comparisons": comparisons,
         "decisions": decisions,
-        "required_comparisons": list(REQUIRED_COMPARISONS),
+        "required_comparisons": list(REQUIRED_COMPARISONS[stage]),
         "final_decision": final_decision,
     }
-    destination = (
-        output_root
-        / "val_reports"
-        / "multistage_recalibration_screening.json"
+    destination_name = (
+        "multistage_recalibration_screening.json"
+        if stage == "screen"
+        else "multistage_recalibration_capacity_control.json"
     )
+    destination = output_root / "val_reports" / destination_name
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, indent=2), encoding="utf-8")
     if hf_repo:
@@ -401,7 +490,9 @@ def run_multistage_recalibration_screening(
             f"{hf_namespace}/val_reports",
             destination.parent,
             filenames=(destination.name,),
-            commit_message="Coffee17 multistage recalibration screening decision",
+            commit_message=(
+                f"Coffee17 multistage recalibration {stage} decision"
+            ),
         )
 
     print("\n=== PUTUSAN MULTISTAGE RECALIBRATION ===")
@@ -423,6 +514,11 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[42])
     parser.add_argument("--evaluation-split", choices=("val",), default="val")
     parser.add_argument(
+        "--stage",
+        choices=tuple(STAGE_CONFIGS),
+        default="screen",
+    )
+    parser.add_argument(
         "--hf-repo",
         help="Repo model Hugging Face private untuk checkpoint lintas akun.",
     )
@@ -437,6 +533,7 @@ def main() -> None:
         args.baseline_root,
         args.output_root,
         args.seeds,
+        stage=args.stage,
         hf_repo=args.hf_repo,
         hf_namespace=args.hf_namespace,
         hf_sync_every=args.hf_sync_every,

@@ -87,6 +87,29 @@ def test_adaptive_weights_are_normalized_and_gate_receives_gradient(monkeypatch)
     assert model.gate.network[-1].weight.grad.abs().sum() > 0
 
 
+def test_channel_control_is_uniform_over_stages_and_receives_gradient(
+    monkeypatch,
+) -> None:
+    model = _model(monkeypatch, "channel_control")
+    output = model(torch.randn(3, 3, 32, 32))
+
+    assert output.gate_weights.shape == (3, 3, 10)
+    assert torch.isfinite(output.gate_weights).all()
+    torch.testing.assert_close(
+        output.gate_weights[:, 0],
+        output.gate_weights[:, 1],
+    )
+    torch.testing.assert_close(
+        output.gate_weights[:, 1],
+        output.gate_weights[:, 2],
+    )
+
+    output.logits.square().mean().backward()
+    assert model.gate is not None
+    assert model.gate.network[-1].weight.grad is not None
+    assert model.gate.network[-1].weight.grad.abs().sum() > 0
+
+
 def test_adaptive_starts_as_exact_fixed_fusion(monkeypatch) -> None:
     torch.manual_seed(2026)
     fixed = _model(monkeypatch, "fixed").eval()
@@ -104,6 +127,35 @@ def test_adaptive_starts_as_exact_fixed_fusion(monkeypatch) -> None:
         adaptive_output = adaptive(images)
     torch.testing.assert_close(fixed_output.embedding, adaptive_output.embedding)
     torch.testing.assert_close(fixed_output.logits, adaptive_output.logits)
+
+
+def test_channel_control_matches_adaptive_capacity_and_fixed_initialization(
+    monkeypatch,
+) -> None:
+    torch.manual_seed(42)
+    fixed = _model(monkeypatch, "fixed").eval()
+    torch.manual_seed(42)
+    control = _model(monkeypatch, "channel_control").eval()
+    torch.manual_seed(42)
+    adaptive = _model(monkeypatch, "adaptive").eval()
+
+    assert sum(p.numel() for p in control.parameters()) == sum(
+        p.numel() for p in adaptive.parameters()
+    )
+    for name, parameter in fixed.state_dict().items():
+        torch.testing.assert_close(parameter, control.state_dict()[name])
+
+    images = torch.randn(4, 3, 32, 32)
+    with torch.no_grad():
+        fixed_output = fixed(images)
+        control_output = control(images)
+        adaptive_output = adaptive(images)
+    torch.testing.assert_close(fixed_output.logits, control_output.logits)
+    torch.testing.assert_close(fixed_output.logits, adaptive_output.logits)
+    torch.testing.assert_close(
+        control_output.gate_weights,
+        torch.full_like(control_output.gate_weights, 1.0 / 3.0),
+    )
 
 
 def test_adaptive_gate_can_learn_sample_specific_preferences(monkeypatch) -> None:
@@ -133,8 +185,12 @@ def test_configs_are_a_controlled_fixed_vs_adaptive_ablation() -> None:
     adaptive = load_config(
         "configs/finegrained/MSF1_efficientnetv2_adaptive_multistage.yaml"
     )
+    control = load_config(
+        "configs/finegrained/MSFC_efficientnetv2_channel_control.yaml"
+    )
 
     assert fixed["model"]["head"] == "multistage_fixed"
+    assert control["model"]["head"] == "multistage_channel_control"
     assert adaptive["model"]["head"] == "multistage_adaptive"
     for key in (
         "backbone",
@@ -147,14 +203,18 @@ def test_configs_are_a_controlled_fixed_vs_adaptive_ablation() -> None:
         "dropout",
     ):
         assert fixed["model"][key] == adaptive["model"][key]
+        assert control["model"][key] == adaptive["model"][key]
     assert fixed["data"] == adaptive["data"]
+    assert control["data"] == adaptive["data"]
     assert fixed["adaptation"] == adaptive["adaptation"]
+    assert control["adaptation"] == adaptive["adaptation"]
     for key, value in fixed["training"].items():
         if key != "output_dir":
             assert adaptive["training"][key] == value
+            assert control["training"][key] == value
 
 
-def test_build_model_registry_constructs_both_modes(monkeypatch) -> None:
+def test_build_model_registry_constructs_all_modes(monkeypatch) -> None:
     monkeypatch.setattr(
         "bilinear_lmmd.modeling.multistage_recalibration.timm.create_model",
         lambda *args, **kwargs: _Encoder(),
@@ -167,6 +227,10 @@ def test_build_model_registry_constructs_both_modes(monkeypatch) -> None:
         (
             "configs/finegrained/MSF1_efficientnetv2_adaptive_multistage.yaml",
             "adaptive",
+        ),
+        (
+            "configs/finegrained/MSFC_efficientnetv2_channel_control.yaml",
+            "channel_control",
         ),
     ):
         cfg = load_config(path)

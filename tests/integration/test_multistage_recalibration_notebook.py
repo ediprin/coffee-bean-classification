@@ -22,6 +22,10 @@ def test_multistage_notebook_is_resumable_and_validation_only() -> None:
     assert "BILINEAR_LMMD_ARTIFACT_REQUIRED" in source
     assert "'--hf-sync-every', str(HF_SYNC_EVERY)" in source
     assert "MSF0" in source and "MSF1" in source
+    assert "MSFC" in source
+    assert "'--stage', 'capacity'" in source
+    assert "screen['final_decision'] == 'PASS'" in source
+    assert "multistage_recalibration_capacity_control.json" in source
     assert "bottom3_class_f1" in source
     assert "source/test" not in source
     assert "time.sleep(60)" in source

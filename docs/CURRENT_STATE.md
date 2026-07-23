@@ -15,10 +15,10 @@ Agents must verify it against protocols, raw reports, and the experiment log.
 - Avoid additional expensive training without a frozen, literature-grounded
   comparison.
 
-## Current runnable screen
+## Current runnable stage
 
-The most recently prepared—not yet empirically validated—experiment is the
-Coffee17 multistage recalibration screen:
+The Coffee17 seed-42 multistage screen has reported `PASS`. The currently
+authorized next stage is the capacity-matched control:
 
 | Code | Model |
 |---|---|
@@ -26,6 +26,7 @@ Coffee17 multistage recalibration screen:
 | BE2H | EfficientNetV2-B0 + HBP comparator |
 | MSF0 | Fixed three-stage spatial fusion |
 | MSF1 | Adaptive stage/channel multistage recalibration |
+| MSFC | Uniform-stage, capacity-matched channel control |
 
 Relevant files:
 
@@ -34,17 +35,17 @@ Relevant files:
 - `src/bilinear_lmmd/experiments/run_multistage_recalibration_screening.py`
 - `notebooks/coffee17_multistage_recalibration_colab.ipynb`
 
-Current gate:
+Reported seed-42 validation deltas:
 
-- validation only;
-- seed 42 only;
-- test locked;
-- MSF1 must pass both `MSF0_vs_MSF1` and `BE2G_vs_MSF1`;
-- Macro-F1 and hard-class F1 must improve;
-- bottom-three class F1 may not decline by more than one point.
+| Comparison | Macro-F1 | Hard-F1 | Bottom-three F1 | Worst-F1 |
+|---|---:|---:|---:|---:|
+| BE2G -> MSF1 | +3.66% | +3.57% | +5.69% | +6.06% |
+| BE2H -> MSF1 | +1.59% | +1.28% | +1.25% | -4.20% |
+| MSF0 -> MSF1 | +0.98% | +0.95% | +4.95% | +6.06% |
 
-If the screen passes, the protocol requires a capacity-matched control before
-additional seeds or test. If it fails, record it and stop this direction.
+The current gate is `MSFC_vs_MSF1` on validation seed 42. MSF1 must improve
+Macro-F1 and Hard-F1 while preserving bottom-three F1 within one percentage
+point. Seeds 123/2026 and test remain locked until that comparison passes.
 
 ## Dataset snapshot
 
@@ -106,7 +107,7 @@ to seek a positive seed.
 
 At this snapshot:
 
-- MSF architecture, runner, notebook, protocol, and tests exist;
-- MSF0/MSF1 training results do not yet exist;
+- MSF0/MSF1 seed-42 validation screening reported PASS;
+- MSFC architecture, runner stage, notebook cell, protocol, and tests exist;
+- MSFC training result does not yet exist;
 - Coffee17 test has not been opened for this experiment.
-

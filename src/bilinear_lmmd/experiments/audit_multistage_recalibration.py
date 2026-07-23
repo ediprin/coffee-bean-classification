@@ -20,6 +20,9 @@ CONFIGS = {
     "MSF1": Path(
         "configs/finegrained/MSF1_efficientnetv2_adaptive_multistage.yaml"
     ),
+    "MSFC": Path(
+        "configs/finegrained/MSFC_efficientnetv2_channel_control.yaml"
+    ),
 }
 
 
@@ -110,7 +113,7 @@ def audit_models(
 
     if "BE2G" in rows:
         baseline_parameters = rows["BE2G"]["parameters"]
-        for code in ("MSF0", "MSF1"):
+        for code in ("MSF0", "MSF1", "MSFC"):
             if code not in rows:
                 continue
             rows[code]["parameter_delta_vs_BE2G"] = (

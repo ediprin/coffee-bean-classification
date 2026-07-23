@@ -6,6 +6,7 @@ from bilinear_lmmd.experiments.run_multistage_recalibration_screening import (
     MODEL_CONFIGS,
     REQUIRED_COMPARISONS,
     SCREENING_SEEDS,
+    STAGE_CONFIGS,
     _bottom_three_f1,
     screening_decision,
 )
@@ -20,9 +21,16 @@ def _summary(macro: float, hard: float, bottom3: float) -> dict:
 
 
 def test_multistage_screening_protocol_is_locked() -> None:
-    assert tuple(MODEL_CONFIGS) == ("MSF0", "MSF1")
+    assert tuple(MODEL_CONFIGS) == ("MSF0", "MSF1", "MSFC")
+    assert STAGE_CONFIGS == {
+        "screen": ("MSF0", "MSF1"),
+        "capacity": ("MSFC",),
+    }
     assert SCREENING_SEEDS == (42,)
-    assert REQUIRED_COMPARISONS == ("MSF0_vs_MSF1", "BE2G_vs_MSF1")
+    assert REQUIRED_COMPARISONS == {
+        "screen": ("MSF0_vs_MSF1", "BE2G_vs_MSF1"),
+        "capacity": ("MSFC_vs_MSF1",),
+    }
     assert all(path.is_file() for path in MODEL_CONFIGS.values())
 
 

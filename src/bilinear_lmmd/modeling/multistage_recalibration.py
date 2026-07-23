@@ -68,18 +68,61 @@ class AdaptiveStageChannelGate(nn.Module):
         return torch.softmax(logits, dim=1)
 
 
+class UniformStageChannelControl(nn.Module):
+    """Capacity-matched channel refinement without adaptive stage selection.
+
+    The network has the exact same tensor shapes and parameter count as
+    :class:`AdaptiveStageChannelGate`. Its stage-axis logits are averaged into
+    one channel scale and then repeated uniformly over all stages. Therefore
+    it can learn per-image channel refinement, but it cannot prefer one stage
+    over another.
+    """
+
+    def __init__(self, stages: int, channels: int, hidden_dim: int):
+        super().__init__()
+        if stages < 2:
+            raise ValueError("Channel control membutuhkan sedikitnya dua stage.")
+        if channels <= 0 or hidden_dim <= 0:
+            raise ValueError("Dimensi channel dan hidden control harus positif.")
+        self.stages = stages
+        self.channels = channels
+        self.network = nn.Sequential(
+            nn.Linear(stages * channels, hidden_dim),
+            nn.SiLU(inplace=True),
+            nn.Linear(hidden_dim, stages * channels),
+        )
+        # scale = 2 * sigmoid(0) = 1, so the control starts exactly as MSF0.
+        nn.init.zeros_(self.network[-1].weight)
+        nn.init.zeros_(self.network[-1].bias)
+
+    def forward(self, features: Tensor) -> Tensor:
+        if features.ndim != 5:
+            raise ValueError("features harus berbentuk [B, S, C, H, W].")
+        batch, stages, channels, _, _ = features.shape
+        if stages != self.stages or channels != self.channels:
+            raise ValueError(
+                "Jumlah stage/channel feature tidak cocok dengan control."
+            )
+        descriptor = features.mean(dim=(-2, -1)).reshape(batch, stages * channels)
+        logits = self.network(descriptor).reshape(batch, stages, channels)
+        channel_scale = 2.0 * torch.sigmoid(logits.mean(dim=1))
+        return channel_scale[:, None, :].expand(-1, stages, -1) / stages
+
+
 class MultistageRecalibrationModel(nn.Module):
     """Single-pass spatial multistage fusion with a controlled adaptive ablation.
 
-    ``fixed`` (MSF0) averages three aligned endpoint maps. ``adaptive`` (MSF1)
-    uses a stage-channel gate whose weights sum to one over stages. Both modes
-    share the same encoder, projections, fused embedding, and classifier.
+    ``fixed`` (MSF0) averages three aligned endpoint maps. ``channel_control``
+    (MSFC) adds capacity-matched channel refinement while preserving uniform
+    stage contributions. ``adaptive`` (MSF1) uses a stage-channel gate whose
+    weights sum to one over stages. All modes share the encoder, projections,
+    fused embedding, and classifier.
 
     This is deliberately not PMG/E2: it uses an intact image, one forward pass,
     one classifier, and one optimization objective.
     """
 
-    MODES = {"fixed", "adaptive"}
+    MODES = {"fixed", "channel_control", "adaptive"}
 
     def __init__(
         self,
@@ -121,15 +164,20 @@ class MultistageRecalibrationModel(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(fusion_dim, num_classes)
-        self.gate = (
-            AdaptiveStageChannelGate(
+        if mode == "adaptive":
+            self.gate = AdaptiveStageChannelGate(
                 stages=len(channels),
                 channels=fusion_dim,
                 hidden_dim=gate_hidden_dim,
             )
-            if mode == "adaptive"
-            else None
-        )
+        elif mode == "channel_control":
+            self.gate = UniformStageChannelControl(
+                stages=len(channels),
+                channels=fusion_dim,
+                hidden_dim=gate_hidden_dim,
+            )
+        else:
+            self.gate = None
         self.output_dim = fusion_dim
 
     @staticmethod

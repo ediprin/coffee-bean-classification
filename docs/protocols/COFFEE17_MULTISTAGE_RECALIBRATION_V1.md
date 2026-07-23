@@ -91,11 +91,54 @@ Only after spatial fusion is the final embedding computed with GAP.
 | BE2H | EfficientNetV2-B0 + HBP | Existing second-order multistage comparator |
 | MSF0 | Three aligned stages + uniform fusion | Isolate the value of direct spatial multistage fusion |
 | MSF1 | MSF0 + adaptive stage/channel gate | Isolate adaptive recalibration |
+| MSFC | MSF0 + capacity-matched channel control | Separate adaptive stage selection from added nonlinear capacity |
 
 MSF0 and MSF1 have identical encoder, endpoint projections, fused embedding,
 dropout, and classifier. The final gate layer in MSF1 is initialized to zero,
 so MSF1 starts as exact uniform fusion rather than with an arbitrary stage
 preference.
+
+## Capacity-matched control
+
+The seed-42 screen passed, so the predefined capacity-control stage is now
+authorized. MSFC uses the same descriptor and MLP dimensions as MSF1:
+
+\[
+h:\mathbb{R}^{3C}\rightarrow\mathbb{R}^{96}
+\rightarrow\mathbb{R}^{3C}.
+\]
+
+Instead of applying a softmax over stages, MSFC averages the three output
+groups and predicts one channel scale:
+
+\[
+s=2\sigma\left(
+\operatorname{mean}_{stage}(h([d_s,d_m,d_d]))
+\right).
+\]
+
+The same scale is repeated uniformly over the three stages:
+
+\[
+F_{\mathrm{MSFC}}=
+s\odot\frac{1}{3}
+\left(\widetilde F_s+\widetilde F_m+\widetilde F_d\right).
+\]
+
+The final MLP layer is zero-initialized, hence \(s=1\) initially and MSFC
+starts exactly as MSF0. MSFC and MSF1 have exactly the same trainable parameter
+count. MSFC can perform per-image channel refinement but cannot prefer one
+stage over another.
+
+The causal comparison is:
+
+```text
+MSFC -> MSF1
+```
+
+MSF1 passes the capacity control only if Macro-F1 and Hard-F1 improve while
+the bottom-three class F1 mean declines by no more than one percentage point.
+Worst-class F1 remains reported as a diagnostic.
 
 ## Explicit distinction from E2/PMG
 
@@ -133,11 +176,12 @@ The implementation must satisfy:
 3. MSF0 weights equal \(1/3\);
 4. MSF1 weights are finite, non-negative, and sum to one over stages for every
    sample and channel;
-5. same-seed MSF0 and newly initialized MSF1 produce identical common
-   parameters and identical logits before the gate learns;
-6. gradients reach every endpoint projection and the adaptive gate;
-7. source-only training, one classifier, and one standard CE objective;
-8. parameter and latency overhead are reported before GPU training.
+5. same-seed MSF0, MSFC, and newly initialized MSF1 produce identical common
+   parameters and identical logits before either learned control changes;
+6. MSFC and MSF1 have exactly the same parameter count;
+7. gradients reach every endpoint projection and each learned control;
+8. source-only training, one classifier, and one standard CE objective;
+9. parameter and latency overhead are reported before GPU training.
 
 ## Future evaluation sequence
 
@@ -145,15 +189,13 @@ Training is not authorized by this architecture-freeze document. When a runner
 is added, the minimum sequence is:
 
 1. one-seed validation screening of MSF0 and MSF1 while reusing BE2G/BE2H;
-2. MSF1 versus MSF0 is the primary causal comparison;
-3. only if MSF1 improves Macro-F1 and Hard-F1 without a material lower-tail
-   collapse, add a capacity-matched control;
-4. only after that control passes, confirm unchanged MSF1 on seeds 42, 123,
-   and 2026;
+2. MSF1 versus MSF0 is the first causal comparison;
+3. after that screen passes, run MSFC seed 42 as the capacity-matched control;
+4. only if MSF1 beats MSFC under the frozen gate, confirm unchanged MSF1 on
+   seeds 42, 123, and 2026;
 5. keep test closed until the validation protocol is frozen.
 
 Macro-F1 is primary. Hard-group F1 and the mean of the bottom three class F1
 scores are targeted safety metrics. Worst-class F1 is reported, but it must
 not be interpreted without its small class support and seed/bootstrap
 uncertainty.
-

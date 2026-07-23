@@ -1,0 +1,22 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: multistage_channel_control
+  out_indices: [1, 3, 4]
+  multistage_fusion_dim: 128
+  multistage_target_stage: 1
+  multistage_gate_hidden: 96
+  classifier: linear
+  dropout: 0.2
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  scheduler: cosine
+  output_dir: outputs/MSFC_efficientnetv2_channel_control
