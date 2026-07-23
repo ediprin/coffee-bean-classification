@@ -1,5 +1,10 @@
 # Coffee Bean Classification
 
+Untuk agent AI atau sesi baru, baca
+[AGENTS.md](AGENTS.md) terlebih dahulu. File tersebut berisi ruang lingkup
+riset aktif, eksperimen yang sudah dihentikan, aturan test, dan mekanisme
+checkpoint lintas akun.
+
 Kerangka riset PyTorch untuk klasifikasi biji kopi lintas dataset, granularitas
 label, backbone, dan pooling head. Eksperimen historis mencakup HBP untuk
 interaksi fitur antarlapis serta closed-set domain adaptation; namespace Python
