@@ -10,12 +10,29 @@ Agents must verify it against protocols, raw reports, and the experiment log.
 
 - Repository scope: coffee-bean classification, not the separate YOLO/detection
   project.
-- Immediate task type: closed-set fine-grained classification.
+- Immediate task type: curate an ML-valid SNI classification dataset before
+  any additional model training.
 - OSR and LMMD/UDA are not currently requested.
 - Avoid additional expensive training without a frozen, literature-grounded
   comparison.
 
 ## Current runnable stage
+
+SNI classification manifest v2 is the active data-curation stage. It consumes
+the existing 31,074 audited instance crops without recreating images. The v2
+design collapses uncalibrated size labels into 15 crop-visual classes, retains
+the original 21 labels and size as metadata, adds family and partial-attribute
+labels, writes train-only class weights, and generates two cross-domain
+protocols. Training remains blocked until its audit and weak classes are
+reviewed.
+
+Relevant files:
+
+- `docs/protocols/SNI_CLASSIFICATION_DATASET_V2.md`;
+- `src/bilinear_lmmd/data/preparation/prepare_sni_classification_v2.py`;
+- `notebooks/sni_instance_crop_preparation_colab.ipynb`.
+
+The previous Coffee17 multistage protocol is closed:
 
 The Coffee17 seed-42 multistage screen reported `PASS`, but the subsequent
 capacity-matched control reported `FAIL`. No additional training is currently
