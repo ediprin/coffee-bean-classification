@@ -4,6 +4,7 @@ import argparse
 import copy
 import json
 import math
+import os
 import random
 import subprocess
 from datetime import datetime, timezone
@@ -420,7 +421,8 @@ def train(
     resume: bool = False,
     artifact_repo: str | None = None,
     artifact_path: str | None = None,
-    artifact_sync_every: int = 5,
+    artifact_sync_every: int | None = None,
+    artifact_required: bool = False,
     init_checkpoint: str | None = None,
 ) -> None:
     cfg = load_config(config_path)
@@ -675,12 +677,36 @@ def train(
 
     output_dir = Path(training_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
+    artifact_repo = artifact_repo or os.environ.get(
+        "BILINEAR_LMMD_ARTIFACT_REPO"
+    )
+    artifact_namespace = os.environ.get(
+        "BILINEAR_LMMD_ARTIFACT_NAMESPACE", ""
+    ).strip("/")
+    if artifact_sync_every is None:
+        artifact_sync_every = int(
+            os.environ.get("BILINEAR_LMMD_ARTIFACT_SYNC_EVERY", "1")
+        )
+    artifact_required = artifact_required or os.environ.get(
+        "BILINEAR_LMMD_ARTIFACT_REQUIRED", ""
+    ).lower() in {"1", "true", "yes", "on"}
+    if artifact_required and not artifact_repo:
+        raise RuntimeError(
+            "Mode artefak persisten diwajibkan, tetapi artifact repo belum "
+            "diberikan. Isi --artifact-repo atau environment "
+            "BILINEAR_LMMD_ARTIFACT_REPO."
+        )
     resolved_artifact_path: str | None = None
     if artifact_repo:
         if artifact_sync_every <= 0:
             raise ValueError("artifact_sync_every harus lebih besar dari nol.")
+        default_artifact_path = f"outputs/{output_dir.name}"
+        if artifact_namespace:
+            default_artifact_path = (
+                f"{artifact_namespace}/{default_artifact_path}"
+            )
         resolved_artifact_path = normalize_remote_path(
-            artifact_path or f"outputs/{output_dir.name}"
+            artifact_path or default_artifact_path
         )
         try:
             ensure_artifact_repo(artifact_repo, private=True)
@@ -729,6 +755,26 @@ def train(
         "initialization": initialization,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if artifact_repo and resolved_artifact_path:
+        try:
+            sync_artifacts(
+                artifact_repo,
+                resolved_artifact_path,
+                output_dir,
+                filenames=("resolved_config.json", "artifact_manifest.json"),
+                commit_message=f"Initialize training run {output_dir.name}",
+            )
+        except Exception as exc:
+            if artifact_required:
+                raise RuntimeError(
+                    "Preflight upload artefak gagal. Training dibatalkan "
+                    "sebelum epoch pertama agar checkpoint tidak hilang."
+                ) from exc
+            print(
+                "WARNING: preflight upload artefak gagal; penyimpanan remote "
+                f"belum terjamin. {type(exc).__name__}: {exc}",
+                flush=True,
+            )
     epochs = int(training_cfg["epochs"])
     if ema is not None and ema_start_epoch >= epochs:
         raise ValueError("training.ema_start_epoch harus lebih kecil dari epochs.")
@@ -1184,6 +1230,12 @@ def train(
                     ),
                 )
             except Exception as exc:
+                if artifact_required:
+                    raise RuntimeError(
+                        "Upload checkpoint persisten gagal setelah epoch "
+                        f"{epoch + 1}. Training dihentikan agar tidak terus "
+                        "menghasilkan state yang hanya tersimpan lokal."
+                    ) from exc
                 print(
                     "WARNING: upload checkpoint ke Hugging Face gagal; "
                     f"training tetap dilanjutkan. {type(exc).__name__}: {exc}",
@@ -1213,8 +1265,19 @@ def main() -> None:
     parser.add_argument(
         "--artifact-sync-every",
         type=int,
-        default=5,
-        help="Upload last.pt dan metadata setiap N epoch (default: 5).",
+        default=None,
+        help=(
+            "Upload last.pt dan metadata setiap N epoch. Default 1, atau "
+            "BILINEAR_LMMD_ARTIFACT_SYNC_EVERY."
+        ),
+    )
+    parser.add_argument(
+        "--artifact-required",
+        action="store_true",
+        help=(
+            "Batalkan sebelum training/epoch berikutnya jika penyimpanan "
+            "Hugging Face tidak dapat digunakan."
+        ),
     )
     parser.add_argument(
         "--init-checkpoint",
@@ -1233,6 +1296,7 @@ def main() -> None:
         artifact_repo=args.artifact_repo,
         artifact_path=args.artifact_path,
         artifact_sync_every=args.artifact_sync_every,
+        artifact_required=args.artifact_required,
         init_checkpoint=args.init_checkpoint,
     )
 

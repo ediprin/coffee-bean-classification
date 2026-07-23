@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+
 from bilinear_lmmd.experiments.run_jiao_swin_hssam_screening import (
     FACTORIAL_COMPARISONS,
     MODEL_CONFIGS,
@@ -30,3 +32,15 @@ def test_jiao_decision_requires_macro_hard_and_worst_preservation():
     assert screening_decision(_summary(0.01, 0.02, -0.01))["decision"] == "PASS"
     assert screening_decision(_summary(0.01, -0.001, 0.1))["decision"] == "FAIL"
     assert screening_decision(_summary(0.01, 0.02, -0.011))["decision"] == "FAIL"
+
+
+def test_jiao_runner_defaults_to_checkpoint_every_epoch():
+    parameters = inspect.signature(
+        __import__(
+            "bilinear_lmmd.experiments.run_jiao_swin_hssam_screening",
+            fromlist=["run_jiao_swin_hssam_screening"],
+        ).run_jiao_swin_hssam_screening
+    ).parameters
+
+    assert parameters["hf_namespace"].default == "sni-jiao-hssam-v1"
+    assert parameters["hf_sync_every"].default == 1

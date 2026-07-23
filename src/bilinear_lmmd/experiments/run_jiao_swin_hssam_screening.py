@@ -6,6 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bilinear_lmmd.core.artifact_store import (
+    ensure_artifact_repo,
+    restore_artifacts,
+    sync_artifacts,
+)
 from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.data.sni_ontology import validate_sni_classes
 from bilinear_lmmd.modeling.models import build_model
@@ -167,10 +172,23 @@ def run_jiao_swin_hssam_screening(
     output_root: Path,
     seeds: list[int],
     stage: str = "screen",
+    hf_repo: str | None = None,
+    hf_namespace: str = "sni-jiao-hssam-v1",
+    hf_sync_every: int = 1,
 ) -> dict:
     if stage not in STAGE_MODELS:
         raise ValueError(f"Stage harus salah satu dari {sorted(STAGE_MODELS)}.")
+    if hf_sync_every <= 0:
+        raise ValueError("hf_sync_every harus lebih besar dari nol.")
     _validate_dataset(data_root)
+    if hf_repo:
+        try:
+            ensure_artifact_repo(hf_repo, private=True)
+        except Exception as exc:
+            raise RuntimeError(
+                "Repo checkpoint Hugging Face tidak dapat ditulis. "
+                "Training dibatalkan sebelum dimulai."
+            ) from exc
     audits = _audit_models()
     print("=== JIAO SWIN-HSSAM CONTROLLED REPRODUCTION ===", flush=True)
     print("Dataset: SNI 21-class instance crops", flush=True)
@@ -178,6 +196,11 @@ def run_jiao_swin_hssam_screening(
     print(
         "Adaptation note: paper architecture/loss, established SNI training "
         "protocol; not a numerical reproduction of the proprietary dataset.",
+        flush=True,
+    )
+    print(
+        f"Checkpoint: {hf_repo + '/' + hf_namespace if hf_repo else output_root} "
+        f"| setiap {hf_sync_every} epoch",
         flush=True,
     )
     for code, row in audits.items():
@@ -192,6 +215,35 @@ def run_jiao_swin_hssam_screening(
         epochs = int(load_config(config_path)["training"]["epochs"])
         for seed in seeds:
             run_dir = output_root / "outputs" / f"{code}_seed{seed}"
+            artifact_run_path = (
+                f"{hf_namespace}/outputs/{code}_seed{seed}"
+            )
+            report_dir = output_root / "val_reports" / f"{code}_seed{seed}"
+            artifact_report_path = (
+                f"{hf_namespace}/val_reports/{code}_seed{seed}"
+            )
+            if hf_repo:
+                restored = restore_artifacts(
+                    hf_repo,
+                    artifact_run_path,
+                    run_dir,
+                    overwrite=False,
+                )
+                restored += restore_artifacts(
+                    hf_repo,
+                    artifact_report_path,
+                    report_dir,
+                    filenames=(
+                        "metrics.json",
+                        "confusion_matrix.csv",
+                        "predictions.csv",
+                    ),
+                    overwrite=False,
+                )
+                print(
+                    f"HF RESTORE {code} seed {seed}: {len(restored)} file",
+                    flush=True,
+                )
             if _training_complete(run_dir, epochs):
                 print(f"SKIP training lengkap: {code} seed {seed}", flush=True)
             else:
@@ -211,13 +263,39 @@ def run_jiao_swin_hssam_screening(
                         "--output-dir",
                         str(run_dir),
                         "--resume",
+                        *(
+                            [
+                                "--artifact-repo",
+                                hf_repo,
+                                "--artifact-path",
+                                artifact_run_path,
+                                "--artifact-sync-every",
+                                str(hf_sync_every),
+                                "--artifact-required",
+                            ]
+                            if hf_repo
+                            else []
+                        ),
                     ]
                 )
             _evaluate(
                 run_dir / "best.pt",
-                output_root / "val_reports" / f"{code}_seed{seed}",
+                report_dir,
                 data_root,
             )
+            if hf_repo:
+                report_files = [
+                    path.name for path in report_dir.iterdir() if path.is_file()
+                ]
+                sync_artifacts(
+                    hf_repo,
+                    artifact_report_path,
+                    report_dir,
+                    filenames=report_files,
+                    commit_message=(
+                        f"Evaluation {code} seed {seed} on validation"
+                    ),
+                )
 
     comparisons = (
         (("SJ0", "SJFULL"),)
@@ -267,6 +345,14 @@ def run_jiao_swin_hssam_screening(
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if hf_repo:
+        sync_artifacts(
+            hf_repo,
+            f"{hf_namespace}/val_reports",
+            destination.parent,
+            filenames=(destination.name,),
+            commit_message=f"Jiao Swin-HSSAM {stage} decision",
+        )
     print("\n=== PUTUSAN JIAO SWIN-HSSAM ===")
     for name, row in decisions.items():
         print(f"{name}: {row['decision']} | {row['criteria']}")
@@ -291,12 +377,30 @@ def main() -> None:
         default="screen",
     )
     parser.add_argument("--evaluation-split", choices=("val",), default="val")
+    parser.add_argument(
+        "--hf-repo",
+        help="Repo model Hugging Face private untuk checkpoint lintas akun.",
+    )
+    parser.add_argument(
+        "--hf-namespace",
+        default="sni-jiao-hssam-v1",
+        help="Folder eksperimen di dalam repo Hugging Face.",
+    )
+    parser.add_argument(
+        "--hf-sync-every",
+        type=int,
+        default=1,
+        help="Sinkronkan checkpoint setiap N epoch (default: 1).",
+    )
     args = parser.parse_args()
     run_jiao_swin_hssam_screening(
         args.data_root,
         args.output_root,
         args.seeds,
         stage=args.stage,
+        hf_repo=args.hf_repo,
+        hf_namespace=args.hf_namespace,
+        hf_sync_every=args.hf_sync_every,
     )
 
 
