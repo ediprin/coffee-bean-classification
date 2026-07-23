@@ -54,3 +54,18 @@ def test_dcl_objective_rejects_fake_contrastive_configuration():
             layout_weight=1.0,
             contrastive_weight=0.2,
         )
+
+
+def test_rcm_rng_state_is_portable_through_checkpoint_payload():
+    source = torch.Generator().manual_seed(2026)
+    state = source.get_state()
+    restored = torch.Generator()
+
+    # The resume path normalizes this serialized state to CPU before loading
+    # it into the intentionally CPU-based region-confusion generator.
+    restored.set_state(state.cpu())
+
+    assert torch.equal(
+        torch.randint(0, 1000, (16,), generator=source),
+        torch.randint(0, 1000, (16,), generator=restored),
+    )

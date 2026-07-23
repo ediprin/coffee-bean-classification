@@ -361,7 +361,10 @@ def train_dcl_finegrained(
             best_f1 = float(checkpoint["best_f1"])
             start_epoch = int(checkpoint["epoch"])
             class_confusion = checkpoint["class_confusion"].to(device)
-            rcm_generator.set_state(checkpoint["rcm_rng_state"])
+            # load_resume_checkpoint maps tensor payloads to the training
+            # device. This generator intentionally remains on CPU so its
+            # state is portable across CUDA/CPU sessions.
+            rcm_generator.set_state(checkpoint["rcm_rng_state"].cpu())
             print(f"RESUME: epoch {start_epoch + 1}/{epochs}", flush=True)
 
     hard_groups = cfg.get("evaluation", {}).get("hard_groups", {})
