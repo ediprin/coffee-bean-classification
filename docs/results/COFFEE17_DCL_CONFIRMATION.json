@@ -1,0 +1,91 @@
+{
+  "status": "FAIL",
+  "stage": "dcl_confirmation",
+  "seeds": [
+    42,
+    123,
+    2026
+  ],
+  "evaluation_split": "val",
+  "test_opened": false,
+  "comparisons": {
+    "BE2G_vs_DCL0": {
+      "macro_f1": {
+        "baseline_mean": 0.8877,
+        "candidate_mean": 0.8994,
+        "delta_mean": 0.0117,
+        "delta_std": 0.0121,
+        "deltas": {
+          "42": 0.01644433997375172,
+          "123": 0.020717834645170186,
+          "2026": -0.0021184121530143374
+        }
+      },
+      "hard_class_f1": {
+        "baseline_mean": 0.8237,
+        "candidate_mean": 0.8226,
+        "delta_mean": -0.0011,
+        "delta_std": 0.0288,
+        "deltas": {
+          "42": 0.009691697191697157,
+          "123": 0.02068452380952379,
+          "2026": -0.033752705627705604
+        }
+      },
+      "worst_class_f1": {
+        "baseline_mean": 0.7111,
+        "candidate_mean": 0.6465,
+        "delta_mean": -0.0646,
+        "delta_std": 0.1672,
+        "deltas": {
+          "42": 0.0,
+          "123": 0.06060606060606066,
+          "2026": -0.25454545454545463
+        }
+      }
+    },
+    "BE2H_vs_DCL0": {
+      "macro_f1": {
+        "baseline_mean": 0.8993,
+        "candidate_mean": 0.8994,
+        "delta_mean": 0.0001,
+        "delta_std": 0.0148,
+        "deltas": {
+          "42": -0.004311538135067683,
+          "123": 0.016668279817068754,
+          "2026": -0.011919241850037676
+        }
+      },
+      "hard_class_f1": {
+        "baseline_mean": 0.8247,
+        "candidate_mean": 0.8226,
+        "delta_mean": -0.0021,
+        "delta_std": 0.0312,
+        "deltas": {
+          "42": -0.013130272505272544,
+          "123": 0.03305824077882902,
+          "2026": -0.02630878108819279
+        }
+      },
+      "worst_class_f1": {
+        "baseline_mean": 0.7009,
+        "candidate_mean": 0.6465,
+        "delta_mean": -0.0544,
+        "delta_std": 0.1,
+        "deltas": {
+          "42": -0.10256410256410264,
+          "123": 0.06060606060606066,
+          "2026": -0.12121212121212122
+        }
+      }
+    }
+  },
+  "decision": {
+    "macro_f1_improved_vs_gap": true,
+    "hard_f1_improved_vs_gap": false,
+    "worst_f1_preserved_vs_gap": false,
+    "DCL0_final": "FAIL",
+    "DCL1_confirmation_authorized": false,
+    "DCL2_stopped": true
+  }
+}

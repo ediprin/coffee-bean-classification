@@ -689,7 +689,7 @@ Dokumen lengkap:
 
 ## 22. Coffee17 DCL local-detail
 
-**Status: SCREENING SEED 123 — DCL0/DCL1 PASS, DCL2 DIHENTIKAN, TEST
+**Status: KONFIRMASI TIGA-SEED FAIL — DCL0/DCL1/DCL2 DIHENTIKAN, TEST
 TERKUNCI.** Implementasi diperiksa terhadap paper dan kode resmi DCL. Jalur
 inferensi semua kandidat tetap EfficientNetV2-B0 + GAP + linear; region
 confusion, swap classifier, dan layout reconstruction hanya aktif saat
@@ -710,5 +710,20 @@ confusion-aware weighting tidak memiliki manfaat terukur dan dihentikan.
 
 Sebelum seed 42/2026 dijalankan, urutan konfirmasi dibekukan: konfirmasi DCL0
 tiga-seed terlebih dahulu; hanya jika lolos, konfirmasi DCL1 tiga-seed.
-Test tetap terkunci. Protokol lengkap:
-`docs/protocols/COFFEE17_DCL_LOCAL_DETAIL_V1.md`.
+
+Konfirmasi DCL0 kemudian gagal:
+
+| Baseline | Delta Macro | Delta Hard | Delta Worst | Putusan |
+|---|---:|---:|---:|---|
+| BE2G | +1,17 ± 1,21 | -0,11 ± 2,88 | -6,46 ± 16,72 | FAIL |
+| BE2H | +0,01 ± 1,48 | -0,21 ± 3,12 | -5,44 ± 10,00 | FAIL |
+
+Kegagalan terutama berasal dari seed 2026. Terhadap GAP, delta seed tersebut
+adalah Macro `-0,21`, Hard `-3,38`, dan Worst `-25,45` poin. Dengan demikian
+keberhasilan seed 123 tidak stabil. Sesuai gate, konfirmasi DCL1 tidak
+dijalankan; DCL2 sudah dihentikan karena identik dengan DCL1 pada screening.
+Test tetap terkunci.
+
+Protokol dan record machine-readable:
+`docs/protocols/COFFEE17_DCL_LOCAL_DETAIL_V1.md` dan
+`docs/results/COFFEE17_DCL_CONFIRMATION.json`.

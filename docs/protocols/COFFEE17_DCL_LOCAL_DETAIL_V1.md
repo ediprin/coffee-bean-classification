@@ -2,9 +2,10 @@
 
 ## Status
 
-**Frozen validation-only fail-fast protocol.** Test Coffee17 remains locked.
-The first authorized run is `DCL0`, seed 123, on the existing clean grouped
-fold-1. `DCL1` and `DCL2` are blocked until `DCL0` passes its predefined gate.
+**Completed with three-seed DCL0 FAIL; all DCL variants stopped.** Test
+Coffee17 remains locked. DCL0 passed the seed-123 screen but failed the
+predefined aggregate gate over seeds 42, 123, and 2026. DCL1 confirmation was
+therefore not authorized; DCL2 had already failed to improve over DCL1.
 
 ## Research question
 
@@ -153,6 +154,10 @@ Therefore DCL2 is stopped. Confirmation is sequential:
 
 The amendment reduces training cost and prevents the already non-informative
 DCL2 weighting from consuming additional seeds. Test remains locked.
+
+The resulting three-seed DCL0 deltas against GAP were Macro `+1.17 ± 1.21`,
+Hard `-0.11 ± 2.88`, and Worst `-6.46 ± 16.72` percentage points. The gate
+failed; no further DCL training is authorized under v1.
 
 ## Persistence
 
