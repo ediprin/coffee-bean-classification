@@ -67,6 +67,44 @@ def prepare_images(
     return images
 
 
+def accumulate_gate_sum(
+    current: torch.Tensor | None,
+    gate_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Accumulate any per-sample gate while preserving non-batch axes.
+
+    Legacy mixture heads emit ``[B, 2]`` weights, whereas multistage
+    recalibration emits ``[B, stages, channels]``. Logging must not impose a
+    two-expert shape on the model output.
+    """
+
+    if gate_weights.ndim < 2:
+        raise ValueError("gate_weights harus memiliki dimensi batch dan gate.")
+    batch_sum = gate_weights.detach().sum(dim=0).cpu()
+    if current is None:
+        current = torch.zeros_like(batch_sum)
+    if current.shape != batch_sum.shape:
+        raise ValueError(
+            "Bentuk gate berubah antarbatches: "
+            f"{tuple(current.shape)} != {tuple(batch_sum.shape)}."
+        )
+    return current + batch_sum
+
+
+def gate_stage_means(
+    gate_sum: torch.Tensor,
+    sample_count: int,
+) -> torch.Tensor:
+    """Return a compact mean per expert/stage for progress reporting."""
+
+    if sample_count <= 0:
+        raise ValueError("sample_count gate harus positif.")
+    mean = gate_sum / sample_count
+    if mean.ndim == 1:
+        return mean
+    return mean.mean(dim=tuple(range(1, mean.ndim)))
+
+
 def build_grad_scaler(enabled: bool):
     """Build a CUDA GradScaler across the supported PyTorch API variants."""
 
@@ -858,7 +896,7 @@ def train(
         )
         running_loss = 0.0
         running_components: dict[str, float] = {}
-        gate_sum = torch.zeros(2)
+        gate_sum: torch.Tensor | None = None
         gate_count = 0
         gradient_cosine: float | None = None
 
@@ -975,14 +1013,23 @@ def train(
                 running_components[name] = running_components.get(name, 0.0) + value.item()
             postfix = {"loss": f"{loss.item():.4f}", "adapt": f"{adapt_weight:.3f}"}
             if source_output.gate_weights is not None:
-                gate_sum += source_output.gate_weights.detach().sum(dim=0).cpu()
-                gate_count += source_output.gate_weights.shape[0]
-                gate_label = (
-                    "gate_gap"
-                    if tuple(source_output.expert_logits or ()) == ("gap", "hbp")
-                    else "gate_hbp"
+                gate_sum = accumulate_gate_sum(
+                    gate_sum,
+                    source_output.gate_weights,
                 )
-                postfix[gate_label] = f"{(gate_sum[0] / gate_count).item():.3f}"
+                gate_count += source_output.gate_weights.shape[0]
+                compact_gate = gate_stage_means(gate_sum, gate_count)
+                if compact_gate.numel() == 2:
+                    gate_label = (
+                        "gate_gap"
+                        if tuple(source_output.expert_logits or ())
+                        == ("gap", "hbp")
+                        else "gate_hbp"
+                    )
+                    postfix[gate_label] = f"{compact_gate[0].item():.3f}"
+                else:
+                    for index, value in enumerate(compact_gate):
+                        postfix[f"gate_s{index}"] = f"{value.item():.3f}"
             if gradient_cosine is not None:
                 postfix["grad_cos"] = f"{gradient_cosine:+.3f}"
             progress.set_postfix(**postfix)
@@ -1074,8 +1121,12 @@ def train(
                 name: value / max(len(loaders.source_train), 1)
                 for name, value in running_components.items()
             }
-        if gate_count:
+        if gate_count and gate_sum is not None:
             record["gate_mean"] = (gate_sum / gate_count).tolist()
+            record["gate_stage_mean"] = gate_stage_means(
+                gate_sum,
+                gate_count,
+            ).tolist()
         if gradient_cosine is not None:
             record["branch_gradient_cosine"] = gradient_cosine
         history.append(record)
@@ -1085,7 +1136,9 @@ def train(
                     "epoch": record["epoch"],
                     "loss": record["loss"],
                     "loss_components": record.get("loss_components"),
-                    "gate_mean": record.get("gate_mean"),
+                    "gate_mean": record.get(
+                        "gate_stage_mean", record.get("gate_mean")
+                    ),
                     "branch_gradient_cosine": record.get("branch_gradient_cosine"),
                     "source": {
                         key: value
