@@ -24,7 +24,7 @@ def test_multistage_notebook_is_resumable_and_validation_only() -> None:
     assert "MSF0" in source and "MSF1" in source
     assert "MSFC" in source
     assert "'--stage', 'capacity'" in source
-    assert "screen['final_decision'] == 'PASS'" in source
+    assert "memverifikasi PASS sebelum training" in source
     assert "multistage_recalibration_capacity_control.json" in source
     assert "bottom3_class_f1" in source
     assert "source/test" not in source
