@@ -44,5 +44,39 @@
       "bottom3_class_f1_preserved": true
     },
     "decision": "FAIL"
+  },
+  "posthoc_per_class_audit": {
+    "selection_split": "val",
+    "seed": 42,
+    "diagnostic_only": true,
+    "test_opened": false,
+    "baseline": "MSFC",
+    "candidate": "MSF1",
+    "summary": {
+      "classes_with_equal_f1": 11,
+      "classes_with_changed_f1": 6,
+      "rescued_by_msf1": 2,
+      "harmed_by_msf1": 2
+    },
+    "per_class": [
+      {"class": "Partial Sour", "support": 5, "msfc_f1": 0.909091, "msf1_f1": 0.8, "delta_f1": -0.109091, "rescued": 0, "harmed": 1},
+      {"class": "Cut", "support": 7, "msfc_f1": 0.933333, "msf1_f1": 0.875, "delta_f1": -0.058333, "rescued": 0, "harmed": 0},
+      {"class": "Full Sour", "support": 8, "msfc_f1": 0.933333, "msf1_f1": 0.875, "delta_f1": -0.058333, "rescued": 0, "harmed": 0},
+      {"class": "Fade", "support": 3, "msfc_f1": 1.0, "msf1_f1": 1.0, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Full Black", "support": 4, "msfc_f1": 1.0, "msf1_f1": 1.0, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Floater", "support": 5, "msfc_f1": 1.0, "msf1_f1": 1.0, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Fungus Damage", "support": 8, "msfc_f1": 0.933333, "msf1_f1": 0.933333, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Dry Cherry", "support": 5, "msfc_f1": 1.0, "msf1_f1": 1.0, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Partial Black", "support": 6, "msfc_f1": 0.909091, "msf1_f1": 0.909091, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Husk", "support": 5, "msfc_f1": 1.0, "msf1_f1": 1.0, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Parchment", "support": 5, "msfc_f1": 0.909091, "msf1_f1": 0.909091, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Immature", "support": 7, "msfc_f1": 0.857143, "msf1_f1": 0.857143, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Shell", "support": 6, "msfc_f1": 1.0, "msf1_f1": 1.0, "delta_f1": 0.0, "rescued": 0, "harmed": 0},
+      {"class": "Severe Insect Damage", "support": 6, "msfc_f1": 0.909091, "msf1_f1": 0.909091, "delta_f1": 0.0, "rescued": 1, "harmed": 1},
+      {"class": "Withered", "support": 5, "msfc_f1": 0.666667, "msf1_f1": 0.727273, "delta_f1": 0.060606, "rescued": 0, "harmed": 0},
+      {"class": "Slight Insect Damage", "support": 6, "msfc_f1": 0.833333, "msf1_f1": 0.909091, "delta_f1": 0.075758, "rescued": 0, "harmed": 0},
+      {"class": "Broken", "support": 6, "msfc_f1": 0.909091, "msf1_f1": 1.0, "delta_f1": 0.090909, "rescued": 1, "harmed": 0}
+    ],
+    "interpretation": "MSF1 redistributes errors instead of providing a clean improvement over MSFC; no additional seeds or test are authorized."
   }
 }

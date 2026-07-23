@@ -57,6 +57,12 @@ MSF1 failed because Hard-F1 decreased against the capacity-matched control.
 Seeds 123/2026 and test remain locked. MSFC is exploratory, not final, because
 it improves Macro/Hard but loses Worst-F1 against BE2H.
 
+The no-training per-class audit is complete: 11/17 class F1 scores were
+unchanged between MSFC and MSF1; MSF1 rescued two decisions and harmed two.
+With only 3--8 validation images per class, the observed lower-tail movement
+is a redistribution of errors rather than evidence of a clean gain. Protocol
+v1 is closed; do not run further MSF seeds or test.
+
 ## Dataset snapshot
 
 ### Coffee17
@@ -119,5 +125,5 @@ At this snapshot:
 
 - MSF0/MSF1 seed-42 validation screening reported PASS;
 - MSFC capacity control completed and MSF1 failed its causal gate;
-- a no-training per-class/rescue-harm/bootstrap audit is implemented;
+- the no-training per-class audit completed and supported the STOP decision;
 - Coffee17 test has not been opened for this experiment.

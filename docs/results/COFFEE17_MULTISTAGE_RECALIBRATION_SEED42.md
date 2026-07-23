@@ -74,3 +74,46 @@ post-hoc per-class/rescue-harm audit and paired stratified bootstrap are
 allowed because they require no training and do not inspect test.
 
 No further seed or test evaluation is authorized by protocol v1.
+
+## Post-hoc per-class audit: MSFC versus MSF1
+
+**Status: DIAGNOSTIC ONLY.** Audit membaca prediction validation yang sudah
+ada; tidak melakukan training dan tidak membuka test.
+
+Dalam perbandingan ini MSFC adalah baseline dan MSF1 adalah candidate.
+
+| Class | n | MSFC F1 | MSF1 F1 | Delta | Rescued by MSF1 | Harmed by MSF1 |
+|---|---:|---:|---:|---:|---:|---:|
+| Partial Sour | 5 | 90.91 | 80.00 | -10.91 | 0 | 1 |
+| Cut | 7 | 93.33 | 87.50 | -5.83 | 0 | 0 |
+| Full Sour | 8 | 93.33 | 87.50 | -5.83 | 0 | 0 |
+| Fade | 3 | 100.00 | 100.00 | +0.00 | 0 | 0 |
+| Full Black | 4 | 100.00 | 100.00 | +0.00 | 0 | 0 |
+| Floater | 5 | 100.00 | 100.00 | +0.00 | 0 | 0 |
+| Fungus Damage | 8 | 93.33 | 93.33 | +0.00 | 0 | 0 |
+| Dry Cherry | 5 | 100.00 | 100.00 | +0.00 | 0 | 0 |
+| Partial Black | 6 | 90.91 | 90.91 | +0.00 | 0 | 0 |
+| Husk | 5 | 100.00 | 100.00 | +0.00 | 0 | 0 |
+| Parchment | 5 | 90.91 | 90.91 | +0.00 | 0 | 0 |
+| Immature | 7 | 85.71 | 85.71 | +0.00 | 0 | 0 |
+| Shell | 6 | 100.00 | 100.00 | +0.00 | 0 | 0 |
+| Severe Insect Damage | 6 | 90.91 | 90.91 | +0.00 | 1 | 1 |
+| Withered | 5 | 66.67 | 72.73 | +6.06 | 0 | 0 |
+| Slight Insect Damage | 6 | 83.33 | 90.91 | +7.58 | 0 | 0 |
+| Broken | 6 | 90.91 | 100.00 | +9.09 | 1 | 0 |
+
+Ringkasan audit:
+
+- 11 dari 17 kelas mempunyai F1 yang sama;
+- MSF1 menyelamatkan dua keputusan yang salah pada MSFC;
+- MSF1 juga merusak dua keputusan yang benar pada MSFC;
+- kenaikan F1 `Withered` dan `Slight Insect Damage`, serta penurunan `Cut`
+  dan `Full Sour`, dapat terjadi tanpa perubahan benar/salah pada sampel dari
+  kelas aktual tersebut karena F1 juga dipengaruhi false positive dari kelas
+  lain;
+- support per kelas hanya 3--8 gambar, sehingga perubahan satu keputusan dapat
+  menggeser F1 kelas secara besar.
+
+Audit ini menguatkan putusan capacity control: MSF1 melakukan redistribusi
+kesalahan, bukan perbaikan bersih atas MSFC. Tidak ada dasar untuk membuka seed
+123/2026 atau test.

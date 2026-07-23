@@ -676,5 +676,13 @@ dan sample-adaptive channel recalibration. MSFC sendiri belum menjadi kandidat
 final karena Worst-F1-nya 10,26 poin di bawah BE2H. Seed 123/2026 dan test
 tidak dibuka.
 
+Audit post-hoc prediction validation memperkuat keputusan tersebut. Sebanyak
+11/17 kelas mempunyai F1 identik antara MSFC dan MSF1. MSF1 menyelamatkan dua
+keputusan MSFC tetapi juga merusak dua keputusan lain. Perubahan terbesar
+adalah `Partial Sour -10,91`, `Cut -5,83`, `Full Sour -5,83`, `Withered
++6,06`, `Slight Insect Damage +7,58`, dan `Broken +9,09` poin. Dengan support
+hanya 3--8 gambar per kelas, ini lebih tepat dibaca sebagai redistribusi
+kesalahan daripada peningkatan bersih.
+
 Dokumen lengkap:
 `docs/results/COFFEE17_MULTISTAGE_RECALIBRATION_SEED42.md`.
