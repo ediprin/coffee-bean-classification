@@ -1,0 +1,56 @@
+{
+  "status": "validation_screening_complete",
+  "seed": 42,
+  "selection_split": "val",
+  "selection_metric": "macro_f1",
+  "test_opened": false,
+  "models": {
+    "SNIB0": {
+      "best_epoch": 17,
+      "accuracy": 0.9243308512779231,
+      "balanced_accuracy": 0.8306130339425098,
+      "macro_f1": 0.8291020680604682,
+      "hard_class_f1": 0.8337905609448103,
+      "worst_class_f1": 0.3917525773195876,
+      "parameters": 5614437
+    },
+    "SNIB1": {
+      "best_epoch": 43,
+      "accuracy": 0.9351982290199236,
+      "balanced_accuracy": 0.851626886872413,
+      "macro_f1": 0.8464088802086128,
+      "hard_class_f1": 0.8518721765247683,
+      "worst_class_f1": 0.46464646464646464,
+      "parameters": 5676965
+    },
+    "SNIB2": {
+      "best_epoch": 40,
+      "accuracy": 0.9301670356208492,
+      "balanced_accuracy": 0.8443397079944746,
+      "macro_f1": 0.8431652634781311,
+      "hard_class_f1": 0.8566549448548344,
+      "worst_class_f1": 0.3409090909090909,
+      "parameters": 5733545
+    },
+    "SNIB3": {
+      "trained": false,
+      "reason": "SNIB1_vs_SNIB2 fail-fast gate failed",
+      "parameters": 5733545
+    }
+  },
+  "decisions": {
+    "SNIB0_vs_SNIB1": {
+      "decision": "PASS",
+      "delta_macro_f1": 0.0173068121481447,
+      "delta_hard_class_f1": 0.018081615579958,
+      "delta_worst_class_f1": 0.072893887326877
+    },
+    "SNIB1_vs_SNIB2": {
+      "decision": "FAIL",
+      "delta_macro_f1": -0.00324361673048168,
+      "delta_hard_class_f1": 0.00478276833006608,
+      "delta_worst_class_f1": -0.12373737373737374
+    }
+  },
+  "final_decision": "STOP_SNI_MRENET_V1"
+}

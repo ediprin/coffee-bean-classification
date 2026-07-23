@@ -1,6 +1,6 @@
 # Master log eksperimen klasifikasi biji kopi
 
-Terakhir diperbarui: **21 Juli 2026**.
+Terakhir diperbarui: **23 Juli 2026**.
 
 Dokumen ini mengonsolidasikan hasil yang sebelumnya tersebar di report, output
 Colab/Kaggle, README, dan percakapan eksperimen. Tujuannya adalah mencegah
@@ -38,6 +38,8 @@ final.
 | LMMD/synthetic robustness | Diarsipkan | Sinyal pada illumination, gagal cross-shift dan bukan validasi nyata |
 | OSR | Dihentikan/diarsipkan | HBP dan ARPL fail-fast gagal |
 | OMSL taxonomy contrastive | Dihentikan | Delta dataset-Macro hanya +0,08 |
+| SNI-MRENet v1 | Dihentikan pada ontology gate | SNIB1 multiresolusi PASS; SNIB2 Macro -0,32 dan Worst -12,37; SNIB3/test tidak dijalankan |
+| Residual HBP selektif SNI | Dihentikan | Gagal terhadap SNIB1 dan residual GAP capacity control; seed tambahan/test tidak dijalankan |
 
 ---
 
@@ -569,3 +571,159 @@ Dengan demikian kegagalan agregat berasal dari ketidakstabilan nyata, bukan
 perubahan checkpoint seed 123.
 
 Protokol lengkap: `docs/protocols/HONG_DSCONV_CONFIRMATION.md`.
+
+## 18. Chang-Liu multiscale defect extraction
+
+**Status: SCREENING FAIL -- DIHENTIKAN.** Adaptasi ini menempatkan cabang
+konvolusi standar 3x3 dan 5x5 secara paralel pada feature terdalam
+EfficientNetV2-B0, melakukan fusi 1x1 dan residual add, lalu GAP + CE. MDE0
+adalah kontrol residual pointwise tanpa receptive field spasial. Selisih total
+parameter MDE0/MDE1 hanya `0,0022%`.
+
+| Perbandingan | Delta Macro | Delta Hard | Delta Worst | Putusan |
+|---|---:|---:|---:|---|
+| BE2G vs MDE0 | -1,07 | -0,91 | +0,00 | FAIL |
+| BE2H vs MDE0 | -3,15 | -3,19 | -10,26 | FAIL |
+| BE2G vs MDE1 | +0,65 | -0,66 | +0,00 | FAIL |
+| BE2H vs MDE1 | -1,43 | -2,94 | -10,26 | FAIL |
+| MDE0 vs MDE1 | +1,72 | +0,25 | +0,00 | PASS |
+
+MDE1 mengalahkan kontrol kapasitas, sehingga operator spasial multiscale
+memiliki sinyal kausal pada screening ini. Namun MDE1 menurunkan Hard-F1
+terhadap GAP dan tertinggal dari HBP pada semua metrik. Sesuai gate yang
+dibekukan, seed 123/2026 tidak dijalankan dan test tidak dibuka.
+
+Protokol dan angka lengkap:
+`docs/protocols/CHANG_LIU_MDE_PROTOCOL.md` dan
+`docs/results/CHANG_LIU_MDE_SCREENING.json`.
+
+## 19. SNI-MRENet pada dataset instance-crop 21 kelas
+
+**Status: SCREENING SEED 42 -- MULTIRESOLUSI PASS, ONTOLOGY FAIL.** Dataset
+terdiri atas 21.273 crop train, 4.969 validation, dan 4.832 test. Checkpoint
+dipilih berdasarkan Macro-F1 validation; test tetap terkunci.
+
+| Model | Epoch terbaik | Accuracy | Balanced | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|---:|---:|---:|
+| SNIB0 final-stage GAP | 17 | 92,43 | 83,06 | 82,91 | 83,38 | 39,18 |
+| SNIB1 multiresolusi | 43 | **93,52** | **85,16** | **84,64** | 85,19 | **46,46** |
+| SNIB2 ontology + projected GAP | 40 | 93,02 | 84,43 | 84,32 | **85,67** | 34,09 |
+
+SNIB1 mengalahkan SNIB0: Macro `+1,73`, Hard `+1,81`, dan Worst `+7,29`
+poin, sehingga stage backbone PASS. SNIB2 terhadap SNIB1 memberi Macro
+`-0,32`, Hard `+0,48`, dan Worst `-12,37`; ontology gate FAIL. Penurunan
+terbesar terjadi pada `biji_muda` (`46,46% -> 34,09%`), sementara kenaikan
+Hard-F1 terutama berasal dari grup variasi hitam (`+3,77` poin).
+
+SNIB3 selective HBP tidak dijalankan sesuai fail-fast gate. Hasil tidak dapat
+diatribusikan kepada router saja karena SNIB2 sekaligus menambahkan ontology
+experts dan projected hierarchical GAP. Usulan SNI-MRENet v1 dihentikan;
+SNIB1 hanya dipertahankan sebagai kandidat baseline multiresolusi seed 42,
+bukan hasil multi-seed atau locked-test.
+
+Angka, audit per kelas, parameter, dan batas interpretasi lengkap:
+`docs/results/SNI_MRENET_SEED42_SCREENING.md` dan
+`docs/results/SNI_MRENET_SEED42_SCREENING.json`.
+
+## 20. Residual HBP selektif di atas SNIB1
+
+**Status: SCREENING SEED 42 -- STOP, TEST TERKUNCI.** Diagnostik murah
+melakukan warm-start dari checkpoint SNIB1, membekukan encoder, fusi
+multiresolusi, dan flat classifier, kemudian melatih selama 10 epoch salah satu
+dari dua residual head yang berkapasitas sama:
+
+- `SNIDG`: projected hierarchical GAP residual untuk 12 kelas kondisi biji;
+- `SNIDH`: HBP residual untuk 12 kelas kondisi biji.
+
+Hasil gate yang dibekukan:
+
+| Perbandingan | Macro meningkat | Hard meningkat | Worst terjaga | Putusan |
+|---|---:|---:|---:|---|
+| SNIB1 vs SNIDH | Tidak | Tidak | Ya | **FAIL** |
+| SNIDG vs SNIDH | Tidak | Ya | Tidak | **FAIL** |
+
+Keputusan final `STOP`. HBP orde kedua tidak memberi tambahan yang konsisten
+di atas SNIB1 maupun kontrol first-order dengan kapasitas sama. Sesuai protokol,
+seed 123/2026 dan test tidak dijalankan. Catatan ini tidak memuat angka delta
+karena yang disalin dari keluaran Colab pada saat pencatatan hanya keputusan
+dan boolean kriteria; angka lengkap tetap berada pada artefak Drive
+`sni-selective-hbp-diagnostic-v1/val_reports/selective_residual_diagnostic.json`.
+
+Protokol dan record machine-readable:
+`docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md` dan
+`docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.json`.
+
+## 21. Coffee17 multistage recalibration dan capacity control
+
+**Status: SCREENING SEED 42 — CAPACITY CONTROL FAIL, TEST TERKUNCI.**
+
+MSF0 melakukan fusi seragam tiga feature stage EfficientNetV2-B0. MSF1
+menambahkan pemilihan stage per-image/per-channel. MSFC memiliki jumlah
+parameter yang sama dengan MSF1, tetapi hanya melakukan recalibration channel
+dan tidak dapat memilih stage.
+
+| Comparison | Delta Macro | Delta Hard | Delta bottom-three | Delta Worst |
+|---|---:|---:|---:|---:|
+| BE2G vs MSFC | +3,65 | +4,68 | +4,78 | +0,00 |
+| BE2H vs MSFC | +1,58 | +2,40 | +0,34 | -10,26 |
+| MSF0 vs MSFC | +0,97 | +2,07 | +4,04 | +0,00 |
+| MSFC vs MSF1 | +0,01 | -1,12 | +0,91 | +6,06 |
+
+MSF1 gagal gate kausal terhadap MSFC karena Hard-F1 turun 1,12 poin. Hasil
+menunjukkan bahwa sinyal awal MSF1 tidak membuktikan manfaat adaptive stage
+selection: manfaat Macro/Hard lebih konsisten dengan direct multistage fusion
+dan sample-adaptive channel recalibration. MSFC sendiri belum menjadi kandidat
+final karena Worst-F1-nya 10,26 poin di bawah BE2H. Seed 123/2026 dan test
+tidak dibuka.
+
+Audit post-hoc prediction validation memperkuat keputusan tersebut. Sebanyak
+11/17 kelas mempunyai F1 identik antara MSFC dan MSF1. MSF1 menyelamatkan dua
+keputusan MSFC tetapi juga merusak dua keputusan lain. Perubahan terbesar
+adalah `Partial Sour -10,91`, `Cut -5,83`, `Full Sour -5,83`, `Withered
++6,06`, `Slight Insect Damage +7,58`, dan `Broken +9,09` poin. Dengan support
+hanya 3--8 gambar per kelas, ini lebih tepat dibaca sebagai redistribusi
+kesalahan daripada peningkatan bersih.
+
+Dokumen lengkap:
+`docs/results/COFFEE17_MULTISTAGE_RECALIBRATION_SEED42.md`.
+
+## 22. Coffee17 DCL local-detail
+
+**Status: KONFIRMASI TIGA-SEED FAIL — DCL0/DCL1/DCL2 DIHENTIKAN, TEST
+TERKUNCI.** Implementasi diperiksa terhadap paper dan kode resmi DCL. Jalur
+inferensi semua kandidat tetap EfficientNetV2-B0 + GAP + linear; region
+confusion, swap classifier, dan layout reconstruction hanya aktif saat
+training.
+
+| Perbandingan | Delta Macro | Delta Hard | Delta Worst | Putusan |
+|---|---:|---:|---:|---|
+| BE2G vs DCL0 | +2,07 | +2,07 | +6,06 | PASS |
+| BE2H vs DCL0 | +1,67 | +3,31 | +6,06 | PASS |
+| DCL0 vs DCL1 | +0,96 | +2,03 | +0,00 | PASS |
+| BE2H vs DCL1 | +2,62 | +5,34 | +6,06 | PASS |
+| DCL1 vs DCL2 | +0,00 | +0,00 | +0,00 | FAIL |
+
+DCL0 mencapai Macro `90,32%`, Hard `83,66%`, dan Worst `72,73%`. DCL1
+meningkatkannya menjadi Macro `91,27%` dan Hard `85,69%` dengan Worst tetap
+`72,73%`. DCL2 menghasilkan ketiga metrik yang sama dengan DCL1, sehingga
+confusion-aware weighting tidak memiliki manfaat terukur dan dihentikan.
+
+Sebelum seed 42/2026 dijalankan, urutan konfirmasi dibekukan: konfirmasi DCL0
+tiga-seed terlebih dahulu; hanya jika lolos, konfirmasi DCL1 tiga-seed.
+
+Konfirmasi DCL0 kemudian gagal:
+
+| Baseline | Delta Macro | Delta Hard | Delta Worst | Putusan |
+|---|---:|---:|---:|---|
+| BE2G | +1,17 ± 1,21 | -0,11 ± 2,88 | -6,46 ± 16,72 | FAIL |
+| BE2H | +0,01 ± 1,48 | -0,21 ± 3,12 | -5,44 ± 10,00 | FAIL |
+
+Kegagalan terutama berasal dari seed 2026. Terhadap GAP, delta seed tersebut
+adalah Macro `-0,21`, Hard `-3,38`, dan Worst `-25,45` poin. Dengan demikian
+keberhasilan seed 123 tidak stabil. Sesuai gate, konfirmasi DCL1 tidak
+dijalankan; DCL2 sudah dihentikan karena identik dengan DCL1 pada screening.
+Test tetap terkunci.
+
+Protokol dan record machine-readable:
+`docs/protocols/COFFEE17_DCL_LOCAL_DETAIL_V1.md` dan
+`docs/results/COFFEE17_DCL_CONFIRMATION.json`.

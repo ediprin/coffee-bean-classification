@@ -382,7 +382,9 @@ class HierarchicalBilinearPooling(nn.Module):
             feature = projection(feature)
             if feature.shape[-2:] != target_size:
                 feature = F.adaptive_avg_pool2d(feature, target_size)
-            projected.append(feature)
+            # Keep the second-order product and its normalization in FP32.
+            # The learned projections may still use autocast/Tensor Cores.
+            projected.append(feature.float())
 
         pairwise = []
         for left, right in ((0, 1), (0, 2), (1, 2)):
@@ -435,7 +437,9 @@ class ProjectedHierarchicalGAP(nn.Module):
             feature = projection(feature)
             if feature.shape[-2:] != target_size:
                 feature = F.adaptive_avg_pool2d(feature, target_size)
-            pooled.append(self._normalize(feature.flatten(2).mean(-1)))
+            # Match HBP's numerical policy: projections may use autocast, but
+            # pooling and normalization remain FP32 for a fair ablation.
+            pooled.append(self._normalize(feature.float().flatten(2).mean(-1)))
         return torch.cat(pooled, dim=1)
 
 
@@ -574,6 +578,96 @@ class SPPFAttentionGAP(nn.Module):
         if not features:
             raise ValueError("SPPF-Attention-GAP membutuhkan feature map.")
         refined = self.attention(features[-1])
+        return F.adaptive_avg_pool2d(refined, 1).flatten(1)
+
+
+class MultiScaleDefectExtraction(nn.Module):
+    """Residual 3x3/5x5 feature extractor inspired by Chang and Liu (2024).
+
+    The paper uses parallel standard convolutions to retain fine defect lines
+    and coarser bean contours.  This adaptation applies the same causal
+    operator to the deepest feature map of a modern pretrained backbone and
+    adds a residual connection so the experiment measures refinement rather
+    than replacing the pretrained representation outright.
+    """
+
+    def __init__(self, channels: int, branch_channels: int = 16):
+        super().__init__()
+        if channels <= 0 or branch_channels <= 0:
+            raise ValueError("Channel MDE harus lebih besar dari nol.")
+        self.channels = int(channels)
+        self.branch_channels = int(branch_channels)
+        self.branch_3x3 = nn.Sequential(
+            nn.Conv2d(
+                channels,
+                branch_channels,
+                kernel_size=3,
+                padding=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(branch_channels),
+            nn.ReLU(inplace=True),
+        )
+        self.branch_5x5 = nn.Sequential(
+            nn.Conv2d(
+                channels,
+                branch_channels,
+                kernel_size=5,
+                padding=2,
+                bias=False,
+            ),
+            nn.BatchNorm2d(branch_channels),
+            nn.ReLU(inplace=True),
+        )
+        self.fuse = nn.Sequential(
+            nn.Conv2d(
+                branch_channels * 2,
+                channels,
+                kernel_size=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(channels),
+        )
+
+    def forward(self, feature: Tensor) -> Tensor:
+        fine = self.branch_3x3(feature)
+        coarse = self.branch_5x5(feature)
+        return feature + self.fuse(torch.cat((fine, coarse), dim=1))
+
+
+class MultiScaleDefectGAP(nn.Module):
+    """Chang-Liu multiscale refinement followed by ordinary GAP."""
+
+    def __init__(self, channels: int, branch_channels: int = 16):
+        super().__init__()
+        # Do not shift the baseline classifier initialization or the global
+        # RNG stream.  At a paired seed, only this refinement is additional.
+        rng_state = torch.random.get_rng_state()
+        self.refinement = MultiScaleDefectExtraction(channels, branch_channels)
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = channels
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if not features:
+            raise ValueError("MDE-GAP membutuhkan feature map.")
+        refined = self.refinement(features[-1])
+        return F.adaptive_avg_pool2d(refined, 1).flatten(1)
+
+
+class CapacityResidualGAP(nn.Module):
+    """Pointwise capacity control for the MDE 3x3/5x5 spatial operator."""
+
+    def __init__(self, channels: int, hidden_channels: int):
+        super().__init__()
+        rng_state = torch.random.get_rng_state()
+        self.refinement = PointwiseResidualCapacity(channels, hidden_channels)
+        torch.random.set_rng_state(rng_state)
+        self.output_dim = channels
+
+    def forward(self, features: list[Tensor]) -> Tensor:
+        if not features:
+            raise ValueError("Capacity-Residual-GAP membutuhkan feature map.")
+        refined = self.refinement(features[-1])
         return F.adaptive_avg_pool2d(refined, 1).flatten(1)
 
 
@@ -1102,6 +1196,8 @@ class AdaptationModel(nn.Module):
         residual_gap_dim: int = 128,
         attention_reduction: int = 16,
         capacity_hidden_dim: int = 1259,
+        mde_branch_channels: int = 16,
+        mde_control_hidden_dim: int = 287,
         moe_local_dim: int = 256,
         moe_gate_hidden: int = 32,
         moe_hbp_prior: float = 0.8,
@@ -1131,6 +1227,8 @@ class AdaptationModel(nn.Module):
             "factorized_bilinear_conv",
             "hierarchical_gap",
             "sppf_attention_gap",
+            "multiscale_defect_gap",
+            "capacity_residual_gap",
             "bilinear",
             "hbp",
             "hbp_linear",
@@ -1202,6 +1300,16 @@ class AdaptationModel(nn.Module):
             self.pool = SPPFAttentionGAP(
                 channels[-1],
                 attention_reduction,
+            )
+        elif head == "multiscale_defect_gap":
+            self.pool = MultiScaleDefectGAP(
+                channels[-1],
+                mde_branch_channels,
+            )
+        elif head == "capacity_residual_gap":
+            self.pool = CapacityResidualGAP(
+                channels[-1],
+                mde_control_hidden_dim,
             )
         elif head == "sppf_attention_hbp":
             self.pool = SPPFAttentionHBP(
@@ -1423,6 +1531,99 @@ class AdaptationModel(nn.Module):
 
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
+    if head == "dcl_gap":
+        from bilinear_lmmd.modeling.dcl_finegrained import (
+            DCLFineGrainedModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("DCL Coffee17 hanya mendukung classifier linear.")
+        return DCLFineGrainedModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (4,))),
+            grid_size=int(cfg.get("dcl_grid_size", 7)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+        )
+    if head in {
+        "multistage_fixed",
+        "multistage_channel_control",
+        "multistage_adaptive",
+    }:
+        from bilinear_lmmd.modeling.multistage_recalibration import (
+            MultistageRecalibrationModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("Multistage fusion v1 hanya mendukung classifier linear.")
+        return MultistageRecalibrationModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
+            fusion_dim=int(cfg.get("multistage_fusion_dim", 128)),
+            target_stage=int(cfg.get("multistage_target_stage", 1)),
+            gate_hidden_dim=int(cfg.get("multistage_gate_hidden", 96)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            mode={
+                "multistage_fixed": "fixed",
+                "multistage_channel_control": "channel_control",
+                "multistage_adaptive": "adaptive",
+            }[head],
+        )
+    if head in {
+        "swin_gap",
+        "swin_hsfpn",
+        "swin_sam",
+        "swin_hssam",
+    }:
+        from bilinear_lmmd.modeling.swin_hssam import SwinHSSAMClassifier
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("Reproduksi Swin-HSSAM hanya mendukung classifier linear.")
+        return SwinHSSAMClassifier(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 2, 3))),
+            hsfpn_channels=int(cfg.get("hsfpn_channels", 256)),
+            sam_hidden_dim=int(cfg.get("sam_hidden_dim", 128)),
+            attention_reduction=int(cfg.get("attention_reduction", 16)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            use_hsfpn=head in {"swin_hsfpn", "swin_hssam"},
+            use_sam=head in {"swin_sam", "swin_hssam"},
+        )
+    if head in {
+        "sni_multiresolution_flat",
+        "sni_flat_residual_gap",
+        "sni_flat_residual_hbp",
+        "sni_mre_ontology_gap",
+        "sni_mrenet",
+    }:
+        from bilinear_lmmd.modeling.sni_mrenet import (
+            SNIMultiResolutionExpertModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("SNI-MRENet hanya mendukung classifier linear.")
+        mode = {
+            "sni_multiresolution_flat": "flat",
+            "sni_flat_residual_gap": "flat_residual_gap",
+            "sni_flat_residual_hbp": "flat_residual_hbp",
+            "sni_mre_ontology_gap": "ontology_gap",
+            "sni_mrenet": "ontology_hbp",
+        }[head]
+        return SNIMultiResolutionExpertModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 2, 3, 4))),
+            feature_dim=int(cfg.get("sni_feature_dim", 128)),
+            projection_dim=int(cfg.get("projection_dim", 128)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            mode=mode,
+        )
     if head in {
         "progressive_multigranularity",
         "progressive_multigranularity_consistency",
@@ -1484,6 +1685,8 @@ def build_model(cfg: dict) -> nn.Module:
         residual_gap_dim=int(cfg.get("residual_gap_dim", 128)),
         attention_reduction=int(cfg.get("attention_reduction", 16)),
         capacity_hidden_dim=int(cfg.get("capacity_hidden_dim", 1259)),
+        mde_branch_channels=int(cfg.get("mde_branch_channels", 16)),
+        mde_control_hidden_dim=int(cfg.get("mde_control_hidden_dim", 287)),
         moe_local_dim=int(cfg.get("moe_local_dim", 256)),
         moe_gate_hidden=int(cfg.get("moe_gate_hidden", 32)),
         moe_hbp_prior=float(cfg.get("moe_hbp_prior", 0.8)),

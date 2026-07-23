@@ -1,0 +1,24 @@
+data:
+  image_size: 224
+model:
+  backbone: tf_efficientnetv2_b0.in1k
+  pretrained: true
+  head: dcl_gap
+  out_indices: [4]
+  classifier: linear
+  dcl_grid_size: 7
+adaptation:
+  method: source_only
+training:
+  classification_loss: cross_entropy
+  dcl_swap_weight: 1.0
+  dcl_layout_weight: 1.0
+  dcl_contrastive_mode: standard
+  contrastive_weight: 0.2
+  contrastive_temperature: 0.1
+  contrastive_hidden_dim: 1280
+  contrastive_projection_dim: 128
+  confusion_strength: 0.0
+  confusion_warmup_epochs: 5
+  confusion_ema_decay: 0.8
+  output_dir: outputs/DCL1_efficientnetv2_dcl_supcon

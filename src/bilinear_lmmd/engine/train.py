@@ -4,6 +4,7 @@ import argparse
 import copy
 import json
 import math
+import os
 import random
 import subprocess
 from datetime import datetime, timezone
@@ -31,6 +32,7 @@ from bilinear_lmmd.data.loaders import build_loaders
 from bilinear_lmmd.modeling.hierarchy import build_parent_hierarchy
 from bilinear_lmmd.modeling.losses import (
     BalancedSoftmaxLoss,
+    FusionCrossEntropyFocalLoss,
     LMMDLoss,
     MMDLoss,
     NonTargetExpertDiversityLoss,
@@ -50,6 +52,66 @@ def resolve_device(name: str) -> torch.device:
     if name == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(name)
+
+
+def prepare_images(
+    images: torch.Tensor,
+    device: torch.device,
+    *,
+    non_blocking: bool,
+    channels_last: bool,
+) -> torch.Tensor:
+    images = images.to(device, non_blocking=non_blocking)
+    if channels_last:
+        images = images.contiguous(memory_format=torch.channels_last)
+    return images
+
+
+def accumulate_gate_sum(
+    current: torch.Tensor | None,
+    gate_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Accumulate any per-sample gate while preserving non-batch axes.
+
+    Legacy mixture heads emit ``[B, 2]`` weights, whereas multistage
+    recalibration emits ``[B, stages, channels]``. Logging must not impose a
+    two-expert shape on the model output.
+    """
+
+    if gate_weights.ndim < 2:
+        raise ValueError("gate_weights harus memiliki dimensi batch dan gate.")
+    batch_sum = gate_weights.detach().sum(dim=0).cpu()
+    if current is None:
+        current = torch.zeros_like(batch_sum)
+    if current.shape != batch_sum.shape:
+        raise ValueError(
+            "Bentuk gate berubah antarbatches: "
+            f"{tuple(current.shape)} != {tuple(batch_sum.shape)}."
+        )
+    return current + batch_sum
+
+
+def gate_stage_means(
+    gate_sum: torch.Tensor,
+    sample_count: int,
+) -> torch.Tensor:
+    """Return a compact mean per expert/stage for progress reporting."""
+
+    if sample_count <= 0:
+        raise ValueError("sample_count gate harus positif.")
+    mean = gate_sum / sample_count
+    if mean.ndim == 1:
+        return mean
+    return mean.mean(dim=tuple(range(1, mean.ndim)))
+
+
+def build_grad_scaler(enabled: bool):
+    """Build a CUDA GradScaler across the supported PyTorch API variants."""
+
+    try:
+        return torch.amp.GradScaler("cuda", enabled=enabled)
+    except (AttributeError, TypeError):  # PyTorch 2.2 compatibility
+        return torch.cuda.amp.GradScaler(enabled=enabled)
 
 
 def atomic_torch_save(payload: dict, destination: Path) -> None:
@@ -83,6 +145,85 @@ def load_resume_checkpoint(
             flush=True,
         )
         return None
+
+
+def load_initialization_checkpoint(
+    model: nn.Module,
+    checkpoint_path: Path,
+    expected_classes: list[str],
+    required_prefixes: tuple[str, ...],
+) -> dict:
+    """Warm-start compatible shared modules while leaving new heads untouched."""
+
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    if checkpoint.get("classes") != expected_classes:
+        raise ValueError("Urutan kelas checkpoint initialization berbeda dari dataset.")
+    source_state = checkpoint.get("model")
+    if not isinstance(source_state, dict):
+        raise ValueError("Checkpoint initialization tidak memiliki model state.")
+    target_state = model.state_dict()
+    compatible = {
+        name: value
+        for name, value in source_state.items()
+        if name in target_state and target_state[name].shape == value.shape
+    }
+    required = {
+        name
+        for name in target_state
+        if name.startswith(required_prefixes)
+    }
+    missing_required = sorted(required.difference(compatible))
+    if missing_required:
+        preview = ", ".join(missing_required[:5])
+        raise ValueError(
+            "Checkpoint initialization tidak kompatibel dengan modul wajib: "
+            f"{preview}"
+        )
+    model.load_state_dict(compatible, strict=False)
+    return {
+        "path": str(checkpoint_path),
+        "source_epoch": checkpoint.get("epoch"),
+        "loaded_tensors": len(compatible),
+        "required_prefixes": list(required_prefixes),
+    }
+
+
+def configure_trainable_modules(
+    model: nn.Module,
+    module_names: list[str],
+) -> tuple[nn.Module, ...]:
+    """Freeze the complete model, then enable only explicitly named modules."""
+
+    if not module_names:
+        return ()
+    if len(set(module_names)) != len(module_names):
+        raise ValueError("training.trainable_modules tidak boleh berisi duplikat.")
+    model.requires_grad_(False)
+    modules = []
+    for name in module_names:
+        try:
+            module = model.get_submodule(name)
+        except AttributeError as exc:
+            raise ValueError(f"Modul trainable tidak ditemukan: {name}") from exc
+        module.requires_grad_(True)
+        modules.append(module)
+    if not any(parameter.requires_grad for parameter in model.parameters()):
+        raise ValueError("Tidak ada parameter yang dapat dilatih.")
+    return tuple(modules)
+
+
+def set_selective_training_mode(
+    model: nn.Module,
+    trainable_modules: tuple[nn.Module, ...],
+) -> None:
+    """Keep every frozen BN/dropout in eval while training selected modules."""
+
+    if not trainable_modules:
+        model.train()
+        return
+    model.eval()
+    for module in trainable_modules:
+        module.train()
 
 
 def current_git_commit() -> str | None:
@@ -281,12 +422,20 @@ def evaluate(
     class_names: list[str],
     hard_groups: dict[str, list[str]],
     prediction_head: str = "fused",
+    non_blocking: bool = False,
+    channels_last: bool = False,
 ) -> dict:
     model.eval()
     predictions: list[int] = []
     labels: list[int] = []
     for images, targets in loader:
-        output = model(images.to(device))
+        images = prepare_images(
+            images,
+            device,
+            non_blocking=non_blocking,
+            channels_last=channels_last,
+        )
+        output = model(images)
         if prediction_head == "fused":
             logits = output.logits
         else:
@@ -310,7 +459,9 @@ def train(
     resume: bool = False,
     artifact_repo: str | None = None,
     artifact_path: str | None = None,
-    artifact_sync_every: int = 5,
+    artifact_sync_every: int | None = None,
+    artifact_required: bool = False,
+    init_checkpoint: str | None = None,
 ) -> None:
     cfg = load_config(config_path)
     if seed_override is not None:
@@ -360,12 +511,60 @@ def train(
             "Model memiliki parent classifier tetapi hierarchy.enabled=false."
         )
 
-    model = build_model(cfg["model"]).to(device)
     training_cfg = cfg["training"]
+    precision = str(training_cfg.get("precision", "fp32")).lower()
+    if precision not in {"fp32", "amp_fp16"}:
+        raise ValueError("training.precision harus 'fp32' atau 'amp_fp16'.")
+    amp_enabled = precision == "amp_fp16" and device.type == "cuda"
+    channels_last = bool(training_cfg.get("channels_last", False))
+    non_blocking = bool(training_cfg.get("non_blocking", False))
+    if precision == "amp_fp16" and not amp_enabled:
+        print(
+            "WARNING: AMP FP16 diminta tanpa CUDA; fallback ke FP32.",
+            flush=True,
+        )
+    model = build_model(cfg["model"]).to(device)
+    if channels_last:
+        model = model.to(memory_format=torch.channels_last)
+    grad_scaler = build_grad_scaler(amp_enabled)
+    print(
+        "TRAINING COMPUTE: "
+        f"precision={'AMP FP16' if amp_enabled else 'FP32'} | "
+        f"channels_last={channels_last} | non_blocking={non_blocking}",
+        flush=True,
+    )
+    initialization = None
+    if init_checkpoint is not None:
+        initialization = load_initialization_checkpoint(
+            model,
+            Path(init_checkpoint),
+            loaders.classes,
+            ("encoder.", "fusion.", "flat_classifier."),
+        )
+        training_cfg["resolved_init_checkpoint"] = initialization
+        print(
+            "WARM START: "
+            f"{init_checkpoint} | tensors={initialization['loaded_tensors']} | "
+            f"source_epoch={initialization['source_epoch']}",
+            flush=True,
+        )
     freeze_backbone = bool(training_cfg.get("freeze_backbone", False))
+    trainable_module_names = list(training_cfg.get("trainable_modules", []))
+    if freeze_backbone and trainable_module_names:
+        raise ValueError(
+            "Gunakan freeze_backbone atau trainable_modules, bukan keduanya."
+        )
     if freeze_backbone:
         model.encoder.requires_grad_(False)
         print("TRANSFER LEARNING: backbone frozen; head saja dilatih.", flush=True)
+    selective_train_modules = configure_trainable_modules(
+        model, trainable_module_names
+    )
+    if selective_train_modules:
+        print(
+            "SELECTIVE TRAINING: " + ", ".join(trainable_module_names),
+            flush=True,
+        )
     if method not in {"source_only", "mmd", "lmmd", "dann"}:
         raise ValueError("adaptation.method harus source_only, mmd, lmmd, atau dann.")
 
@@ -465,10 +664,30 @@ def train(
             f"counts={training_cfg['resolved_class_counts']}",
             flush=True,
         )
+    elif classification_loss_name == "fusion_ce_focal":
+        classification_loss = FusionCrossEntropyFocalLoss(
+            alpha=float(training_cfg.get("fusion_loss_alpha", 0.25)),
+            gamma=float(training_cfg.get("fusion_loss_gamma", 2.0)),
+            cross_entropy_weight=float(
+                training_cfg.get("fusion_loss_ce_weight", 0.7)
+            ),
+            focal_weight=float(
+                training_cfg.get("fusion_loss_focal_weight", 0.3)
+            ),
+            label_smoothing=label_smoothing,
+        ).to(device)
+        print(
+            "CLASSIFICATION LOSS: Fusion CE+Focal | "
+            f"CE={classification_loss.cross_entropy_weight:.2f} "
+            f"Focal={classification_loss.focal_weight:.2f} "
+            f"alpha={classification_loss.alpha:.2f} "
+            f"gamma={classification_loss.gamma:.2f}",
+            flush=True,
+        )
     else:
         raise ValueError(
-            "training.classification_loss harus 'cross_entropy' atau "
-            "'balanced_softmax'."
+            "training.classification_loss harus 'cross_entropy', "
+            "'balanced_softmax', atau 'fusion_ce_focal'."
         )
     ema_decay = float(training_cfg.get("ema_decay", 0.0))
     ema_start_epoch = int(training_cfg.get("ema_start_epoch", 0))
@@ -496,12 +715,36 @@ def train(
 
     output_dir = Path(training_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
+    artifact_repo = artifact_repo or os.environ.get(
+        "BILINEAR_LMMD_ARTIFACT_REPO"
+    )
+    artifact_namespace = os.environ.get(
+        "BILINEAR_LMMD_ARTIFACT_NAMESPACE", ""
+    ).strip("/")
+    if artifact_sync_every is None:
+        artifact_sync_every = int(
+            os.environ.get("BILINEAR_LMMD_ARTIFACT_SYNC_EVERY", "1")
+        )
+    artifact_required = artifact_required or os.environ.get(
+        "BILINEAR_LMMD_ARTIFACT_REQUIRED", ""
+    ).lower() in {"1", "true", "yes", "on"}
+    if artifact_required and not artifact_repo:
+        raise RuntimeError(
+            "Mode artefak persisten diwajibkan, tetapi artifact repo belum "
+            "diberikan. Isi --artifact-repo atau environment "
+            "BILINEAR_LMMD_ARTIFACT_REPO."
+        )
     resolved_artifact_path: str | None = None
     if artifact_repo:
         if artifact_sync_every <= 0:
             raise ValueError("artifact_sync_every harus lebih besar dari nol.")
+        default_artifact_path = f"outputs/{output_dir.name}"
+        if artifact_namespace:
+            default_artifact_path = (
+                f"{artifact_namespace}/{default_artifact_path}"
+            )
         resolved_artifact_path = normalize_remote_path(
-            artifact_path or f"outputs/{output_dir.name}"
+            artifact_path or default_artifact_path
         )
         try:
             ensure_artifact_repo(artifact_repo, private=True)
@@ -547,8 +790,29 @@ def train(
         "data_root": str(cfg["data"]["root"]),
         "artifact_repo": artifact_repo,
         "artifact_path": resolved_artifact_path,
+        "initialization": initialization,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if artifact_repo and resolved_artifact_path:
+        try:
+            sync_artifacts(
+                artifact_repo,
+                resolved_artifact_path,
+                output_dir,
+                filenames=("resolved_config.json", "artifact_manifest.json"),
+                commit_message=f"Initialize training run {output_dir.name}",
+            )
+        except Exception as exc:
+            if artifact_required:
+                raise RuntimeError(
+                    "Preflight upload artefak gagal. Training dibatalkan "
+                    "sebelum epoch pertama agar checkpoint tidak hilang."
+                ) from exc
+            print(
+                "WARNING: preflight upload artefak gagal; penyimpanan remote "
+                f"belum terjamin. {type(exc).__name__}: {exc}",
+                flush=True,
+            )
     epochs = int(training_cfg["epochs"])
     if ema is not None and ema_start_epoch >= epochs:
         raise ValueError("training.ema_start_epoch harus lebih kecil dari epochs.")
@@ -588,6 +852,16 @@ def train(
                 model.load_state_dict(checkpoint["model"])
                 optimizer.load_state_dict(checkpoint["optimizer"])
                 scheduler.load_state_dict(checkpoint["scheduler"])
+                if amp_enabled:
+                    scaler_state = checkpoint.get("grad_scaler")
+                    if scaler_state:
+                        grad_scaler.load_state_dict(scaler_state)
+                    else:
+                        print(
+                            "RESUME: checkpoint lama tanpa GradScaler; "
+                            "AMP dimulai dengan scaler baru.",
+                            flush=True,
+                        )
                 if ema is not None:
                     ema_started = bool(checkpoint["ema_started"])
                     if ema_started:
@@ -610,7 +884,7 @@ def train(
                 )
 
     for epoch in range(start_epoch, epochs):
-        model.train()
+        set_selective_training_mode(model, selective_train_modules)
         if freeze_backbone:
             model.encoder.eval()
         factor = adaptation_schedule(
@@ -622,68 +896,96 @@ def train(
         )
         running_loss = 0.0
         running_components: dict[str, float] = {}
-        gate_sum = torch.zeros(2)
+        gate_sum: torch.Tensor | None = None
         gate_count = 0
         gradient_cosine: float | None = None
 
         progress = tqdm(loaders.source_train, desc=f"epoch {epoch + 1}/{epochs}")
         for batch_index, source_batch in enumerate(progress):
-            source_images, source_labels = (x.to(device) for x in source_batch)
+            source_images = prepare_images(
+                source_batch[0],
+                device,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
+            source_labels = source_batch[1].to(
+                device, non_blocking=non_blocking
+            )
             optimizer.zero_grad(set_to_none=True)
 
-            if method == "source_only":
-                source_output = model(source_images, labels=source_labels)
-                loss, supervised_components = supervised_objective(
-                    source_output,
-                    source_labels,
-                    classification_loss,
-                    expert_diversity_loss,
-                    expert_aux_weight,
-                    expert_diversity_weight,
-                    parent_mapping,
-                    hierarchy_weight,
-                )
-            else:
-                target_images, _ = next(target_batches)
-                target_images = target_images.to(device)
-                domain_strength = factor if method == "dann" else None
-                source_output = model(
-                    source_images,
-                    labels=source_labels,
-                    domain_strength=domain_strength,
-                )
-                target_output = model(target_images, domain_strength=domain_strength)
-                cls_loss, supervised_components = supervised_objective(
-                    source_output,
-                    source_labels,
-                    classification_loss,
-                    expert_diversity_loss,
-                    expert_aux_weight,
-                    expert_diversity_weight,
-                    parent_mapping,
-                    hierarchy_weight,
-                )
-
-                if method == "mmd":
-                    adapt_loss = mmd_loss(source_output.embedding, target_output.embedding)
-                elif method == "lmmd":
-                    adapt_loss = lmmd_loss(
-                        source_output.embedding,
-                        target_output.embedding,
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.float16,
+                enabled=amp_enabled,
+            ):
+                if method == "source_only":
+                    source_output = model(source_images, labels=source_labels)
+                    loss, supervised_components = supervised_objective(
+                        source_output,
                         source_labels,
-                        target_output.logits,
+                        classification_loss,
+                        expert_diversity_loss,
+                        expert_aux_weight,
+                        expert_diversity_weight,
+                        parent_mapping,
+                        hierarchy_weight,
                     )
                 else:
-                    source_domain = torch.zeros(
-                        source_images.shape[0], dtype=torch.long, device=device
+                    target_images, _ = next(target_batches)
+                    target_images = prepare_images(
+                        target_images,
+                        device,
+                        non_blocking=non_blocking,
+                        channels_last=channels_last,
                     )
-                    target_domain = torch.ones(
-                        target_images.shape[0], dtype=torch.long, device=device
+                    domain_strength = factor if method == "dann" else None
+                    source_output = model(
+                        source_images,
+                        labels=source_labels,
+                        domain_strength=domain_strength,
                     )
-                    adapt_loss = F.cross_entropy(
-                        source_output.domain_logits, source_domain
-                    ) + F.cross_entropy(target_output.domain_logits, target_domain)
-                loss = cls_loss + adapt_weight * adapt_loss
+                    target_output = model(
+                        target_images, domain_strength=domain_strength
+                    )
+                    cls_loss, supervised_components = supervised_objective(
+                        source_output,
+                        source_labels,
+                        classification_loss,
+                        expert_diversity_loss,
+                        expert_aux_weight,
+                        expert_diversity_weight,
+                        parent_mapping,
+                        hierarchy_weight,
+                    )
+
+                    if method == "mmd":
+                        adapt_loss = mmd_loss(
+                            source_output.embedding, target_output.embedding
+                        )
+                    elif method == "lmmd":
+                        adapt_loss = lmmd_loss(
+                            source_output.embedding,
+                            target_output.embedding,
+                            source_labels,
+                            target_output.logits,
+                        )
+                    else:
+                        source_domain = torch.zeros(
+                            source_images.shape[0],
+                            dtype=torch.long,
+                            device=device,
+                        )
+                        target_domain = torch.ones(
+                            target_images.shape[0],
+                            dtype=torch.long,
+                            device=device,
+                        )
+                        adapt_loss = F.cross_entropy(
+                            source_output.domain_logits, source_domain
+                        ) + F.cross_entropy(
+                            target_output.domain_logits, target_domain
+                        )
+                    loss = cls_loss + adapt_weight * adapt_loss
 
             if (
                 batch_index == 0
@@ -697,8 +999,9 @@ def train(
                     model.shared_parameters_for_audit(),
                 )
 
-            loss.backward()
-            optimizer.step()
+            grad_scaler.scale(loss).backward()
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
             if ema is not None and epoch >= ema_start_epoch:
                 if ema_started:
                     ema.update(model)
@@ -710,21 +1013,36 @@ def train(
                 running_components[name] = running_components.get(name, 0.0) + value.item()
             postfix = {"loss": f"{loss.item():.4f}", "adapt": f"{adapt_weight:.3f}"}
             if source_output.gate_weights is not None:
-                gate_sum += source_output.gate_weights.detach().sum(dim=0).cpu()
-                gate_count += source_output.gate_weights.shape[0]
-                gate_label = (
-                    "gate_gap"
-                    if tuple(source_output.expert_logits or ()) == ("gap", "hbp")
-                    else "gate_hbp"
+                gate_sum = accumulate_gate_sum(
+                    gate_sum,
+                    source_output.gate_weights,
                 )
-                postfix[gate_label] = f"{(gate_sum[0] / gate_count).item():.3f}"
+                gate_count += source_output.gate_weights.shape[0]
+                compact_gate = gate_stage_means(gate_sum, gate_count)
+                if compact_gate.numel() == 2:
+                    gate_label = (
+                        "gate_gap"
+                        if tuple(source_output.expert_logits or ())
+                        == ("gap", "hbp")
+                        else "gate_hbp"
+                    )
+                    postfix[gate_label] = f"{compact_gate[0].item():.3f}"
+                else:
+                    for index, value in enumerate(compact_gate):
+                        postfix[f"gate_s{index}"] = f"{value.item():.3f}"
             if gradient_cosine is not None:
                 postfix["grad_cos"] = f"{gradient_cosine:+.3f}"
             progress.set_postfix(**postfix)
 
         scheduler.step()
         source_metrics_raw = evaluate(
-            model, loaders.source_val, device, loaders.classes, hard_groups
+            model,
+            loaders.source_val,
+            device,
+            loaders.classes,
+            hard_groups,
+            non_blocking=non_blocking,
+            channels_last=channels_last,
         )
         source_expert_metrics_raw = {
             name: evaluate(
@@ -734,21 +1052,47 @@ def train(
                 loaders.classes,
                 hard_groups,
                 prediction_head=name,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
             )
             for name in dual_expert_names
         }
         target_metrics_raw = (
-            evaluate(model, loaders.target_val, device, loaders.classes, hard_groups)
+            evaluate(
+                model,
+                loaders.target_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
             if loaders.target_val is not None
             else None
         )
         source_metrics_ema = (
-            evaluate(ema.model, loaders.source_val, device, loaders.classes, hard_groups)
+            evaluate(
+                ema.model,
+                loaders.source_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
             if ema is not None and ema_started
             else None
         )
         target_metrics_ema = (
-            evaluate(ema.model, loaders.target_val, device, loaders.classes, hard_groups)
+            evaluate(
+                ema.model,
+                loaders.target_val,
+                device,
+                loaders.classes,
+                hard_groups,
+                non_blocking=non_blocking,
+                channels_last=channels_last,
+            )
             if ema is not None and ema_started and loaders.target_val is not None
             else None
         )
@@ -777,8 +1121,12 @@ def train(
                 name: value / max(len(loaders.source_train), 1)
                 for name, value in running_components.items()
             }
-        if gate_count:
+        if gate_count and gate_sum is not None:
             record["gate_mean"] = (gate_sum / gate_count).tolist()
+            record["gate_stage_mean"] = gate_stage_means(
+                gate_sum,
+                gate_count,
+            ).tolist()
         if gradient_cosine is not None:
             record["branch_gradient_cosine"] = gradient_cosine
         history.append(record)
@@ -788,7 +1136,9 @@ def train(
                     "epoch": record["epoch"],
                     "loss": record["loss"],
                     "loss_components": record.get("loss_components"),
-                    "gate_mean": record.get("gate_mean"),
+                    "gate_mean": record.get(
+                        "gate_stage_mean", record.get("gate_mean")
+                    ),
                     "branch_gradient_cosine": record.get("branch_gradient_cosine"),
                     "source": {
                         key: value
@@ -855,6 +1205,7 @@ def train(
             "history": history,
             "best_f1": best_f1,
             "best_expert_f1": best_expert_f1,
+            "grad_scaler": grad_scaler.state_dict(),
         }
         if ema is not None:
             checkpoint["ema_model"] = ema.model.state_dict() if ema_started else None
@@ -932,6 +1283,12 @@ def train(
                     ),
                 )
             except Exception as exc:
+                if artifact_required:
+                    raise RuntimeError(
+                        "Upload checkpoint persisten gagal setelah epoch "
+                        f"{epoch + 1}. Training dihentikan agar tidak terus "
+                        "menghasilkan state yang hanya tersimpan lokal."
+                    ) from exc
                 print(
                     "WARNING: upload checkpoint ke Hugging Face gagal; "
                     f"training tetap dilanjutkan. {type(exc).__name__}: {exc}",
@@ -961,8 +1318,26 @@ def main() -> None:
     parser.add_argument(
         "--artifact-sync-every",
         type=int,
-        default=5,
-        help="Upload last.pt dan metadata setiap N epoch (default: 5).",
+        default=None,
+        help=(
+            "Upload last.pt dan metadata setiap N epoch. Default 1, atau "
+            "BILINEAR_LMMD_ARTIFACT_SYNC_EVERY."
+        ),
+    )
+    parser.add_argument(
+        "--artifact-required",
+        action="store_true",
+        help=(
+            "Batalkan sebelum training/epoch berikutnya jika penyimpanan "
+            "Hugging Face tidak dapat digunakan."
+        ),
+    )
+    parser.add_argument(
+        "--init-checkpoint",
+        help=(
+            "Warm-start encoder, fusion, dan flat classifier dari checkpoint "
+            "kompatibel; head baru tetap memakai inisialisasi config/model."
+        ),
     )
     args = parser.parse_args()
     train(
@@ -974,6 +1349,8 @@ def main() -> None:
         artifact_repo=args.artifact_repo,
         artifact_path=args.artifact_path,
         artifact_sync_every=args.artifact_sync_every,
+        artifact_required=args.artifact_required,
+        init_checkpoint=args.init_checkpoint,
     )
 
 

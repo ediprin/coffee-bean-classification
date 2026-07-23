@@ -38,6 +38,58 @@ class BalancedSoftmaxLoss(nn.Module):
         )
 
 
+class FusionCrossEntropyFocalLoss(nn.Module):
+    """Multiclass Fusion Loss used by Jiao et al. (2025).
+
+    The paper combines mean cross entropy and focal loss. This implementation
+    computes focal loss directly from each sample's multiclass CE, avoiding the
+    redundant one-hot broadcast in the authors' released training script.
+    """
+
+    def __init__(
+        self,
+        alpha: float = 0.25,
+        gamma: float = 2.0,
+        cross_entropy_weight: float = 0.7,
+        focal_weight: float = 0.3,
+        label_smoothing: float = 0.0,
+    ) -> None:
+        super().__init__()
+        if alpha < 0.0:
+            raise ValueError("fusion_loss_alpha tidak boleh negatif.")
+        if gamma < 0.0:
+            raise ValueError("fusion_loss_gamma tidak boleh negatif.")
+        if cross_entropy_weight < 0.0 or focal_weight < 0.0:
+            raise ValueError("Bobot Fusion Loss tidak boleh negatif.")
+        if cross_entropy_weight + focal_weight <= 0.0:
+            raise ValueError("Minimal satu bobot Fusion Loss harus positif.")
+        if not 0.0 <= label_smoothing < 1.0:
+            raise ValueError("label_smoothing harus berada pada [0, 1).")
+        self.alpha = float(alpha)
+        self.gamma = float(gamma)
+        self.cross_entropy_weight = float(cross_entropy_weight)
+        self.focal_weight = float(focal_weight)
+        self.label_smoothing = float(label_smoothing)
+
+    def forward(self, logits: Tensor, labels: Tensor) -> Tensor:
+        per_sample_ce = F.cross_entropy(
+            logits,
+            labels,
+            reduction="none",
+            label_smoothing=self.label_smoothing,
+        )
+        probability_true = torch.exp(-per_sample_ce)
+        focal = (
+            self.alpha
+            * (1.0 - probability_true).pow(self.gamma)
+            * per_sample_ce
+        )
+        return (
+            self.cross_entropy_weight * per_sample_ce.mean()
+            + self.focal_weight * focal.mean()
+        )
+
+
 class ConfusionAwareSupervisedContrastiveLoss(nn.Module):
     """Supervised contrastive loss with optional class-pair weighting.
 

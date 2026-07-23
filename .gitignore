@@ -10,6 +10,7 @@ venv/
 *.pt
 *.pth
 
-docs/*.pdf
-docs/*.xlsx
+docs/article/*.pdf
+docs/article/lain/*.pdf
+docs/article/*.xlsx
 docs/roboust/*.pdf

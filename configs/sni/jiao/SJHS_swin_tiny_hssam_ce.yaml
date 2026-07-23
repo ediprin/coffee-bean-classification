@@ -1,0 +1,26 @@
+data:
+  image_size: 224
+  augmentation_mode: standard
+model:
+  backbone: swin_tiny_patch4_window7_224.ms_in1k
+  pretrained: true
+  head: swin_hssam
+  num_classes: 21
+  out_indices: [1, 2, 3]
+  hsfpn_channels: 256
+  sam_hidden_dim: 128
+  classifier: linear
+adaptation:
+  method: source_only
+training:
+  precision: amp_fp16
+  channels_last: false
+  non_blocking: true
+  classification_loss: cross_entropy
+  output_dir: outputs/SJHS_swin_tiny_hssam_ce
+evaluation:
+  hard_groups:
+    black_variant: [biji_hitam, biji_hitam_pecah, biji_hitam_sebagian]
+    hole_count: [biji_berlubang_satu, biji_berlubang_lebih_satu]
+    skin_size: [kulit_kopi_ukuran_besar, kulit_kopi_ukuran_kecil, kulit_kopi_ukuran_sedang, kulit_tanduk_ukuran_besar, kulit_tanduk_ukuran_kecil, kulit_tanduk_ukuran_sedang]
+    foreign_size: [tanah_batu_ranting_besar, tanah_batu_ranting_kecil, tanah_batu_ranting_sedang]

@@ -1,5 +1,10 @@
 # Coffee Bean Classification
 
+Untuk agent AI atau sesi baru, baca [AGENTS.md](AGENTS.md) untuk aturan kerja
+yang stabil, lalu [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) untuk snapshot
+status bertanggal. Pemisahan ini mencegah arah eksperimen terbaru berubah
+menjadi bias permanen bagi agent berikutnya.
+
 Kerangka riset PyTorch untuk klasifikasi biji kopi lintas dataset, granularitas
 label, backbone, dan pooling head. Eksperimen historis mencakup HBP untuk
 interaksi fitur antarlapis serta closed-set domain adaptation; namespace Python
@@ -21,6 +26,31 @@ dan benchmark efisiensi dicatat di
 Indeks seluruh hasil positif, negatif, screening, lintas dataset, dan eksperimen
 yang telah dihentikan tersedia di
 [docs/results/EXPERIMENT_MASTER_LOG.md](docs/results/EXPERIMENT_MASTER_LOG.md).
+
+Dataset SNI detection dan instance-segmentation dapat dinormalisasi menjadi
+dataset klasifikasi per objek dengan 21 kelas bersama. Pipeline ini melakukan
+grouping per foto sumber, audit exact duplicate, crop bbox, dan mengunci test;
+lihat [protokol SNI instance-crop](docs/protocols/SNI_INSTANCE_CROP_PROTOCOL.md).
+Usulan klasifikasi 21 kelas yang diuji adalah SNI-MRENet: EfficientNetV2
+multiresolusi, conditional ontology experts, dan HBP selektif hanya pada
+kondisi biji. Screening seed 42 mempertahankan fusi multiresolusi SNIB1,
+tetapi menghentikan paket ontology SNIB2; SNIB3 dan test tidak dijalankan.
+Arsitektur dan batas klaim tersedia di
+[protokol SNI-MRENet](docs/protocols/SNI_MRENET_PROTOCOL.md), sedangkan hasil
+negatif lengkap dicatat di
+[hasil screening SNI-MRENet](docs/results/SNI_MRENET_SEED42_SCREENING.md).
+Runner Colab bertahap dan resumable tersedia di
+[notebooks/sni_mrenet_failfast_colab.ipynb](notebooks/sni_mrenet_failfast_colab.ipynb).
+Sesudah kegagalan ontology, eksperimen lanjutan yang diizinkan hanya diagnostik
+murah residual HBP selektif pada flat head SNIB1, disertai projected-GAP control
+berkapasitas sama. Protokolnya ada di
+[docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md](docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md)
+dan notebook-nya di
+[notebooks/sni_selective_hbp_diagnostic_colab.ipynb](notebooks/sni_selective_hbp_diagnostic_colab.ipynb).
+Diagnostik tersebut telah selesai dengan keputusan **STOP**: residual HBP gagal
+mengalahkan SNIB1 dan kontrol residual GAP. Seed tambahan serta test tidak
+dijalankan; catatan hasil tersedia di
+[docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.md](docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.md).
 
 Kode disusun berdasarkan concern: konfigurasi dan artefak di `core`, loader dan
 preparasi dataset di `data`, arsitektur/loss di `modeling`, eksekusi generik di
@@ -1182,3 +1212,28 @@ python -u -m bilinear_lmmd.experiments.run_osr_vim_screening \
 Fitting ViM hanya memakai known-train dan threshold hanya memakai
 known-validation. Formula resmi, gate multi-seed, dan batas klaim tersedia di
 [`docs/protocols/COFFEE17_OSR_VIM_POSTHOC.md`](docs/protocols/COFFEE17_OSR_VIM_POSTHOC.md).
+
+### Chang–Liu multiscale defect extraction
+
+Adaptasi terkendali paper Chang dan Liu (2024) menambahkan cabang konvolusi
+standar 3x3/5x5 pada feature terdalam EfficientNetV2-B0 sebelum GAP. Kandidat
+`MDE1` dibandingkan dengan BE2G/BE2H serta `MDE0`, yaitu residual pointwise
+dengan kapasitas hampir identik tetapi tanpa receptive field multiscale.
+
+```bash
+python -u -m bilinear_lmmd.experiments.run_multiscale_defect_screening \
+  --data-root data/coffee_clean/folds/fold_1 \
+  --baseline-root outputs/backbone-results \
+  --output-root outputs/chang-liu-mde \
+  --seeds 42 \
+  --evaluation-split val
+```
+
+Screening hanya memakai validation seed 42 dan tidak membuka test. Detail
+adaptasi, kontrol kapasitas, dan gate keputusan tersedia di
+[`docs/protocols/CHANG_LIU_MDE_PROTOCOL.md`](docs/protocols/CHANG_LIU_MDE_PROTOCOL.md).
+
+Hasil screening final adalah **FAIL**. MDE1 mengungguli capacity-control MDE0
+pada Macro/Hard/Worst (`+1,72/+0,25/+0,00` poin), tetapi terhadap GAP hanya
+menaikkan Macro `+0,65` sambil menurunkan Hard `-0,66`, dan tetap kalah dari
+HBP. Karena itu seed 123/2026 serta test tidak dibuka.
