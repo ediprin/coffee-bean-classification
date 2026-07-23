@@ -1531,6 +1531,24 @@ class AdaptationModel(nn.Module):
 
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
+    if head in {"multistage_fixed", "multistage_adaptive"}:
+        from bilinear_lmmd.modeling.multistage_recalibration import (
+            MultistageRecalibrationModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("Multistage fusion v1 hanya mendukung classifier linear.")
+        return MultistageRecalibrationModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
+            fusion_dim=int(cfg.get("multistage_fusion_dim", 128)),
+            target_stage=int(cfg.get("multistage_target_stage", 1)),
+            gate_hidden_dim=int(cfg.get("multistage_gate_hidden", 96)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            mode=("fixed" if head.endswith("_fixed") else "adaptive"),
+        )
     if head in {
         "swin_gap",
         "swin_hsfpn",
