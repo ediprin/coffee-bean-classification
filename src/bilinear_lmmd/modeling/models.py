@@ -1531,6 +1531,21 @@ class AdaptationModel(nn.Module):
 
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
+    if head == "dcl_gap":
+        from bilinear_lmmd.modeling.dcl_finegrained import (
+            DCLFineGrainedModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("DCL Coffee17 hanya mendukung classifier linear.")
+        return DCLFineGrainedModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (4,))),
+            grid_size=int(cfg.get("dcl_grid_size", 7)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+        )
     if head in {
         "multistage_fixed",
         "multistage_channel_control",
