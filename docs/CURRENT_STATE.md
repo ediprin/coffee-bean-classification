@@ -17,8 +17,9 @@ Agents must verify it against protocols, raw reports, and the experiment log.
 
 ## Current runnable stage
 
-The Coffee17 seed-42 multistage screen has reported `PASS`. The currently
-authorized next stage is the capacity-matched control:
+The Coffee17 seed-42 multistage screen reported `PASS`, but the subsequent
+capacity-matched control reported `FAIL`. No additional training is currently
+authorized. The only active follow-up is a validation-only post-hoc audit:
 
 | Code | Model |
 |---|---|
@@ -43,9 +44,18 @@ Reported seed-42 validation deltas:
 | BE2H -> MSF1 | +1.59% | +1.28% | +1.25% | -4.20% |
 | MSF0 -> MSF1 | +0.98% | +0.95% | +4.95% | +6.06% |
 
-The current gate is `MSFC_vs_MSF1` on validation seed 42. MSF1 must improve
-Macro-F1 and Hard-F1 while preserving bottom-three F1 within one percentage
-point. Seeds 123/2026 and test remain locked until that comparison passes.
+Capacity-control result:
+
+| Comparison | Delta Macro | Delta Hard | Delta bottom-three | Delta Worst |
+|---|---:|---:|---:|---:|
+| BE2G -> MSFC | +3.65% | +4.68% | +4.78% | +0.00% |
+| BE2H -> MSFC | +1.58% | +2.40% | +0.34% | -10.26% |
+| MSF0 -> MSFC | +0.97% | +2.07% | +4.04% | +0.00% |
+| MSFC -> MSF1 | +0.01% | -1.12% | +0.91% | +6.06% |
+
+MSF1 failed because Hard-F1 decreased against the capacity-matched control.
+Seeds 123/2026 and test remain locked. MSFC is exploratory, not final, because
+it improves Macro/Hard but loses Worst-F1 against BE2H.
 
 ## Dataset snapshot
 
@@ -108,6 +118,6 @@ to seek a positive seed.
 At this snapshot:
 
 - MSF0/MSF1 seed-42 validation screening reported PASS;
-- MSFC architecture, runner stage, notebook cell, protocol, and tests exist;
-- MSFC training result does not yet exist;
+- MSFC capacity control completed and MSF1 failed its causal gate;
+- a no-training per-class/rescue-harm/bootstrap audit is implemented;
 - Coffee17 test has not been opened for this experiment.

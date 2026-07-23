@@ -1,0 +1,48 @@
+{
+  "status": "screening_complete_capacity_fail",
+  "dataset": "Coffee17 clean grouped fold 1",
+  "selection_split": "val",
+  "seed": 42,
+  "test_opened": false,
+  "additional_seeds_opened": false,
+  "canonical_artifact": {
+    "repository": "ediprin/coffee-backbone-checkpoints",
+    "namespace": "coffee17-multistage-recalibration-v1",
+    "path": "val_reports/multistage_recalibration_capacity_control.json"
+  },
+  "comparisons": {
+    "BE2G_vs_MSFC": {
+      "macro_f1": {"baseline": 0.8871, "candidate": 0.9237, "delta": 0.0365},
+      "hard_class_f1": {"baseline": 0.8220, "candidate": 0.8689, "delta": 0.0468},
+      "bottom3_class_f1": {"baseline": 0.7379, "candidate": 0.7857, "delta": 0.0478},
+      "worst_class_f1": {"baseline": 0.6667, "candidate": 0.6667, "delta": 0.0}
+    },
+    "BE2H_vs_MSFC": {
+      "macro_f1": {"baseline": 0.9079, "candidate": 0.9237, "delta": 0.0158},
+      "hard_class_f1": {"baseline": 0.8449, "candidate": 0.8689, "delta": 0.0240},
+      "bottom3_class_f1": {"baseline": 0.7823, "candidate": 0.7857, "delta": 0.0034},
+      "worst_class_f1": {"baseline": 0.7692, "candidate": 0.6667, "delta": -0.1026}
+    },
+    "MSF0_vs_MSFC": {
+      "macro_f1": {"baseline": 0.9139, "candidate": 0.9237, "delta": 0.0097},
+      "hard_class_f1": {"baseline": 0.8482, "candidate": 0.8689, "delta": 0.0207},
+      "bottom3_class_f1": {"baseline": 0.7453, "candidate": 0.7857, "delta": 0.0404},
+      "worst_class_f1": {"baseline": 0.6667, "candidate": 0.6667, "delta": 0.0}
+    },
+    "MSFC_vs_MSF1": {
+      "macro_f1": {"baseline": 0.9237, "candidate": 0.9238, "delta": 0.0001},
+      "hard_class_f1": {"baseline": 0.8689, "candidate": 0.8577, "delta": -0.0112},
+      "bottom3_class_f1": {"baseline": 0.7857, "candidate": 0.7948, "delta": 0.0091},
+      "worst_class_f1": {"baseline": 0.6667, "candidate": 0.7273, "delta": 0.0606}
+    }
+  },
+  "capacity_gate": {
+    "required_comparison": "MSFC_vs_MSF1",
+    "criteria": {
+      "macro_f1_improved": true,
+      "hard_class_f1_improved": false,
+      "bottom3_class_f1_preserved": true
+    },
+    "decision": "FAIL"
+  }
+}

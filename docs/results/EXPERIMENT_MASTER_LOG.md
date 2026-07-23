@@ -652,3 +652,29 @@ dan boolean kriteria; angka lengkap tetap berada pada artefak Drive
 Protokol dan record machine-readable:
 `docs/protocols/SNI_SELECTIVE_HBP_DIAGNOSTIC.md` dan
 `docs/results/SNI_SELECTIVE_HBP_DIAGNOSTIC_SEED42.json`.
+
+## 21. Coffee17 multistage recalibration dan capacity control
+
+**Status: SCREENING SEED 42 — CAPACITY CONTROL FAIL, TEST TERKUNCI.**
+
+MSF0 melakukan fusi seragam tiga feature stage EfficientNetV2-B0. MSF1
+menambahkan pemilihan stage per-image/per-channel. MSFC memiliki jumlah
+parameter yang sama dengan MSF1, tetapi hanya melakukan recalibration channel
+dan tidak dapat memilih stage.
+
+| Comparison | Delta Macro | Delta Hard | Delta bottom-three | Delta Worst |
+|---|---:|---:|---:|---:|
+| BE2G vs MSFC | +3,65 | +4,68 | +4,78 | +0,00 |
+| BE2H vs MSFC | +1,58 | +2,40 | +0,34 | -10,26 |
+| MSF0 vs MSFC | +0,97 | +2,07 | +4,04 | +0,00 |
+| MSFC vs MSF1 | +0,01 | -1,12 | +0,91 | +6,06 |
+
+MSF1 gagal gate kausal terhadap MSFC karena Hard-F1 turun 1,12 poin. Hasil
+menunjukkan bahwa sinyal awal MSF1 tidak membuktikan manfaat adaptive stage
+selection: manfaat Macro/Hard lebih konsisten dengan direct multistage fusion
+dan sample-adaptive channel recalibration. MSFC sendiri belum menjadi kandidat
+final karena Worst-F1-nya 10,26 poin di bawah BE2H. Seed 123/2026 dan test
+tidak dibuka.
+
+Dokumen lengkap:
+`docs/results/COFFEE17_MULTISTAGE_RECALIBRATION_SEED42.md`.

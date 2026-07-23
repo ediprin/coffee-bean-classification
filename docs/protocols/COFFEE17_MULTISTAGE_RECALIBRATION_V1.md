@@ -2,7 +2,8 @@
 
 ## Status
 
-**Architecture freeze only. No training result is claimed in this document.**
+**Seed-42 validation screening complete; capacity-control gate failed. Test
+remains locked.**
 
 This protocol defines a minimal test of local--global multistage representation
 learning on Coffee17. It does not reproduce MFSwin, SNet, or RSCD-Net, and it
@@ -183,10 +184,9 @@ The implementation must satisfy:
 8. source-only training, one classifier, and one standard CE objective;
 9. parameter and latency overhead are reported before GPU training.
 
-## Future evaluation sequence
+## Frozen evaluation sequence and outcome
 
-Training is not authorized by this architecture-freeze document. When a runner
-is added, the minimum sequence is:
+The frozen sequence was:
 
 1. one-seed validation screening of MSF0 and MSF1 while reusing BE2G/BE2H;
 2. MSF1 versus MSF0 is the first causal comparison;
@@ -199,3 +199,19 @@ Macro-F1 is primary. Hard-group F1 and the mean of the bottom three class F1
 scores are targeted safety metrics. Worst-class F1 is reported, but it must
 not be interpreted without its small class support and seed/bootstrap
 uncertainty.
+
+The initial MSF0/MSF1 screen passed. The subsequent capacity-matched
+comparison did not:
+
+| Comparison | Delta Macro | Delta Hard | Delta bottom-three | Delta Worst |
+|---|---:|---:|---:|---:|
+| MSFC -> MSF1 | +0.01 | -1.12 | +0.91 | +6.06 |
+
+MSF1 therefore failed because Hard-F1 decreased. Seeds 123/2026 and test were
+not opened. MSFC remains only an exploratory observation: it achieved higher
+Macro-F1 and Hard-F1 than MSF1 on this validation seed, but its Worst-F1 was
+10.26 points below BE2H. A post-hoc paired stratified bootstrap and per-class
+audit may explain this trade-off without authorizing more training.
+
+Locked result summary:
+`docs/results/COFFEE17_MULTISTAGE_RECALIBRATION_SEED42.md`.
