@@ -31,6 +31,7 @@ from bilinear_lmmd.data.loaders import build_loaders
 from bilinear_lmmd.modeling.hierarchy import build_parent_hierarchy
 from bilinear_lmmd.modeling.losses import (
     BalancedSoftmaxLoss,
+    FusionCrossEntropyFocalLoss,
     LMMDLoss,
     MMDLoss,
     NonTargetExpertDiversityLoss,
@@ -623,10 +624,30 @@ def train(
             f"counts={training_cfg['resolved_class_counts']}",
             flush=True,
         )
+    elif classification_loss_name == "fusion_ce_focal":
+        classification_loss = FusionCrossEntropyFocalLoss(
+            alpha=float(training_cfg.get("fusion_loss_alpha", 0.25)),
+            gamma=float(training_cfg.get("fusion_loss_gamma", 2.0)),
+            cross_entropy_weight=float(
+                training_cfg.get("fusion_loss_ce_weight", 0.7)
+            ),
+            focal_weight=float(
+                training_cfg.get("fusion_loss_focal_weight", 0.3)
+            ),
+            label_smoothing=label_smoothing,
+        ).to(device)
+        print(
+            "CLASSIFICATION LOSS: Fusion CE+Focal | "
+            f"CE={classification_loss.cross_entropy_weight:.2f} "
+            f"Focal={classification_loss.focal_weight:.2f} "
+            f"alpha={classification_loss.alpha:.2f} "
+            f"gamma={classification_loss.gamma:.2f}",
+            flush=True,
+        )
     else:
         raise ValueError(
-            "training.classification_loss harus 'cross_entropy' atau "
-            "'balanced_softmax'."
+            "training.classification_loss harus 'cross_entropy', "
+            "'balanced_softmax', atau 'fusion_ce_focal'."
         )
     ema_decay = float(training_cfg.get("ema_decay", 0.0))
     ema_start_epoch = int(training_cfg.get("ema_start_epoch", 0))

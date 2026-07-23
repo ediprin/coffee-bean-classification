@@ -1532,6 +1532,28 @@ class AdaptationModel(nn.Module):
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
     if head in {
+        "swin_gap",
+        "swin_hsfpn",
+        "swin_sam",
+        "swin_hssam",
+    }:
+        from bilinear_lmmd.modeling.swin_hssam import SwinHSSAMClassifier
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError("Reproduksi Swin-HSSAM hanya mendukung classifier linear.")
+        return SwinHSSAMClassifier(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 2, 3))),
+            hsfpn_channels=int(cfg.get("hsfpn_channels", 256)),
+            sam_hidden_dim=int(cfg.get("sam_hidden_dim", 128)),
+            attention_reduction=int(cfg.get("attention_reduction", 16)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            use_hsfpn=head in {"swin_hsfpn", "swin_hssam"},
+            use_sam=head in {"swin_sam", "swin_hssam"},
+        )
+    if head in {
         "sni_multiresolution_flat",
         "sni_flat_residual_gap",
         "sni_flat_residual_hbp",
