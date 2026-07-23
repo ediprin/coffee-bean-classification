@@ -134,6 +134,26 @@ This isolates the DCL local-detail premise, ordinary contrastive contribution,
 and confusion-aware contribution rather than attributing a combined result to
 all components.
 
+### Confirmation amendment after seed-123 screening
+
+The seed-123 results triggered the following decision before any 42/2026
+training:
+
+- DCL0 passed against BE2G and BE2H;
+- DCL1 passed against BE2G, BE2H, and DCL0;
+- DCL2 produced the same reported Macro/Hard/Worst metrics as DCL1 and failed
+  the strict DCL1 comparison.
+
+Therefore DCL2 is stopped. Confirmation is sequential:
+
+1. aggregate DCL0 over seeds 42, 123, and 2026;
+2. stop if the original DCL0 gate fails on that aggregate;
+3. only when DCL0 still passes, aggregate DCL1 over the same three seeds;
+4. DCL1 final requires independent PASS against BE2H and DCL0.
+
+The amendment reduces training cost and prevents the already non-informative
+DCL2 weighting from consuming additional seeds. Test remains locked.
+
 ## Persistence
 
 Every epoch writes `last.pt`, `best.pt`, `history.json`,
@@ -144,8 +164,10 @@ interval and aborts when persistence fails.
 ## Claim boundary
 
 - A passing DCL0 supports a paper-grounded local-detail adaptation.
-- A passing DCL2 supports the integrated DCL/confusion-aware objective under
-  this Coffee17 protocol.
+- A passing three-seed DCL1 supports DCL plus ordinary SupCon under this
+  Coffee17 protocol.
+- DCL2 cannot support a confusion-aware claim because it did not improve over
+  DCL1 during the authorized screening.
 - Neither result alone proves global algorithmic novelty.
 - Novelty wording requires a separate literature comparison after empirical
   isolation.

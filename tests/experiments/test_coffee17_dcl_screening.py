@@ -36,6 +36,9 @@ def test_colab_notebook_is_validation_only_and_persistent():
     assert "'--artifact-sync-every', '1'" in source
     assert "'--artifact-required'" in source
     assert "SEED = 123" in source
+    assert "SEEDS_CONFIRM = [42, 123, 2026]" in source
+    assert "'--stage', 'supcon_confirmation'" in source
+    assert "supcon_confirmation_decision.json" in source
 
 
 def test_dcl_gate_requires_macro_hard_and_worst():
@@ -59,10 +62,22 @@ def test_contrastive_stage_is_blocked_until_dcl0_passes(tmp_path):
         _require_dcl_gate(tmp_path, "val")
 
     path.write_text(
-        json.dumps({"DCL0_final": {"decision": "PASS"}}),
+        json.dumps(
+            {
+                "seeds": [123],
+                "DCL0_final": {"decision": "PASS"},
+            }
+        ),
         encoding="utf-8",
     )
     _require_dcl_gate(tmp_path, "val")
+    _require_dcl_gate(tmp_path, "val", required_seeds=[123])
+    with pytest.raises(RuntimeError, match="Seed pada keputusan"):
+        _require_dcl_gate(
+            tmp_path,
+            "val",
+            required_seeds=[42, 123, 2026],
+        )
 
 
 def test_dcl_configs_isolate_contrastive_stages():

@@ -686,3 +686,29 @@ kesalahan daripada peningkatan bersih.
 
 Dokumen lengkap:
 `docs/results/COFFEE17_MULTISTAGE_RECALIBRATION_SEED42.md`.
+
+## 22. Coffee17 DCL local-detail
+
+**Status: SCREENING SEED 123 — DCL0/DCL1 PASS, DCL2 DIHENTIKAN, TEST
+TERKUNCI.** Implementasi diperiksa terhadap paper dan kode resmi DCL. Jalur
+inferensi semua kandidat tetap EfficientNetV2-B0 + GAP + linear; region
+confusion, swap classifier, dan layout reconstruction hanya aktif saat
+training.
+
+| Perbandingan | Delta Macro | Delta Hard | Delta Worst | Putusan |
+|---|---:|---:|---:|---|
+| BE2G vs DCL0 | +2,07 | +2,07 | +6,06 | PASS |
+| BE2H vs DCL0 | +1,67 | +3,31 | +6,06 | PASS |
+| DCL0 vs DCL1 | +0,96 | +2,03 | +0,00 | PASS |
+| BE2H vs DCL1 | +2,62 | +5,34 | +6,06 | PASS |
+| DCL1 vs DCL2 | +0,00 | +0,00 | +0,00 | FAIL |
+
+DCL0 mencapai Macro `90,32%`, Hard `83,66%`, dan Worst `72,73%`. DCL1
+meningkatkannya menjadi Macro `91,27%` dan Hard `85,69%` dengan Worst tetap
+`72,73%`. DCL2 menghasilkan ketiga metrik yang sama dengan DCL1, sehingga
+confusion-aware weighting tidak memiliki manfaat terukur dan dihentikan.
+
+Sebelum seed 42/2026 dijalankan, urutan konfirmasi dibekukan: konfirmasi DCL0
+tiga-seed terlebih dahulu; hanya jika lolos, konfirmasi DCL1 tiga-seed.
+Test tetap terkunci. Protokol lengkap:
+`docs/protocols/COFFEE17_DCL_LOCAL_DETAIL_V1.md`.

@@ -21,6 +21,7 @@ BASELINES = ("BE2G", "BE2H")
 STAGE_MODELS = {
     "dcl": ("DCL0",),
     "contrastive": ("DCL1", "DCL2"),
+    "supcon_confirmation": ("DCL1",),
 }
 
 
@@ -135,7 +136,11 @@ def _compare(
     return result
 
 
-def _require_dcl_gate(output_root: Path, split: str) -> None:
+def _require_dcl_gate(
+    output_root: Path,
+    split: str,
+    required_seeds: list[int] | None = None,
+) -> None:
     path = _report_root(output_root, split) / "dcl_stage_decision.json"
     if not path.is_file():
         raise RuntimeError(
@@ -146,6 +151,13 @@ def _require_dcl_gate(output_root: Path, split: str) -> None:
     if decision.get("DCL0_final", {}).get("decision") != "PASS":
         raise RuntimeError(
             "DCL0 tidak lolos; contrastive tidak boleh dijalankan."
+        )
+    if required_seeds is not None and sorted(decision.get("seeds", [])) != sorted(
+        required_seeds
+    ):
+        raise RuntimeError(
+            "Seed pada keputusan DCL0 belum sesuai tahap lanjutan: "
+            f"{decision.get('seeds', [])} != {required_seeds}."
         )
 
 
@@ -166,8 +178,12 @@ def run_coffee17_dcl_screening(
         raise ValueError("DCL fail-fast dikunci ke validation.")
     if stage not in STAGE_MODELS:
         raise ValueError(f"Stage tidak dikenal: {stage}")
-    if stage == "contrastive":
-        _require_dcl_gate(output_root, evaluation_split)
+    if stage in {"contrastive", "supcon_confirmation"}:
+        _require_dcl_gate(
+            output_root,
+            evaluation_split,
+            required_seeds=seeds,
+        )
 
     selected = STAGE_MODELS[stage]
     print(
@@ -260,7 +276,7 @@ def run_coffee17_dcl_screening(
                 seeds,
                 evaluation_split,
             )
-    if stage == "contrastive":
+    if stage in {"contrastive", "supcon_confirmation"}:
         for candidate in selected:
             comparisons[f"DCL0_vs_{candidate}"] = _compare(
                 output_root,
@@ -270,14 +286,15 @@ def run_coffee17_dcl_screening(
                 seeds,
                 evaluation_split,
             )
-        comparisons["DCL1_vs_DCL2"] = _compare(
-            output_root,
-            output_root,
-            "DCL1",
-            "DCL2",
-            seeds,
-            evaluation_split,
-        )
+        if stage == "contrastive":
+            comparisons["DCL1_vs_DCL2"] = _compare(
+                output_root,
+                output_root,
+                "DCL1",
+                "DCL2",
+                seeds,
+                evaluation_split,
+            )
 
     decision: dict = {
         "stage": stage,
@@ -299,7 +316,7 @@ def run_coffee17_dcl_screening(
             "requires": list(required),
         }
         filename = "dcl_stage_decision.json"
-    else:
+    elif stage == "contrastive":
         required = (
             "BE2H_vs_DCL2",
             "DCL0_vs_DCL2",
@@ -314,6 +331,20 @@ def run_coffee17_dcl_screening(
             "requires": list(required),
         }
         filename = "contrastive_stage_decision.json"
+    else:
+        required = (
+            "BE2H_vs_DCL1",
+            "DCL0_vs_DCL1",
+        )
+        decision["DCL1_final"] = {
+            "decision": (
+                "PASS"
+                if all(decision[key]["decision"] == "PASS" for key in required)
+                else "FAIL"
+            ),
+            "requires": list(required),
+        }
+        filename = "supcon_confirmation_decision.json"
 
     destination = _report_root(output_root, evaluation_split) / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
