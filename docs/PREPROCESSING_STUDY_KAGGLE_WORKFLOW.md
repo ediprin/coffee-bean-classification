@@ -51,3 +51,17 @@ This workflow uses only Kaggle runtime/storage:
 For arm training and OOF/efficiency, enable a GPU accelerator and Internet (GitHub clone + package installation). The Coffee17 images themselves are read from the mounted Kaggle Input; the notebook does not download the dataset from another service.
 
 The first R0 run freezes exact package versions into the project. Later notebooks install/reuse that frozen lock and verify the software fingerprint before training/evaluation. If Kaggle's environment is incompatible, the notebook fails before producing a mixed-environment primary result.
+
+## All-in-one option
+
+If you want one notebook and one Run All instead of the staged notebooks, use:
+
+`notebooks/Coffee17_Preprocessing_All_Kaggle.ipynb`
+
+It automatically runs the complete frozen pipeline:
+
+`provenance -> fold gate -> observability -> F0 equivalence -> 20 primary runs -> primary confirmation -> OOF -> bootstrap/per-class analysis -> efficiency -> final report`.
+
+It aborts before training if the static/observability gates do not pass. It does not tune or alter the treatment based on validation results. After the exact 20 primary runs are complete, the confirmation step must emit `AUTHORIZE_OOF_TEST_EVALUATION` before the notebook opens the outer test for one-time OOF inference.
+
+The notebook can also reuse an earlier saved Kaggle Notebook Output of itself for exact-contract resume.
