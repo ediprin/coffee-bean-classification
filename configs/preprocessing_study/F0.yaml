@@ -34,7 +34,7 @@ training:
 preprocessing:
   enabled: true
   code: F0
-  method: af2_canonical
+  method: af2_luminance_shared_gate
   patch_size: 32
   overlap: 0.50
   gamma: 0.10

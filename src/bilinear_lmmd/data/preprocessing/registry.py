@@ -7,7 +7,7 @@ from torch import nn
 
 from .raw import RawFrontend
 from .clahe import CLAHEConfig, CLAHEFrontend
-from .af2 import AF2Config, AF2Frontend
+from .af2 import AF2Config, AF2LuminanceFrontend
 from .wav1 import WAV1Config, WAV1Frontend
 
 
@@ -27,36 +27,39 @@ _SPECS: dict[str, dict[str, Any]] = {
         "method": "clahe_lab_luminance",
         "execution_device": "cpu_preferred",
         "origin": {
-            "repository": "ediprin/coffee-bean-detection",
-            "ref": "agent/af2-clahe-control",
-            "path": "src/coffee_detector/classical_enhancement/operator.py",
+            "paper": "Mohanty et al. 2026",
+            "operation": "CIELAB L-channel CLAHE",
+            "clip_limit": 2.0,
+            "tile_grid_size": [8, 8],
         },
-        "output_contract": "float RGB [0,1]",
+        "output_contract": "float RGB in [0,1]",
         "config": CLAHEConfig().to_dict(),
     },
     "F0": {
         "code": "F0",
-        "method": "af2_canonical",
+        "method": "af2_luminance_shared_gate",
         "execution_device": "gpu_preferred",
         "origin": {
-            "repository": "ediprin/coffee-bean-detection",
-            "ref": "agent/af2-spectral-factorization",
-            "path": "src/coffee_detector/afab/operator.py",
+            "frequency_basis": "Xu et al. 2025 AFAB-2 + patch-wise DFT",
+            "color_texture_basis": "Maenpaa and Pietikainen 2004",
+            "matched_detection_reference": {
+                "repository": "ediprin/coffee-bean-detection",
+                "commit": "6ef389c23932e44fe4135c32d471b3008b1cbf39",
+                "path": "src/coffee_detector/af2_luminance/operator.py",
+            },
         },
-        "output_contract": "canonical residual gate; input [0,1] -> theoretical [0,2]",
+        "output_contract": "shared Rec.709 luminance gate; raw RGB residual; no clipping",
         "config": AF2Config().to_dict(),
     },
     "W0": {
         "code": "W0",
-        "method": "wav1_haar_detail_energy",
+        "method": "haar4_visushrink_soft_reconstruction",
         "execution_device": "gpu_preferred",
         "origin": {
-            "repository": "ediprin/coffee-bean-detection",
-            "ref": "agent/af2-rad-wavelet-refinement",
-            "path": "src/coffee_detector/af2_spectral/operator.py",
-            "arm": "WAV1",
+            "paper": "Yang et al. 2025",
+            "operation": "RGB channel-wise Haar DWT, VisuShrink soft threshold, inverse DWT",
         },
-        "output_contract": "canonical residual gate; input [0,1] -> theoretical [0,2]",
+        "output_contract": "four-level reconstructed RGB; no post-hoc clipping",
         "config": WAV1Config().to_dict(),
     },
 }
@@ -81,7 +84,7 @@ def build_preprocessing_frontend(
     if code == "C0":
         return CLAHEFrontend(CLAHEConfig.from_mapping(config))
     if code == "F0":
-        return AF2Frontend(AF2Config.from_mapping(config))
+        return AF2LuminanceFrontend(AF2Config.from_mapping(config))
     if code == "W0":
         return WAV1Frontend(WAV1Config.from_mapping(config))
     raise ValueError(f"Preprocessing code harus salah satu {ARM_CODES}")

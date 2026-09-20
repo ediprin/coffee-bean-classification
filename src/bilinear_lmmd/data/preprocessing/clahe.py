@@ -9,9 +9,9 @@ from torch import nn
 
 @dataclass(frozen=True)
 class CLAHEConfig:
-    """Frozen LAB-luminance CLAHE control ported from coffee-bean-detection."""
+    """Literature-frozen LAB-luminance CLAHE control."""
 
-    clip_limit: float = 3.0
+    clip_limit: float = 2.0
     tile_grid_size: tuple[int, int] = (8, 8)
 
     @classmethod
@@ -36,12 +36,7 @@ class CLAHEConfig:
 
 
 class CLAHEFrontend(nn.Module):
-    """Exact LAB-L CLAHE reference; deterministic and parameter-free.
-
-    This keeps the detection-repo implementation semantics: BCHW float RGB in
-    [0,1] is quantized to uint8, converted RGB->LAB, CLAHE is applied only to
-    L, then LAB->RGB and returned as the original floating dtype in [0,1].
-    """
+    """CIELAB CLAHE applied only to L; chromatic channels are preserved."""
 
     def __init__(self, config: CLAHEConfig | dict[str, Any] | None = None) -> None:
         super().__init__()
@@ -52,7 +47,7 @@ class CLAHEFrontend(nn.Module):
             raise ValueError(f"CLAHE membutuhkan RGB CHW, diterima {tuple(image.shape)}")
         try:
             import cv2
-        except ImportError as error:  # pragma: no cover
+        except ImportError as error:
             raise RuntimeError("OpenCV diperlukan untuk CLAHE") from error
 
         device, dtype = image.device, image.dtype
@@ -81,10 +76,8 @@ class CLAHEFrontend(nn.Module):
         return output.to(device=device, dtype=dtype).div_(255.0)
 
     def forward(self, value: torch.Tensor) -> torch.Tensor:
-        if value.ndim != 4:
-            raise ValueError(f"CLAHE membutuhkan BCHW, diterima {tuple(value.shape)}")
-        if value.shape[1] != 3:
-            raise ValueError("CLAHE dikunci untuk input RGB 3-channel")
+        if value.ndim != 4 or value.shape[1] != 3:
+            raise ValueError(f"CLAHE membutuhkan BCHW RGB, diterima {tuple(value.shape)}")
         if not torch.is_floating_point(value):
             raise TypeError("CLAHE memerlukan tensor floating point")
         return torch.stack([self._one(value[index]) for index in range(value.shape[0])], dim=0)

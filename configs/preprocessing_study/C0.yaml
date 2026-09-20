@@ -35,5 +35,5 @@ preprocessing:
   enabled: true
   code: C0
   method: clahe_lab_luminance
-  clip_limit: 3.0
+  clip_limit: 2.0
   tile_grid_size: [8, 8]

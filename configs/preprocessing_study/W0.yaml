@@ -34,6 +34,6 @@ training:
 preprocessing:
   enabled: true
   code: W0
-  method: wav1_haar_detail_energy
-  wavelet_levels: 2
+  method: haar4_visushrink_soft_reconstruction
+  wavelet_levels: 4
   eps: 1.0e-8
