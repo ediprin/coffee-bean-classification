@@ -1,34 +1,34 @@
-# Coffee17 Preprocessing Study — Static Contract v1
+# Coffee17 Preprocessing Study — Static Contract v2
 
-Status: **draft implementation contract; freeze before primary training**
+Status: **literature-audited candidate contract; no primary training before observability PASS**
 
 Primary arms:
 
 - `R0`: raw RGB identity control.
-- `C0`: RGB -> LAB, CLAHE on L only, `clipLimit=3.0`, `tileGridSize=8x8`, LAB -> RGB.
-- `F0`: canonical AF2, patch 32, overlap 0.50 (stride 16), gamma 0.10, 360 angular bins, hard entropy threshold, inverse FFT, overlap averaging, residual min-max gate.
-- `W0`: standalone WAV1, RGB luminance `0.2126R+0.7152G+0.0722B`, two-level orthonormal Haar detail energy, bilinear upsampling, per-level min-max mean cue, then the canonical residual min-max gate.
+- `C0`: RGB -> CIELAB, CLAHE on L only, `clipLimit=2.0`, `tileGridSize=8x8`, LAB -> RGB.
+- `F0`: patch-wise angular-frequency processing derived from AFAB-2, computed once on Rec.709 luminance `Y=0.2126R+0.7152G+0.0722B`; the resulting min-max gate is shared across the untouched RGB channels using `x + x * G_Y`. No post-hoc clipping.
+- `W0`: channel-wise RGB Haar DWT, four decomposition levels, VisuShrink noise estimate `median(|d|)/0.6745`, universal threshold `T=sigma*sqrt(2 log n)`, soft threshold on high-frequency coefficients, inverse DWT reconstruction. No residual detail-energy gate.
 
-`F0` and `W0` intentionally retain the canonical residual dynamic range. For input in `[0,1]`, their theoretical output bound is `[0,2]`. Clipped variants are not primary arms.
+Scientific lineage:
 
-All frontends are deterministic, parameter-free, preserve BCHW shape/dtype and are external to MobileNetV3. ImageNet normalization is applied after the frontend in Milestone C.
+- C0 follows the LAB-L CLAHE preprocessing described by Mohanty et al. (2026), including clip limit 2.0 and 8x8 tiles.
+- F0 uses Xu et al. (2025) as the frequency/angular basis and the color-texture separation argument of Maenpaa & Pietikainen (2004). Its exact shared-luminance transfer is additionally checked against the frozen coffee-detection implementation at commit `6ef389c23932e44fe4135c32d471b3008b1cbf39`.
+- W0 follows the denoising equations described by Yang et al. (2025): RGB channels processed separately, Haar, VisuShrink, soft thresholding, inverse reconstruction. The paper supports the operator family; its WaveLiteNet effect size is not treated as the standalone W0 effect.
 
-## Software lineage
+All frontends are deterministic and parameter-free. ImageNet normalization is applied only after the preprocessing frontend.
 
-- C0: `ediprin/coffee-bean-detection`, `agent/af2-clahe-control`, `src/coffee_detector/classical_enhancement/operator.py`
-- F0: `ediprin/coffee-bean-detection`, `agent/af2-spectral-factorization`, `src/coffee_detector/afab/operator.py`
-- W0: `ediprin/coffee-bean-detection`, `agent/af2-rad-wavelet-refinement`, `src/coffee_detector/af2_spectral/operator.py`, arm `WAV1`
+## Pre-training gates
 
-The cross-repo equivalence command is intentionally separate because the three references live on different frozen detection refs. Each reference checkout is compared bitwise on a frozen random probe before primary training.
+Primary training is blocked unless:
 
-## Static gate
-
-Training is blocked unless:
-
-- all four arms preserve shape/dtype and produce finite outputs;
-- all four arms are deterministic and have zero trainable/persistent state;
+- the dataset provenance gate covers the 979 original Coffee17 images;
+- R0/C0/F0/W0 preserve BCHW shape/dtype and produce finite outputs;
 - R0 is exact identity;
-- C0 stays in `[0,1]` and is active;
-- F0/W0 are active, non-decreasing under their residual gate and stay within the canonical `[0,2]` bound for `[0,1]` probes;
-- repeated same-seed MobileNetV3 builds have the same state fingerprint and parameter count;
-- C0/F0/W0 pass their frozen cross-repo bitwise-equivalence checks.
+- C0 is active and remains in [0,1];
+- F0 is active, remains within its residual theoretical [0,2] bound for [0,1] inputs, and preserves RGB chromaticity under the shared gate;
+- W0 is active and reconstructs a finite RGB image;
+- F0 passes bitwise equivalence against the frozen luminance reference implementation;
+- the full 979-original observability audit is complete and records pixel range, distribution shift, fraction outside [0,1], SSIM, chromaticity shift, and per-class effects;
+- repeated same-seed MobileNetV3 builds have the same initial state fingerprint and parameter count.
+
+No preprocessing parameter may be changed after viewing primary validation/OOF results.
