@@ -12,9 +12,7 @@ from bilinear_lmmd.data.preprocessing import (
     build_preprocessing_frontend,
     preprocessing_spec,
 )
-from bilinear_lmmd.experiments.preprocessing_contract import (
-    validate_primary_configs,
-)
+from bilinear_lmmd.experiments.preprocessing_contract import validate_primary_configs
 from bilinear_lmmd.modeling.models import build_model
 
 
@@ -41,6 +39,10 @@ def _frontend_payload(config: dict) -> dict:
     return {key: value for key, value in config.items() if key not in ignored}
 
 
+def _chromaticity(value: torch.Tensor) -> torch.Tensor:
+    return value / value.sum(dim=1, keepdim=True).clamp_min(1e-8)
+
+
 def run_preprocessing_static_preflight(
     output: Path,
     *,
@@ -55,11 +57,14 @@ def run_preprocessing_static_preflight(
     for code in ARM_CODES:
         model, fingerprint = _model_state(seed, dict(configs[code]["model"]))
         model_hashes[code] = fingerprint
-        model_parameter_counts[code] = sum(p.numel() for p in model.parameters())
+        model_parameter_counts[code] = sum(
+            p.numel() for p in model.parameters()
+        )
 
-    probe = torch.linspace(
-        0.0, 1.0, steps=3 * probe_size * probe_size
-    ).reshape(1, 3, probe_size, probe_size)
+    probe = (
+        torch.linspace(0.001, 1.0, steps=3 * probe_size * probe_size)
+        .reshape(1, 3, probe_size, probe_size)
+    )
 
     arms = {}
     for code in ARM_CODES:
@@ -89,16 +94,27 @@ def run_preprocessing_static_preflight(
             gates["identity_exact"] = bool(torch.equal(first, probe))
         elif code == "C0":
             gates["range_0_1"] = (
-                float(first.min()) >= 0.0 and float(first.max()) <= 1.0
+                float(first.min()) >= 0.0
+                and float(first.max()) <= 1.0
             )
             gates["active"] = float((first - probe).abs().max()) > 0.0
-        else:
+        elif code == "F0":
             gates["canonical_non_decreasing"] = bool(
                 torch.all(first + 1e-7 >= probe)
             )
             gates["canonical_upper_bound_2"] = (
                 float(first.max()) <= 2.0 + 1e-6
             )
+            gates["shared_gate_chromaticity"] = bool(
+                torch.allclose(
+                    _chromaticity(first),
+                    _chromaticity(probe),
+                    atol=2e-6,
+                    rtol=2e-6,
+                )
+            )
+            gates["active"] = float((first - probe).abs().max()) > 0.0
+        else:
             gates["active"] = float((first - probe).abs().max()) > 0.0
 
         arms[code] = {
@@ -109,19 +125,26 @@ def run_preprocessing_static_preflight(
             "max": float(first.max()),
             "mean": float(first.mean()),
             "std": float(first.std()),
+            "fraction_lt_0": float((first < 0.0).float().mean()),
             "fraction_gt_1": float((first > 1.0).float().mean()),
         }
 
     gates = {
-        "common_config_sha256_exact": bool(config_gate["common_config_sha256"]),
-        "common_initialized_model_state_sha256": len(set(model_hashes.values())) == 1,
-        "common_model_parameter_count": len(set(model_parameter_counts.values())) == 1,
+        "common_config_sha256_exact": bool(
+            config_gate["common_config_sha256"]
+        ),
+        "common_initialized_model_state_sha256": (
+            len(set(model_hashes.values())) == 1
+        ),
+        "common_model_parameter_count": (
+            len(set(model_parameter_counts.values())) == 1
+        ),
         "all_frontends_valid": all(
             all(row["gates"].values()) for row in arms.values()
         ),
     }
     result = {
-        "format": "bilinear_lmmd.preprocessing.static_preflight.v2",
+        "format": "bilinear_lmmd.preprocessing.static_preflight.v3",
         "decision": (
             "PASS_PREPROCESSING_STATIC_CONTRACT"
             if all(gates.values())
@@ -139,7 +162,9 @@ def run_preprocessing_static_preflight(
     }
     output = Path(output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(result, indent=2) + "\n", encoding="utf-8"
+    )
     if result["decision"] != "PASS_PREPROCESSING_STATIC_CONTRACT":
         raise RuntimeError(f"Static preflight gagal: {result}")
     print(json.dumps(result, indent=2), flush=True)

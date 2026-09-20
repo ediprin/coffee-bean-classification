@@ -10,14 +10,7 @@ from pathlib import Path
 
 import torch
 
-from bilinear_lmmd.data.preprocessing import (
-    AF2Config,
-    AF2Frontend,
-    CLAHEConfig,
-    CLAHEFrontend,
-    WAV1Config,
-    WAV1Frontend,
-)
+from bilinear_lmmd.data.preprocessing import AF2Config, AF2LuminanceFrontend
 
 
 def _git_commit(repo: Path) -> str:
@@ -50,37 +43,24 @@ def _load_module(name: str, path: Path):
     return module
 
 
-def _load_reference_modules(reference_repo: Path, arm: str):
+def _load_f0_reference(reference_repo: Path):
     coffee = reference_repo / "src/coffee_detector"
     if not coffee.is_dir():
         raise FileNotFoundError(
             f"Reference repo tidak memiliki src/coffee_detector: {reference_repo}"
         )
-
     _package("coffee_detector", coffee)
-    if arm == "C0":
-        return _load_module(
-            "_coffee_reference_clahe_operator",
-            coffee / "classical_enhancement/operator.py",
-        )
-
     _package("coffee_detector.afab", coffee / "afab")
     afab = _load_module(
         "coffee_detector.afab.operator",
         coffee / "afab/operator.py",
     )
-    if arm == "F0":
-        return afab
-
-    _package("coffee_detector.af2_spectral", coffee / "af2_spectral")
-    _load_module(
-        "coffee_detector.af2_spectral.config",
-        coffee / "af2_spectral/config.py",
+    _package("coffee_detector.af2_luminance", coffee / "af2_luminance")
+    luminance = _load_module(
+        "coffee_detector.af2_luminance.operator",
+        coffee / "af2_luminance/operator.py",
     )
-    return _load_module(
-        "coffee_detector.af2_spectral.operator",
-        coffee / "af2_spectral/operator.py",
-    )
+    return afab, luminance
 
 
 def verify_reference_equivalence(
@@ -93,8 +73,10 @@ def verify_reference_equivalence(
     size: int = 65,
 ) -> dict:
     arm = arm.upper()
-    if arm not in {"C0", "F0", "W0"}:
-        raise ValueError("Reference equivalence hanya untuk C0/F0/W0")
+    if arm != "F0":
+        raise ValueError(
+            "Code-reference equivalence hanya berlaku untuk F0 luminance."
+        )
     reference_repo = Path(reference_repo).expanduser().resolve()
     actual_commit = _git_commit(reference_repo)
     if actual_commit != expected_reference_commit:
@@ -103,34 +85,22 @@ def verify_reference_equivalence(
             f"{expected_reference_commit}"
         )
 
-    reference_module = _load_reference_modules(reference_repo, arm)
+    afab, luminance = _load_f0_reference(reference_repo)
     torch.manual_seed(seed)
     probe = torch.rand(2, 3, size, size)
 
-    if arm == "C0":
-        ours = CLAHEFrontend(CLAHEConfig())
-        reference = reference_module.CLAHEInputEnhancer(
-            reference_module.CLAHEConfig()
+    ours = AF2LuminanceFrontend(AF2Config())
+    reference = luminance.AF2LuminanceInputEnhancer(
+        afab.AFABConfig(
+            mode="af2",
+            patch_size=32,
+            overlap=0.50,
+            gamma=0.10,
+            angular_bins=360,
+            chunk_size=128,
+            eps=1.0e-8,
         )
-    elif arm == "F0":
-        ours = AF2Frontend(AF2Config())
-        reference = reference_module.AFABInputEnhancer(
-            reference_module.AFABConfig(
-                mode="af2",
-                patch_size=32,
-                overlap=0.50,
-                gamma=0.10,
-                angular_bins=360,
-                chunk_size=128,
-                eps=1.0e-8,
-            )
-        )
-    else:
-        config_module = sys.modules["coffee_detector.af2_spectral.config"]
-        ours = WAV1Frontend(WAV1Config())
-        reference = reference_module.SpectralInputEnhancer(
-            config_module.frozen_arm_config("WAV1")
-        )
+    )
 
     with torch.inference_mode():
         left = ours(probe.clone())
@@ -139,8 +109,9 @@ def verify_reference_equivalence(
     exact = torch.equal(left, right)
     max_abs = float((left - right).abs().max())
     result = {
-        "format": "bilinear_lmmd.preprocessing.reference_equivalence.v2",
-        "arm": arm,
+        "format": "bilinear_lmmd.preprocessing.reference_equivalence.v3",
+        "arm": "F0",
+        "method": "af2_luminance_shared_gate",
         "reference_repo": str(reference_repo),
         "reference_git_commit": actual_commit,
         "expected_reference_git_commit": expected_reference_commit,
@@ -154,10 +125,12 @@ def verify_reference_equivalence(
     }
     output = Path(output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(result, indent=2) + "\n", encoding="utf-8"
+    )
     if not exact:
         raise RuntimeError(
-            f"Port {arm} tidak bitwise-equivalent: max_abs={max_abs}"
+            f"Port F0 luminance tidak bitwise-equivalent: max_abs={max_abs}"
         )
     print(json.dumps(result, indent=2), flush=True)
     return result
@@ -165,7 +138,7 @@ def verify_reference_equivalence(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--arm", required=True, choices=("C0", "F0", "W0"))
+    parser.add_argument("--arm", required=True, choices=("F0",))
     parser.add_argument("--reference-repo", required=True, type=Path)
     parser.add_argument("--expected-reference-commit", required=True)
     parser.add_argument("--output", required=True, type=Path)
