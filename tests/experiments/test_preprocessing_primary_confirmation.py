@@ -38,6 +38,7 @@ def test_confirmation_requires_and_accepts_exact_20_primary_runs(tmp_path):
         "git_commit": "abc",
         "clean_content_sha256": clean_sha,
         "fold_manifest_sha256": fold_file_sha,
+        "observability_audit_sha256": "observability",
         "static_preflight_sha256": "static",
         "environment_reference_sha256": "env",
         "software_sha256": "soft",
