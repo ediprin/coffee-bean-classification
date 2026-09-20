@@ -37,7 +37,6 @@ def _one_metrics(raw: torch.Tensor, candidate: torch.Tensor) -> dict[str, float]
 
     flat = candidate.flatten()
     delta = candidate - raw
-    mse = float(delta.square().mean())
     raw_np = raw[0].permute(1, 2, 0).cpu().numpy()
     out_np = candidate[0].permute(1, 2, 0).cpu().numpy()
     ssim = float(
@@ -64,18 +63,14 @@ def _one_metrics(raw: torch.Tensor, candidate: torch.Tensor) -> dict[str, float]
         "fraction_lt_0": float((flat < 0.0).float().mean()),
         "fraction_gt_1": float((flat > 1.0).float().mean()),
         "mean_abs_delta": float(delta.abs().mean()),
-        "mse": mse,
-        "psnr_db": float("inf") if mse == 0.0 else 10.0 * math.log10(1.0 / mse),
+        "mse": float(delta.square().mean()),
         "ssim": ssim,
         "nonnegative_chromaticity_l1": chroma,
     }
 
 
 def _mean(values: list[float]) -> float:
-    finite = [value for value in values if math.isfinite(value)]
-    if not finite:
-        return float("inf")
-    return float(np.mean(finite))
+    return float(np.mean(values))
 
 
 def run_observability_audit(
@@ -106,7 +101,9 @@ def run_observability_audit(
     frontends = {}
     for arm in ARM_CODES:
         cfg = configs[arm]["preprocessing"]
-        frontend = build_preprocessing_frontend(arm, _frontend_payload(cfg)).eval()
+        frontend = build_preprocessing_frontend(
+            arm, _frontend_payload(cfg)
+        ).eval()
         if arm in {"F0", "W0"}:
             frontend = frontend.to(device)
         frontends[arm] = frontend
@@ -156,8 +153,10 @@ def run_observability_audit(
         values = arm_values[arm]
         summary_arms[arm] = {
             key: (
-                float(min(v)) if key == "min"
-                else float(max(v)) if key == "max"
+                float(min(v))
+                if key == "min"
+                else float(max(v))
+                if key == "max"
                 else _mean(v)
             )
             for key, v in values.items()
@@ -218,7 +217,7 @@ def run_observability_audit(
     }
     summary_path = output_dir / "preprocessing_observability.json"
     summary_path.write_text(
-        json.dumps(result, indent=2, allow_nan=False) + "\n",
+        json.dumps(result, indent=2) + "\n",
         encoding="utf-8",
     )
     if result["decision"] != "PASS_PREPROCESSING_OBSERVABILITY_AUDIT":
