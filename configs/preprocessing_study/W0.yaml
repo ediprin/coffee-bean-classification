@@ -1,0 +1,39 @@
+seed: 42
+device: auto
+data:
+  root: data/coffee17-preprocessing-development
+  source: source
+  train_split: train
+  val_split: val
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  rotation_angles: [0, 45, 90, 135, 180, 225, 270]
+  augmentation_mode: preprocessing_study
+  object_crop: false
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: gap
+  num_classes: 17
+  out_indices: [4]
+adaptation:
+  method: source_only
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  freeze_backbone: false
+  scheduler: cosine
+  ema_decay: 0.0
+  ema_start_epoch: 0
+  output_dir: outputs/preprocessing-study
+
+preprocessing:
+  enabled: true
+  code: W0
+  method: wav1_haar_detail_energy
+  wavelet_levels: 2
+  eps: 1.0e-8
