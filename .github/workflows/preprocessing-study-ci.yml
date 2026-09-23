@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/preprocessing-study-v1
+      - codex/preprocessing-kd-v1
   pull_request:
     branches:
       - main
