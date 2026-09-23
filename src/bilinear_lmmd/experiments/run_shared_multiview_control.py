@@ -136,7 +136,10 @@ def run_control(
 
     result_path = run_dir / "result.json"
     if result_path.is_file():
-        return _json(result_path, "Existing R0 control result")
+        old = _json(result_path, "Existing R0 control result")
+        if old.get("run_contract") != contract:
+            raise RuntimeError("Existing R0 control result berasal dari kontrak berbeda.")
+        return old
 
     lock_name = f"R0_CONTROL_fold{fold}_seed42.training.lock"
     with exclusive_training_lock(output_root, lock_name=lock_name, stale_seconds=900):
