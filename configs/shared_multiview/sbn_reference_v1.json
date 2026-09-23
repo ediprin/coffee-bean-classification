@@ -1,0 +1,110 @@
+{
+  "format": "coffee17.shared_multiview.sbn_reference.v1",
+  "source_artifact": "shared-multiview-analysis-package.zip",
+  "source_artifact_sha256": "840c447ea773c97441b29d9e68ecfac2accacd7f797e30d7b498364436cbf75a",
+  "source_protocol": "coffee17-shared-multiview-mvce-v1",
+  "source_scientific_commit": "d4d904838b98d60c39f06634b9c1991eae3b25e3",
+  "seed": 42,
+  "expected_initial_model_state_sha256": "e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995",
+  "validation_identity_hash_definition": "sort identity=class/filename; concatenate '<identity>\\t<class>\\n'; SHA256 UTF-8",
+  "folds": {
+    "fold_1": {
+      "count": 97,
+      "identity_label_sha256": "37c2e04d069200cd8c1768016d1fa7e9a6fb19511988f2f32397ad8f3aaf00cd",
+      "r0_control": {
+        "accuracy": 0.9175257731958762,
+        "balanced_accuracy": 0.9259103641456583,
+        "macro_f1": 0.9246797320326732,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.8782967032967033
+      },
+      "failed_mvce": {
+        "macro_f1": 0.894244970715559,
+        "best_epoch": 31,
+        "raw_ce": 0.6255030333995819,
+        "c0_ce": 0.6193781286478043,
+        "f0_ce": 1.014803871512413,
+        "w0_ce": 0.6083343982696533
+      }
+    },
+    "fold_2": {
+      "count": 97,
+      "identity_label_sha256": "853da93b314ce3d2e992c1c67718aea27780cfcf36f5e045e1533b34bb7788b4",
+      "r0_control": {
+        "accuracy": 0.9381443298969072,
+        "balanced_accuracy": 0.9386554621848741,
+        "macro_f1": 0.9385729226559676,
+        "worst_class_f1": 0.7272727272727273,
+        "hard_class_f1": 0.8921947333712039
+      },
+      "failed_mvce": {
+        "macro_f1": 0.8862893642305407,
+        "best_epoch": 42,
+        "raw_ce": 0.6223366515977042,
+        "c0_ce": 0.6374784878322056,
+        "f0_ce": 2.6411024161747525,
+        "w0_ce": 0.6031170430637541
+      }
+    },
+    "fold_3": {
+      "count": 97,
+      "identity_label_sha256": "783cb11115dad436c4f0ea126df8bf39d1c98638d668fb0dc5b9e09ffb668d0f",
+      "r0_control": {
+        "accuracy": 0.9175257731958762,
+        "balanced_accuracy": 0.915126050420168,
+        "macro_f1": 0.9128613792973654,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.9012432012432012
+      },
+      "failed_mvce": {
+        "macro_f1": 0.892750770951463,
+        "best_epoch": 18,
+        "raw_ce": 0.7491415597143627,
+        "c0_ce": 0.7321549881072271,
+        "f0_ce": 2.772641170592535,
+        "w0_ce": 0.7090841787202018
+      }
+    },
+    "fold_4": {
+      "count": 97,
+      "identity_label_sha256": "b1c181a9620352555a1c4d962a4bc2cdfcd02edb9feb80d7e04c402e5a80b03e",
+      "r0_control": {
+        "accuracy": 0.8762886597938144,
+        "balanced_accuracy": 0.8607142857142858,
+        "macro_f1": 0.8658471190478112,
+        "worst_class_f1": 0.5,
+        "hard_class_f1": 0.8075053418803418
+      },
+      "failed_mvce": {
+        "macro_f1": 0.8722324004330925,
+        "best_epoch": 28,
+        "raw_ce": 0.6342673812593732,
+        "c0_ce": 0.6289502041680473,
+        "f0_ce": 0.85098682982581,
+        "w0_ce": 0.6107137912795657
+      }
+    },
+    "fold_5": {
+      "count": 97,
+      "identity_label_sha256": "4a7340263bc5416bcde64de6b20312af55a6fe74b80a6db06890a07ac8429a97",
+      "r0_control": {
+        "accuracy": 0.8969072164948454,
+        "balanced_accuracy": 0.8876750700280113,
+        "macro_f1": 0.8906682705990665,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.871162987339458
+      },
+      "failed_mvce": {
+        "macro_f1": 0.9010074892427835,
+        "best_epoch": 14,
+        "raw_ce": 0.776301003637768,
+        "c0_ce": 0.7642353546051752,
+        "f0_ce": 2.831731569199335,
+        "w0_ce": 0.7418246808506194
+      }
+    }
+  },
+  "primary_comparison": "MVCE_SBN_ALL4 vs frozen matched R0_CONTROL",
+  "diagnostic_question": "Does auxiliary-view batch-stat normalization remove the F0 training-collapse pattern observed when auxiliary views consumed R0 running statistics?",
+  "test_images_accessed": false
+}
