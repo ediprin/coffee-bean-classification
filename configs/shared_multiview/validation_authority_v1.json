@@ -1,0 +1,69 @@
+{
+  "format": "coffee17.shared_multiview.validation_authority.v1",
+  "source_artifact": "kd-analysis-package.zip",
+  "source_artifact_sha256": "7e07631ed349608c1eeadd7b1c89f9e2fd6e65b7b359452243666a1e73e64a9f",
+  "source_protocol": "coffee17-preprocessing-kd-exploratory-v1",
+  "identity_hash_definition": "sort identity=class/filename; concatenate '<identity>\\t<class>\\n'; SHA256 UTF-8",
+  "expected_initial_model_state_sha256": "e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995",
+  "seed": 42,
+  "validation_ratio": 0.1,
+  "folds": {
+    "fold_1": {
+      "count": 97,
+      "identity_label_sha256": "37c2e04d069200cd8c1768016d1fa7e9a6fb19511988f2f32397ad8f3aaf00cd",
+      "r0_baseline": {
+        "accuracy": 0.8865979381443299,
+        "balanced_accuracy": 0.8945378151260506,
+        "macro_f1": 0.8936845929925514,
+        "worst_class_f1": 0.7272727272727273,
+        "hard_class_f1": 0.8310064935064935
+      }
+    },
+    "fold_2": {
+      "count": 97,
+      "identity_label_sha256": "853da93b314ce3d2e992c1c67718aea27780cfcf36f5e045e1533b34bb7788b4",
+      "r0_baseline": {
+        "accuracy": 0.9484536082474226,
+        "balanced_accuracy": 0.950420168067227,
+        "macro_f1": 0.9501593754188908,
+        "worst_class_f1": 0.8,
+        "hard_class_f1": 0.9054523091287797
+      }
+    },
+    "fold_3": {
+      "count": 97,
+      "identity_label_sha256": "783cb11115dad436c4f0ea126df8bf39d1c98638d668fb0dc5b9e09ffb668d0f",
+      "r0_baseline": {
+        "accuracy": 0.9072164948453608,
+        "balanced_accuracy": 0.9086834733893558,
+        "macro_f1": 0.9043525678473775,
+        "worst_class_f1": 0.5454545454545454,
+        "hard_class_f1": 0.8515034801799507
+      }
+    },
+    "fold_4": {
+      "count": 97,
+      "identity_label_sha256": "b1c181a9620352555a1c4d962a4bc2cdfcd02edb9feb80d7e04c402e5a80b03e",
+      "r0_baseline": {
+        "accuracy": 0.845360824742268,
+        "balanced_accuracy": 0.8429971988795518,
+        "macro_f1": 0.8443992282227577,
+        "worst_class_f1": 0.5,
+        "hard_class_f1": 0.7236607142857143
+      }
+    },
+    "fold_5": {
+      "count": 97,
+      "identity_label_sha256": "4a7340263bc5416bcde64de6b20312af55a6fe74b80a6db06890a07ac8429a97",
+      "r0_baseline": {
+        "accuracy": 0.8969072164948454,
+        "balanced_accuracy": 0.8890756302521009,
+        "macro_f1": 0.8899030227749951,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.8474061885826591
+      }
+    }
+  },
+  "test_images_accessed_for_new_method": false,
+  "note": "Authority reconstructs the original five validation partitions without requiring frozen primary model checkpoints."
+}
