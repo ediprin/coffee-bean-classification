@@ -87,6 +87,7 @@ def load_frozen_teachers(
     experiments_root: Path,
     fold: int,
     device: torch.device,
+    arms: tuple[str, ...] = ARMS,
 ) -> tuple[dict[str, FrozenTeacher], list[str], dict]:
     authority = _json(authority_path, "Primary confirmation")
     if authority.get("decision") != "AUTHORIZE_OOF_TEST_EVALUATION":
@@ -96,13 +97,17 @@ def load_frozen_teachers(
     if authority.get("all_validation_only") is not True:
         raise RuntimeError("Teacher authority tidak berasal dari validation-only primary runs.")
 
+    requested_arms = tuple(str(arm).upper() for arm in arms)
+    if not requested_arms or any(arm not in ARMS for arm in requested_arms):
+        raise ValueError(f"Teacher arms tidak valid: {requested_arms}")
+
     run_map = _authority_run_map(authority)
     experiments_root = Path(experiments_root).expanduser().resolve()
     teachers: dict[str, FrozenTeacher] = {}
     classes: list[str] | None = None
     metadata: dict[str, dict] = {}
 
-    for arm in ARMS:
+    for arm in requested_arms:
         key = (arm, int(fold))
         if key not in run_map:
             raise RuntimeError(f"Teacher primary tidak ada dalam authority: {key}")
@@ -258,6 +263,10 @@ def train_preprocessing_kd(
             f"{initial_sha} != {expected_initial_sha}"
         )
 
+    distillation_cfg = cfg["distillation"]
+    teacher_mode = str(distillation_cfg["teacher_mode"]).upper()
+    selected_arms = ("R0",) if teacher_mode == "R0" else ARMS
+
     # Teacher construction initializes temporary model parameters before loading
     # checkpoints. Preserve RNG so it cannot alter the matched student trajectory.
     cpu_rng = torch.random.get_rng_state()
@@ -267,6 +276,7 @@ def train_preprocessing_kd(
         experiments_root=experiments_root,
         fold=fold,
         device=device,
+        arms=selected_arms,
     )
     torch.random.set_rng_state(cpu_rng)
     if cuda_rng is not None:
@@ -277,8 +287,6 @@ def train_preprocessing_kd(
 
     student_runtime = PreprocessingRuntime.from_config(cfg["preprocessing"], device)
     training_cfg = cfg["training"]
-    distillation_cfg = cfg["distillation"]
-    teacher_mode = str(distillation_cfg["teacher_mode"]).upper()
     temperature = float(distillation_cfg["temperature"])
     hard_weight = float(distillation_cfg["hard_weight"])
     label_smoothing = float(training_cfg.get("label_smoothing", 0.1))
