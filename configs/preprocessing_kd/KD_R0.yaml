@@ -1,0 +1,34 @@
+seed: 42
+device: auto
+data:
+  root: data/coffee17-preprocessing-development
+  source: source
+  train_split: train
+  val_split: val
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  rotation_angles: [0, 45, 90, 135, 180, 225, 270]
+  augmentation_mode: preprocessing_study
+  object_crop: false
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: gap
+  num_classes: 17
+  out_indices: [4]
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  label_smoothing: 0.1
+  scheduler: cosine
+  output_dir: outputs/preprocessing-kd
+preprocessing:
+  enabled: true
+  code: R0
+  method: raw
+distillation:
+  teacher_mode: R0
+  temperature: 2.0
+  hard_weight: 0.5
