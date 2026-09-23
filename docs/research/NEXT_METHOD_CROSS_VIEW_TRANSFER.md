@@ -195,3 +195,130 @@ Current preferred order:
 1. **AT-SBN** — first, because it is the closest published analogue to the empirical Coffee17 failure and preserves zero inference overhead.
 2. **Training-only fused multi-view teacher -> R0** — only if AT-SBN fails to transfer gains.
 3. Avoid arbitrary view dropping, post-hoc subset selection, class-wise routing on tiny validation folds, or blind tuning of 0.5/0.5 weights.
+
+
+---
+
+## Update after AT-SBN results
+
+AT-SBN completed 5/5 folds and does not establish an R0-only improvement:
+- matched R0 Macro-F1: 90.653%
+- AT-SBN Macro-F1: 90.673%
+- delta: +0.020 pp
+- positive Macro-F1 folds: 1/5
+- Hard-F1 delta: -1.617 pp
+- Worst-F1 delta: -2.684 pp
+
+SBN remains effective as an optimization mechanism: F0 CE is healthy at
+approximately 0.640 at the R0-selected best checkpoints.
+
+The main AT-SBN failure is transfer direction. The implemented Zhang-style
+self-distillation is R0 -> auxiliary. At the selected best epochs, auxiliary
+training predictions are already very close to R0; mean F0 disagreement is
+1.17% and mean F0 JS divergence is 0.01286. This suppresses transformed-view
+prediction diversity rather than explicitly transferring transformed-view
+information into R0.
+
+Late classifier merging is also not supported by the Coffee17 experiment:
+4/5 selected checkpoints occur before merging starts, and mean best
+merge-active Macro-F1 is 0.677 pp lower than mean best pre-merge Macro-F1.
+
+Therefore AT-SBN should not be tuned further by changing merge timing or loss
+weights. The remaining target is explicit auxiliary/multi-view -> R0 transfer.
+
+## Revised next candidate: MVFD-SBN
+
+Working name:
+
+**MVFD-SBN — Multi-View Feature Distillation with Selective BatchNorm**
+
+Published rationale:
+- Dong et al. (Neurocomputing 2026) explicitly construct a training-only
+  multi-view teacher feature and distill it into a standard single-view
+  representation, discarding the teacher at inference.
+- Black & Souvenir (WACV 2024) show that one-way multi-view -> single-view
+  distillation can match their full mutual-distillation result for
+  single-view inference.
+- SC-MSDNet (Computers in Biology and Medicine 2026) independently uses
+  original, contrast-enhanced and frequency-transformed views with multi-view
+  self-distillation, showing that this family of transformed views is a
+  plausible source of complementary supervision. Its three-view inference
+  design does not satisfy the Coffee17 deployment requirement, so it is only
+  supporting evidence for the view construction, not a method to copy.
+
+### Minimal Coffee17 adaptation
+
+Retain:
+- one MobileNetV3-Large backbone;
+- primary R0 classifier;
+- training-only C0/F0/W0 classifiers;
+- validated SBN behavior;
+- R0-only inference.
+
+Remove from AT-SBN:
+- R0 -> auxiliary output distillation;
+- late classifier-weight merging.
+
+For each training image, obtain GAP embeddings:
+- e_R from R0;
+- e_C from C0;
+- e_F from F0;
+- e_W from W0.
+
+Build a detached training-only multi-view teacher prototype:
+
+t = stopgrad((e_C + e_F + e_W) / 3)
+
+The first controlled test should use equal aggregation because the earlier
+Coffee17 late-fusion study already showed that uniform transformed-view
+aggregation contains useful complementary information, while learned
+validation weighting was unstable.
+
+Use the primary R0 feature as the student:
+
+L_feat = ||e_R - t||_2^2
+
+and:
+
+L = CE_R
+  + alpha [CE_C + CE_F + CE_W]
+  + lambda_feat L_feat
+
+The teacher is detached, so feature distillation has an explicit direction:
+
+C0/F0/W0 -> R0
+
+This is the direction missing from AT-SBN.
+
+### Why feature-level rather than another logit KD
+
+The earlier frozen-teacher KD experiment found only ~1.10% train top-1
+disagreement, so output-level teacher targets carried little diversity on the
+training images. AT-SBN again produced ~1% auxiliary disagreement. Repeating
+another averaged-logit KD therefore attacks a failure mode that has already
+been observed twice.
+
+Feature-level transfer is the next distinct hypothesis: transformed views may
+encode useful color/texture cues in their intermediate representation even
+when their final class predictions agree.
+
+### Required diagnostics before any escalation
+
+The MVFD-SBN implementation must log:
+- R0/C0/F0/W0 CE;
+- feature-distillation loss;
+- pairwise cosine similarity and L2 distance between GAP embeddings;
+- R0 validation Macro-F1, Hard-F1 and Worst-F1;
+- rescue/damage vs frozen matched R0;
+- per-class F1 deltas;
+- auxiliary validation metrics;
+- F0 CE to ensure SBN remains healthy.
+
+No learned reliability weights, patch alignment, attention, class routing,
+or additional fusion modules should be introduced in the first MVFD-SBN test.
+
+If feature diversity is already nearly collapsed before the feature loss is
+applied, or if MVFD-SBN does not improve the R0 path, then the equal-prototype
+shared-backbone assumption is insufficient and a stronger training-only
+teacher construction (e.g. reliability-guided aggregation) would need separate
+justification.
