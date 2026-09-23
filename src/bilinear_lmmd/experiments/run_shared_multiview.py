@@ -11,6 +11,8 @@ from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.core.reproducibility import (
     canonical_json_sha256,
     current_git_commit,
+    model_state_fingerprint,
+    seed_everything,
     sha256_file,
 )
 from bilinear_lmmd.core.run_lock import exclusive_training_lock
@@ -20,6 +22,7 @@ from bilinear_lmmd.engine.shared_multiview import (
     validate_shared_multiview_config,
     validation_identity_label_sha256,
 )
+from bilinear_lmmd.modeling.models import build_model
 
 
 def _json(path: Path, label: str) -> dict:
@@ -92,7 +95,13 @@ def run_shared_multiview(
             f"{val_sha} != {expected['identity_label_sha256']}"
         )
 
-    expected_initial = authority["expected_initial_model_state_sha256"]
+    historical_initial = authority["expected_initial_model_state_sha256"]
+    seed_everything(42)
+    probe_cfg = copy.deepcopy(cfg["model"])
+    probe = build_model(probe_cfg)
+    current_initial = model_state_fingerprint(probe)
+    del probe
+
     run_dir = (
         Path(output_root).expanduser().resolve()
         / "MVCE_ALL4"
@@ -112,7 +121,9 @@ def run_shared_multiview(
         "validation_authority_sha256": sha256_file(authority_path),
         "validation_identity_label_sha256": val_sha,
         "validation_count": count,
-        "expected_initial_model_state_sha256": expected_initial,
+        "current_initial_model_state_sha256": current_initial,
+        "historical_initial_model_state_sha256": historical_initial,
+        "historical_initial_match": current_initial == historical_initial,
         "training_views": ["R0", "C0", "F0", "W0"],
         "deployment_view": "R0",
         "shared_model_parameters": True,
@@ -162,7 +173,7 @@ def run_shared_multiview(
                 cfg,
                 run_dir=run_dir,
                 run_contract_sha256=contract_sha,
-                expected_initial_model_sha256=expected_initial,
+                expected_initial_model_sha256=current_initial,
                 resume=resume or (run_dir / "last.pt").is_file(),
             )
             training_executed = True
