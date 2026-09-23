@@ -557,3 +557,171 @@ Accordingly:
 - fusion, KD, MVCE, and SBN are exploratory post-primary development;
 - a future final method should be frozen before an independent final evaluation
   if a clean confirmatory thesis claim is required.
+
+
+---
+
+## 13. AT-SBN: Auxiliary Training + Selective BatchNorm
+
+Artifact analyzed:
+- `at-sbn-analysis-package.zip`
+- SHA-256: `470fd28bfe125ac19a89a8f8d2d765edbcbfa2e4efd13ed72d34336f444f9b64`
+- 5/5 folds complete
+- 50 epochs per fold
+- 97 validation images per fold
+- scientific commit: `1330b9a9dcf125b5ff9b6fd598ed513ecf88d002`
+- primary initialization SHA-256:
+  `e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995`
+- `test_images_accessed=false` on all folds
+
+AT-SBN retained the validated SBN mechanism but decoupled the classifiers:
+- R0 uses the primary deployment classifier;
+- C0/F0/W0 use separate training-only linear classifiers;
+- auxiliary hard-label CE weight: 0.05 per view;
+- detached R0-to-auxiliary self-distillation weight: 0.05 per view;
+- temperature: 1.0;
+- late squared-L2 classifier merging begins at epoch 44;
+- auxiliary classifiers are discarded at inference.
+
+Mean validation metrics:
+
+| Model | Accuracy | Balanced Acc | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|---:|---:|
+| R0_CONTROL | 90.93% | 90.56% | 90.65% | 87.01% | 64.55% |
+| MVCE-SBN | 90.52% | 90.84% | 90.68% | 84.49% | 64.48% |
+| AT-SBN | 91.13% | 90.85% | 90.67% | 85.39% | 61.86% |
+
+AT-SBN vs matched R0_CONTROL:
+- Accuracy: +0.206 pp
+- Balanced Accuracy: +0.286 pp
+- Macro-F1: +0.020 pp
+- Hard-F1: -1.617 pp
+- Worst-F1: -2.684 pp
+
+AT-SBN vs MVCE-SBN:
+- Accuracy: +0.619 pp
+- Balanced Accuracy: +0.003 pp
+- Macro-F1: -0.002 pp
+- Hard-F1: +0.899 pp
+- Worst-F1: -2.623 pp
+
+Per-fold Macro-F1:
+
+| Fold | R0_CONTROL | MVCE-SBN | AT-SBN | AT-SBN - R0 |
+|---|---:|---:|---:|---:|
+| 1 | 92.47% | 89.50% | 91.24% | -1.23 pp |
+| 2 | 93.86% | 93.20% | 93.78% | -0.08 pp |
+| 3 | 91.29% | 92.27% | 91.27% | -0.01 pp |
+| 4 | 86.58% | 88.40% | 86.16% | -0.42 pp |
+| 5 | 89.07% | 90.01% | 90.91% | +1.84 pp |
+
+Positive Macro-F1 folds vs R0_CONTROL: 1 / 5.
+
+Validation-fold observation comparison vs matched R0:
+- R0 correct: 441 / 485 fold-observations
+- AT-SBN correct: 442 / 485 fold-observations
+- rescue: 7
+- damage: 6
+- net: +1
+
+These 485 entries are fold-observations and are not 485 independent images.
+
+### AT-SBN optimization diagnostics
+
+Best epoch per fold:
+
+[30, 32, 31, 49, 28]
+
+Only fold 4 selected a checkpoint after classifier merging became active at
+epoch 44. Thus 4/5 selected models come from the pre-merge phase.
+
+Mean best pre-merge Macro-F1:
+- 90.572%
+
+Mean best merge-active Macro-F1:
+- 89.894%
+
+Difference:
+- -0.677 pp
+
+Mean best merge-active Macro-F1 vs matched R0:
+- -0.758 pp
+
+At merge activation, the total training objective jumps sharply because the
+un-normalized squared classifier-distance term is large. Example epoch-43 to
+epoch-44 total loss:
+- fold 1: 0.785 -> 31.444
+- fold 2: 0.787 -> 31.300
+- fold 3: 0.783 -> 31.204
+- fold 4: 0.797 -> 31.320
+- fold 5: 0.776 -> 31.092
+
+The classifier distances do decrease after merging, but this does not translate
+into a consistent R0 validation improvement.
+
+### Auxiliary optimization and diversity
+
+F0 CE at the R0-selected best epoch remains healthy:
+
+[0.646, 0.643, 0.643, 0.627, 0.643]
+
+Mean F0 CE:
+- 0.640
+
+Therefore SBN continues to prevent the prior F0 optimization collapse.
+
+However, auxiliary predictions become very close to the R0 primary prediction
+on training samples. At the selected best epoch:
+
+Mean F0 top-1 disagreement:
+- 1.17%
+
+Mean F0 Jensen-Shannon divergence:
+- 0.01286
+
+The other auxiliary heads show similarly low disagreement/JS.
+
+Mean transformed-view validation Macro-F1 at the R0-selected best checkpoint:
+- C0 auxiliary head: 73.84%
+- F0 auxiliary head: 76.60%
+- W0 auxiliary head: 72.28%
+
+Thus the auxiliary heads fit the training objective but do not form strong
+standalone validation classifiers, while the R0-to-auxiliary distillation also
+drives their outputs toward the primary prediction.
+
+### Per-class AT-SBN delta vs matched R0
+
+Largest gains:
+- Broken +4.68 pp
+- Fungus Damage +3.53 pp
+- Parchment +2.22 pp
+- Dry Cherry +2.22 pp
+- Floater +1.82 pp
+- Immature +1.52 pp
+- Withered +1.29 pp
+
+Largest losses:
+- Slight Insect Damage -8.14 pp
+- Cut -3.79 pp
+- Severe Insect Damage -2.61 pp
+- Fade -1.19 pp
+- Full Sour -1.18 pp
+
+Notably, the large Fade gain produced by MVCE-SBN (+11.67 pp vs R0) is not
+retained by AT-SBN.
+
+### AT-SBN conclusion
+
+AT-SBN does not establish an aggregate improvement over the matched R0 control.
+
+The key diagnostic is structural: the tested self-distillation direction is
+R0 -> auxiliary. It makes the auxiliary predictions more similar to R0, but it
+does not provide a direct auxiliary/multi-view -> R0 supervision path. Any
+benefit to R0 can only arrive indirectly through shared feature-extractor
+gradients and the late classifier-merging penalty.
+
+Given the observed low auxiliary disagreement and neutral R0-only Macro-F1,
+the next method should explicitly transfer a training-only multi-view
+representation toward the R0 deployment representation, rather than further
+forcing auxiliary heads to imitate R0.
