@@ -897,3 +897,160 @@ weighting, attention, or class-specific mechanisms, a matched SBN +
 auxiliary-head CE-only control (lambda_feat = 0) is needed to determine whether
 the observed gain is specifically attributable to transformed-view feature
 distillation rather than auxiliary-task regularization alone.
+
+
+---
+
+## 15. MVFD-SBN causal ablation: AUXCE-SBN control
+
+Artifact analyzed:
+- `mvfd-sbn-ablation-analysis-package.zip`
+- SHA-256: `4171f46ef73c873a73a3ebd9670758c3d911f74202facee5fd65d3699aabf975`
+- 5/5 folds complete
+- 50 epochs per fold
+- 97 validation images per fold
+- scientific commit: `d449f6caf2468e3ec99fe76a806e763094939a4f`
+- primary initialization SHA-256:
+  `e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995`
+- `test_images_accessed=false` on all folds
+
+This control preserves:
+- the same MobileNetV3-Large + GAP primary R0 path;
+- training-only C0/F0/W0 auxiliary heads;
+- Selective BatchNorm;
+- auxiliary CE weight 0.05 per transformed view;
+- same folds, seed, optimizer, schedule, and model-selection rule.
+
+The only causal change relative to MVFD-SBN is:
+
+`lambda_feat = 0`
+
+so the control objective is:
+
+`L_control = CE_R + 0.05(CE_C + CE_F + CE_W)`
+
+while MVFD-SBN adds:
+
+`+ 0.007 * mean_i ||e_R_i - stopgrad(mean(e_C,e_F,e_W))||_2^2`
+
+The teacher feature is still computed in the control for diagnostics but its
+weighted contribution is exactly zero.
+
+Mean validation metrics:
+
+| Model | Accuracy | Balanced Acc | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|---:|---:|
+| R0_CONTROL | 90.93% | 90.56% | 90.65% | 87.01% | 64.55% |
+| AUXCE-SBN control | 90.52% | 90.13% | 89.94% | 86.08% | 61.58% |
+| MVFD-SBN | 91.55% | 92.09% | 91.77% | 85.26% | 67.88% |
+
+AUXCE-SBN control vs matched R0:
+- Accuracy: -0.412 pp
+- Balanced Accuracy: -0.431 pp
+- Macro-F1: -0.711 pp
+- Hard-F1: -0.926 pp
+- Worst-F1: -2.970 pp
+- positive Macro-F1 folds: 2 / 5
+
+MVFD-SBN vs AUXCE-SBN control:
+- Accuracy: +1.031 pp
+- Balanced Accuracy: +1.958 pp
+- Macro-F1: +1.826 pp
+- Hard-F1: -0.824 pp
+- Worst-F1: +6.303 pp
+
+Per-fold Macro-F1 causal difference (MVFD-SBN - AUXCE control):
+
+| Fold | AUXCE-SBN | MVFD-SBN | MVFD - control |
+|---|---:|---:|---:|
+| 1 | 89.67% | 91.57% | +1.90 pp |
+| 2 | 93.92% | 94.27% | +0.35 pp |
+| 3 | 91.27% | 91.34% | +0.07 pp |
+| 4 | 84.72% | 90.10% | +5.37 pp |
+| 5 | 90.12% | 91.56% | +1.44 pp |
+
+MVFD-SBN exceeds the matched AUXCE-SBN control in Macro-F1 on all 5 folds.
+
+Prediction comparison over the 485 fold-observations:
+- AUXCE-SBN correct: 439
+- MVFD-SBN correct: 444
+- MVFD rescues: 14
+- MVFD damages: 9
+- net: +5 correct fold-observations
+
+These 485 rows are fold-observations rather than independent unique images.
+
+### Mechanistic contrast
+
+Without feature distillation:
+- mean R0-teacher cosine at the selected best checkpoint: 0.95295
+- mean R0-teacher L2 distance: 6.429
+- mean unweighted feature discrepancy: 43.572
+
+With MVFD feature distillation:
+- mean R0-teacher cosine: 0.98997
+- mean R0-teacher L2 distance: 2.430
+- mean unweighted feature discrepancy: 6.236
+
+Thus the explicit 0.007 feature term strongly changes the learned R0
+representation in the intended direction rather than acting as a negligible
+regularizer.
+
+F0 remains optimized normally in both variants:
+- AUXCE-SBN mean F0 CE at best: 0.672
+- MVFD-SBN mean F0 CE at best: 0.725
+
+The old normalization collapse does not reappear.
+
+### Per-class causal effect of adding feature distillation
+
+Fold-observation pooled descriptive F1 deltas, MVFD-SBN minus AUXCE-SBN:
+
+Largest gains:
+- Fade +13.49 pp
+- Dry Cherry +6.38 pp
+- Parchment +5.66 pp
+- Floater +4.00 pp
+- Husk +3.85 pp
+- Slight Insect Damage +3.68 pp
+- Shell +3.22 pp
+- Partial Sour +3.00 pp
+- Severe Insect Damage +2.13 pp
+
+Largest losses:
+- Cut -5.07 pp
+- Partial Black -4.71 pp
+- Withered -3.23 pp
+- Immature -3.00 pp
+- Fungus Damage -1.42 pp
+
+These class-level pooled numbers are descriptive because validation identities
+overlap across folds.
+
+### Causal interpretation
+
+This ablation materially strengthens the MVFD-SBN mechanism claim.
+
+The low-weight auxiliary CE control alone does not explain the MVFD gain:
+its mean Macro-F1 is 0.711 pp below matched R0, whereas adding the explicit
+transformed-view -> R0 feature-consistency term moves the result to 1.115 pp
+above matched R0.
+
+Relative to the matched AUXCE-SBN control, the feature term contributes a
++1.826 pp mean Macro-F1 shift and improves all five folds descriptively.
+
+The strongest supported claim is therefore:
+
+> Within the frozen five-fold exploratory validation protocol, the positive
+> aggregate effect of MVFD-SBN is specifically associated with explicit
+> transformed-view feature distillation rather than auxiliary transformed-view
+> classification supervision alone.
+
+This is still post-primary exploratory evidence rather than an independent
+confirmatory test. Hard-F1 also remains a trade-off: MVFD-SBN is 0.824 pp below
+the AUXCE-SBN control and 1.750 pp below matched R0 on the aggregate Hard-F1
+metric.
+
+Given the clean causal ablation, further tuning on the same validation folds
+should be avoided. MVFD-SBN should now be treated as the frozen candidate
+method for a genuinely independent confirmation/generalization evaluation.
