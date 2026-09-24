@@ -1,0 +1,67 @@
+{
+  "format": "coffee17.mvfd_sbn.result_reference.v1",
+  "source_artifact": "mvfd-sbn-analysis-package.zip",
+  "source_artifact_sha256": "d2f432be885a9c507fdca0cbeb02d8d3dbef70d2080f306c8d84d84bb6ffecf6",
+  "source_scientific_commit": "fdae1fff10348f78ca67bb00948ae5768e9c98d9",
+  "method": "MVFD_SBN_ALL4",
+  "seed": 42,
+  "expected_primary_initial_model_state_sha256": "e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995",
+  "folds": {
+    "fold_1": {
+      "count": 97,
+      "identity_label_sha256": "37c2e04d069200cd8c1768016d1fa7e9a6fb19511988f2f32397ad8f3aaf00cd",
+      "metrics": {
+        "accuracy": 0.9072164948453608,
+        "balanced_accuracy": 0.9185574229691876,
+        "macro_f1": 0.9157004759945936,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.8500842907092907
+      }
+    },
+    "fold_2": {
+      "count": 97,
+      "identity_label_sha256": "853da93b314ce3d2e992c1c67718aea27780cfcf36f5e045e1533b34bb7788b4",
+      "metrics": {
+        "accuracy": 0.9381443298969072,
+        "balanced_accuracy": 0.9430672268907564,
+        "macro_f1": 0.9426947811895909,
+        "worst_class_f1": 0.8,
+        "hard_class_f1": 0.905215046391517
+      }
+    },
+    "fold_3": {
+      "count": 97,
+      "identity_label_sha256": "783cb11115dad436c4f0ea126df8bf39d1c98638d668fb0dc5b9e09ffb668d0f",
+      "metrics": {
+        "accuracy": 0.9175257731958762,
+        "balanced_accuracy": 0.9204481792717087,
+        "macro_f1": 0.9133932004174219,
+        "worst_class_f1": 0.6,
+        "hard_class_f1": 0.8472105508870215
+      }
+    },
+    "fold_4": {
+      "count": 97,
+      "identity_label_sha256": "b1c181a9620352555a1c4d962a4bc2cdfcd02edb9feb80d7e04c402e5a80b03e",
+      "metrics": {
+        "accuracy": 0.8969072164948454,
+        "balanced_accuracy": 0.901890756302521,
+        "macro_f1": 0.9009563965446318,
+        "worst_class_f1": 0.6,
+        "hard_class_f1": 0.800895979020979
+      }
+    },
+    "fold_5": {
+      "count": 97,
+      "identity_label_sha256": "4a7340263bc5416bcde64de6b20312af55a6fe74b80a6db06890a07ac8429a97",
+      "metrics": {
+        "accuracy": 0.9175257731958762,
+        "balanced_accuracy": 0.9204481792717086,
+        "macro_f1": 0.9156113494348789,
+        "worst_class_f1": 0.7272727272727273,
+        "hard_class_f1": 0.8595102813852814
+      }
+    }
+  },
+  "test_images_accessed": false
+}
