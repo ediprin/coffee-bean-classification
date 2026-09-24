@@ -725,3 +725,175 @@ Given the observed low auxiliary disagreement and neutral R0-only Macro-F1,
 the next method should explicitly transfer a training-only multi-view
 representation toward the R0 deployment representation, rather than further
 forcing auxiliary heads to imitate R0.
+
+
+---
+
+## 14. MVFD-SBN: explicit transformed-view feature -> R0 transfer
+
+Artifact analyzed:
+- `mvfd-sbn-analysis-package.zip`
+- SHA-256: `d2f432be885a9c507fdca0cbeb02d8d3dbef70d2080f306c8d84d84bb6ffecf6`
+- 5/5 folds complete
+- 50 epochs per fold
+- 97 validation images per fold
+- scientific commit: `fdae1fff10348f78ca67bb00948ae5768e9c98d9`
+- primary initialization SHA-256:
+  `e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995`
+- `test_images_accessed=false` on all folds
+
+MVFD-SBN removes AT-SBN's R0->auxiliary output distillation and late classifier
+merging. It retains SBN and training-only C0/F0/W0 auxiliary classifiers, then
+constructs a detached equal-mean teacher from transformed-view GAP embeddings:
+
+`t = stopgrad((e_C + e_F + e_W) / 3)`
+
+and explicitly pulls the raw-RGB R0 GAP embedding toward that teacher:
+
+`L_feat = mean_i ||e_R_i - t_i||_2^2`
+
+with total training loss:
+
+`L = CE_R + 0.05(CE_C + CE_F + CE_W) + 0.007 L_feat`
+
+The 0.007 feature coefficient is the fixed squared-L2 consistency coefficient
+reported by Dong et al. for their multi-view consistency distillation setup; it
+was not tuned on Coffee17 validation.
+
+Mean validation metrics:
+
+| Model | Accuracy | Balanced Acc | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|---:|---:|
+| R0_CONTROL | 90.93% | 90.56% | 90.65% | 87.01% | 64.55% |
+| MVCE-SBN | 90.52% | 90.84% | 90.68% | 84.49% | 64.48% |
+| AT-SBN | 91.13% | 90.85% | 90.67% | 85.39% | 61.86% |
+| MVFD-SBN | 91.55% | 92.09% | 91.77% | 85.26% | 67.88% |
+
+MVFD-SBN vs matched R0_CONTROL:
+- Accuracy: +0.619 pp
+- Balanced Accuracy: +1.527 pp
+- Macro-F1: +1.115 pp
+- Hard-F1: -1.750 pp
+- Worst-F1: +3.333 pp
+
+MVFD-SBN vs MVCE-SBN:
+- Accuracy: +1.031 pp
+- Balanced Accuracy: +1.244 pp
+- Macro-F1: +1.092 pp
+- Hard-F1: +0.766 pp
+- Worst-F1: +3.394 pp
+
+MVFD-SBN vs AT-SBN:
+- Accuracy: +0.412 pp
+- Balanced Accuracy: +1.241 pp
+- Macro-F1: +1.094 pp
+- Hard-F1: -0.133 pp
+- Worst-F1: +6.017 pp
+
+Per-fold Macro-F1:
+
+| Fold | R0_CONTROL | MVFD-SBN | Delta |
+|---|---:|---:|---:|
+| 1 | 92.47% | 91.57% | -0.90 pp |
+| 2 | 93.86% | 94.27% | +0.41 pp |
+| 3 | 91.29% | 91.34% | +0.05 pp |
+| 4 | 86.58% | 90.10% | +3.51 pp |
+| 5 | 89.07% | 91.56% | +2.49 pp |
+
+Positive Macro-F1 folds vs R0_CONTROL: 4 / 5.
+
+Validation-fold observation comparison vs matched R0:
+- R0 correct: 441 / 485 fold-observations
+- MVFD-SBN correct: 444 / 485 fold-observations
+- rescue: 12
+- damage: 9
+- net: +3
+
+These 485 entries are fold-observations and are not 485 independent images.
+
+### Feature-transfer diagnostics
+
+Best epoch per fold:
+
+[37, 26, 26, 21, 46]
+
+At the selected best checkpoints:
+- mean primary CE: 0.636
+- mean F0 CE: 0.725
+- mean raw feature-distillation loss: 6.236
+- mean weighted feature contribution: 0.04365
+- mean R0-teacher cosine similarity: 0.98997
+- mean R0-teacher L2 distance: 2.430
+- mean teacher feature norm: 17.084
+- mean R0 feature norm: 17.402
+- mean C0 disagreement: 1.32%
+- mean F0 disagreement: 2.28%
+- mean W0 disagreement: 1.44%
+
+At epoch 1, mean R0-teacher cosine is only approximately 0.875 and feature
+loss is approximately 12.9. Across training the explicit feature-consistency
+objective therefore measurably brings R0 toward the transformed-view teacher.
+
+F0 remains well optimized under SBN. The prior near-random F0 collapse does
+not recur.
+
+A second structural observation is that the equal-mean teacher is more similar
+to R0 than each individual transformed view at the selected checkpoints. Mean
+R0-teacher cosine is about 0.990, while R0-to-individual-view cosine values are
+generally around 0.96-0.98. Equal averaging therefore emphasizes the common
+cross-view component and can cancel some view-specific residual information.
+
+### Hard-group behavior
+
+Mean hard-group F1 relative to matched R0:
+
+- sour/black group: -1.21 pp
+- shape/withered group: -3.76 pp
+- insect-damage group: +0.46 pp
+
+The overall Hard-F1 decrease is therefore not uniform. It is driven mainly by
+the shape/withered and sour/black groups, while insect-damage performance
+slightly improves.
+
+### Per-class MVFD-SBN delta vs matched R0
+
+Largest gains:
+- Fade +13.49 pp
+- Parchment +7.69 pp
+- Floater +4.00 pp
+- Severe Insect Damage +2.13 pp
+- Dry Cherry +2.04 pp
+- Shell +1.64 pp
+- Broken +1.58 pp
+
+Largest losses:
+- Cut -9.41 pp
+- Partial Black -3.02 pp
+- Immature -1.52 pp
+- Full Sour -1.14 pp
+
+Slight Insect Damage also improves slightly (+0.67 pp), so unlike the previous
+SBN/AT-SBN variants the insect-damage group is no longer the main source of
+Hard-F1 degradation.
+
+### MVFD-SBN conclusion
+
+MVFD-SBN is the first single-model, raw-RGB-inference method in this development
+chain to show a non-trivial positive mean Macro-F1 shift over the matched R0
+control while also improving balanced accuracy and Worst-F1:
+
+- Macro-F1 +1.115 pp
+- Balanced Accuracy +1.527 pp
+- Worst-F1 +3.333 pp
+- positive Macro-F1 in 4/5 folds
+
+However, this remains validation-only post-primary exploratory evidence and
+Hard-F1 is still 1.750 pp below the matched R0 control. It is therefore
+promising but not yet a clean final method claim.
+
+A required causal ablation remains: the current objective combines low-weight
+auxiliary CE and explicit feature distillation. Before adding reliability
+weighting, attention, or class-specific mechanisms, a matched SBN +
+auxiliary-head CE-only control (lambda_feat = 0) is needed to determine whether
+the observed gain is specifically attributable to transformed-view feature
+distillation rather than auxiliary-task regularization alone.
