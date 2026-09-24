@@ -8,6 +8,7 @@ on:
       - codex/shared-multiview-sbn-v1
       - codex/at-sbn-v1
       - codex/mvfd-sbn-v1
+      - codex/mvfd-sbn-ablation-v1
   pull_request:
     branches:
       - main
