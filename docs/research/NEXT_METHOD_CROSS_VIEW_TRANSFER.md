@@ -322,3 +322,59 @@ applied, or if MVFD-SBN does not improve the R0 path, then the equal-prototype
 shared-backbone assumption is insufficient and a stronger training-only
 teacher construction (e.g. reliability-guided aggregation) would need separate
 justification.
+
+
+---
+
+## Update after MVFD-SBN causal ablation
+
+The required lambda_feat=0 control has now been completed.
+
+Mean Macro-F1:
+- matched R0_CONTROL: 90.653%
+- AUXCE-SBN control: 89.941%
+- MVFD-SBN: 91.767%
+
+Therefore:
+- AUXCE-SBN - R0 = -0.711 pp
+- MVFD-SBN - R0 = +1.115 pp
+- MVFD-SBN - AUXCE-SBN = +1.826 pp
+
+MVFD-SBN exceeds AUXCE-SBN in Macro-F1 on all five folds:
++1.90, +0.35, +0.07, +5.37, +1.44 pp.
+
+The feature term also produces the intended representation change:
+- R0-teacher cosine: 0.953 -> 0.990
+- R0-teacher L2: 6.429 -> 2.430
+- raw feature discrepancy: 43.572 -> 6.236
+
+This makes the explicit transformed-view -> R0 feature term the best-supported
+active mechanism in the current Coffee17 development chain. Low-weight
+auxiliary CE alone is not sufficient to explain the aggregate gain.
+
+The remaining trade-off is Hard-F1:
+- R0_CONTROL: 87.01%
+- AUXCE-SBN: 86.08%
+- MVFD-SBN: 85.26%
+
+Thus further same-validation tuning to repair hard classes would create a high
+risk of post-hoc overfitting.
+
+### Development status
+
+MVFD-SBN should now be frozen as the candidate method.
+
+Do not add RGA, attention, class-specific routing, view selection, or tune
+lambda_feat on these same folds before an independent confirmation.
+
+The next work should shift from method search to:
+1. independent/generalization evaluation under a protocol frozen in advance;
+2. reporting efficiency and deployment equivalence to the R0 backbone;
+3. final per-class/error analysis and XAI only as explanatory analysis;
+4. thesis-method formalization and ablation table.
+
+If a compatible external coffee dataset cannot support the exact 17-class
+taxonomy, the limitation must be stated explicitly rather than silently
+changing labels. Any new internal holdout should be created and locked before
+inspection and should be described as a new internal confirmation, not a fully
+independent external validation.
