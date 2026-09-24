@@ -61,8 +61,11 @@ def validate_mvfd_sbn_config(cfg: dict) -> None:
         raise ValueError("EMA tidak dipakai.")
 
     fd = cfg.get("feature_distillation", {})
-    if fd.get("method") != "mvfd_sbn":
-        raise ValueError("feature_distillation.method harus mvfd_sbn.")
+    method = fd.get("method")
+    if method not in {"mvfd_sbn", "auxce_sbn_control"}:
+        raise ValueError(
+            "feature_distillation.method harus mvfd_sbn atau auxce_sbn_control."
+        )
     if tuple(fd.get("views", ())) != VIEWS:
         raise ValueError(f"views harus tepat {VIEWS}.")
     if str(fd.get("primary_view", "")).upper() != "R0":
@@ -79,8 +82,15 @@ def validate_mvfd_sbn_config(cfg: dict) -> None:
         raise ValueError("MVFD-SBN v1 mengunci auxiliary_dropout=false.")
     if abs(float(fd.get("aux_ce_weight_each", -1.0)) - 0.05) > 1.0e-12:
         raise ValueError("aux_ce_weight_each v1 dikunci 0.05.")
-    if abs(float(fd.get("feature_distill_weight", -1.0)) - 0.007) > 1.0e-12:
-        raise ValueError("feature_distill_weight v1 dikunci 0.007.")
+    expected_feature_weight = 0.007 if method == "mvfd_sbn" else 0.0
+    if abs(
+        float(fd.get("feature_distill_weight", -1.0))
+        - expected_feature_weight
+    ) > 1.0e-12:
+        raise ValueError(
+            "feature_distill_weight tidak sesuai method: "
+            f"{method} membutuhkan {expected_feature_weight}."
+        )
     if fd.get("feature_distill_loss") != "squared_l2":
         raise ValueError("feature_distill_loss v1 harus squared_l2.")
 
