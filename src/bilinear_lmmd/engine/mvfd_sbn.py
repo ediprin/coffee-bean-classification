@@ -62,9 +62,10 @@ def validate_mvfd_sbn_config(cfg: dict) -> None:
 
     fd = cfg.get("feature_distillation", {})
     method = fd.get("method")
-    if method not in {"mvfd_sbn", "auxce_sbn_control"}:
+    if method not in {"mvfd_sbn", "auxce_sbn_control", "ca_mvfd_sbn"}:
         raise ValueError(
-            "feature_distillation.method harus mvfd_sbn atau auxce_sbn_control."
+            "feature_distillation.method harus mvfd_sbn, "
+            "auxce_sbn_control, atau ca_mvfd_sbn."
         )
     if tuple(fd.get("views", ())) != VIEWS:
         raise ValueError(f"views harus tepat {VIEWS}.")
@@ -72,8 +73,14 @@ def validate_mvfd_sbn_config(cfg: dict) -> None:
         raise ValueError("primary_view harus R0.")
     if tuple(fd.get("teacher_views", ())) != AUX_VIEWS:
         raise ValueError(f"teacher_views harus tepat {AUX_VIEWS}.")
-    if fd.get("teacher_aggregation") != "equal_mean":
-        raise ValueError("teacher_aggregation v1 harus equal_mean.")
+    expected_aggregation = (
+        "confidence_aware_ce" if method == "ca_mvfd_sbn" else "equal_mean"
+    )
+    if fd.get("teacher_aggregation") != expected_aggregation:
+        raise ValueError(
+            "teacher_aggregation tidak sesuai method: "
+            f"{method} membutuhkan {expected_aggregation}."
+        )
     if bool(fd.get("teacher_stop_gradient")) is not True:
         raise ValueError("Teacher prototype harus stop-gradient.")
     if bool(fd.get("selective_batch_norm")) is not True:
@@ -82,7 +89,9 @@ def validate_mvfd_sbn_config(cfg: dict) -> None:
         raise ValueError("MVFD-SBN v1 mengunci auxiliary_dropout=false.")
     if abs(float(fd.get("aux_ce_weight_each", -1.0)) - 0.05) > 1.0e-12:
         raise ValueError("aux_ce_weight_each v1 dikunci 0.05.")
-    expected_feature_weight = 0.007 if method == "mvfd_sbn" else 0.0
+    expected_feature_weight = (
+        0.007 if method in {"mvfd_sbn", "ca_mvfd_sbn"} else 0.0
+    )
     if abs(
         float(fd.get("feature_distill_weight", -1.0))
         - expected_feature_weight
@@ -122,6 +131,35 @@ def equal_mean_teacher(embeddings: dict[str, Tensor]) -> Tensor:
     if tuple(embeddings) != AUX_VIEWS:
         raise ValueError(f"Teacher embedding keys harus tepat {AUX_VIEWS}.")
     return torch.stack([embeddings[arm] for arm in AUX_VIEWS], dim=0).mean(dim=0)
+
+
+def confidence_aware_teacher(
+    embeddings: dict[str, Tensor],
+    logits: dict[str, Tensor],
+    labels: Tensor,
+) -> tuple[Tensor, Tensor]:
+    if tuple(embeddings) != AUX_VIEWS:
+        raise ValueError(f"Teacher embedding keys harus tepat {AUX_VIEWS}.")
+    if tuple(logits) != AUX_VIEWS:
+        raise ValueError(f"Teacher logit keys harus tepat {AUX_VIEWS}.")
+
+    # Source-inspired CA-MKD weighting:
+    # w_k = 1/(K-1) * (1 - exp(CE_k) / sum_j exp(CE_j)).
+    # softmax(CE) gives the same normalized exp(CE) term stably.
+    ce_matrix = torch.stack(
+        [
+            F.cross_entropy(logits[arm], labels, reduction="none")
+            for arm in AUX_VIEWS
+        ],
+        dim=1,
+    )
+    badness = torch.softmax(ce_matrix.detach(), dim=1)
+    weights = (1.0 - badness) / float(len(AUX_VIEWS) - 1)
+    teacher = sum(
+        weights[:, index : index + 1] * embeddings[arm]
+        for index, arm in enumerate(AUX_VIEWS)
+    )
+    return teacher, weights
 
 
 def squared_l2_feature_distillation(
@@ -185,6 +223,7 @@ def train_mvfd_sbn(
     fd_cfg = cfg["feature_distillation"]
     aux_ce_weight = float(fd_cfg["aux_ce_weight_each"])
     feature_weight = float(fd_cfg["feature_distill_weight"])
+    teacher_aggregation = str(fd_cfg["teacher_aggregation"])
 
     loss_fn = nn.CrossEntropyLoss(
         label_smoothing=float(training_cfg.get("label_smoothing", 0.1))
@@ -260,7 +299,16 @@ def train_mvfd_sbn(
             "c0_disagreement": 0.0,
             "f0_disagreement": 0.0,
             "w0_disagreement": 0.0,
+            "c0_teacher_weight": 0.0,
+            "f0_teacher_weight": 0.0,
+            "w0_teacher_weight": 0.0,
+            "teacher_weight_entropy": 0.0,
+            "teacher_weight_max": 0.0,
         }
+        class_weight_sums = torch.zeros(
+            len(loaders.classes), len(AUX_VIEWS), dtype=torch.float64
+        )
+        class_counts = torch.zeros(len(loaders.classes), dtype=torch.float64)
         samples = 0
         progress = tqdm(loaders.train, desc=f"MVFD-SBN epoch {epoch_number}/{epochs}")
 
@@ -283,7 +331,25 @@ def train_mvfd_sbn(
                     aux_logits[arm] = view.logits
                     aux_ce[arm] = loss_fn(view.logits, labels)
 
-            teacher = equal_mean_teacher(aux_embedding)
+            if teacher_aggregation == "equal_mean":
+                teacher = equal_mean_teacher(aux_embedding)
+                teacher_weights = torch.full(
+                    (labels.shape[0], len(AUX_VIEWS)),
+                    1.0 / len(AUX_VIEWS),
+                    device=device,
+                    dtype=raw.embedding.dtype,
+                )
+            elif teacher_aggregation == "confidence_aware_ce":
+                teacher, teacher_weights = confidence_aware_teacher(
+                    aux_embedding,
+                    aux_logits,
+                    labels,
+                )
+            else:
+                raise RuntimeError(
+                    f"Teacher aggregation tidak dikenal: {teacher_aggregation}"
+                )
+
             feature_loss = squared_l2_feature_distillation(
                 raw.embedding,
                 teacher,
@@ -309,6 +375,29 @@ def train_mvfd_sbn(
             totals["r0_norm"] += _mean_norm(raw.embedding) * batch_size
             totals["r0_teacher_cos"] += _batch_cosine(raw.embedding, teacher_detached) * batch_size
             totals["r0_teacher_l2"] += _batch_l2(raw.embedding, teacher_detached) * batch_size
+
+            teacher_weights_detached = teacher_weights.detach()
+            weight_entropy = -(
+                teacher_weights_detached
+                * teacher_weights_detached.clamp_min(1.0e-12).log()
+            ).sum(dim=1)
+            totals["teacher_weight_entropy"] += float(weight_entropy.sum().item())
+            totals["teacher_weight_max"] += float(
+                teacher_weights_detached.max(dim=1).values.sum().item()
+            )
+            for index, arm in enumerate(AUX_VIEWS):
+                key = arm.lower()
+                totals[f"{key}_teacher_weight"] += float(
+                    teacher_weights_detached[:, index].sum().item()
+                )
+            labels_cpu = labels.detach().cpu()
+            weights_cpu = teacher_weights_detached.to(
+                device="cpu", dtype=torch.float64
+            )
+            for class_index in labels_cpu.unique(sorted=True).tolist():
+                mask = labels_cpu == class_index
+                class_weight_sums[class_index] += weights_cpu[mask].sum(dim=0)
+                class_counts[class_index] += float(mask.sum().item())
 
             raw_pred = raw.logits.detach().argmax(1)
             for arm in AUX_VIEWS:
@@ -371,6 +460,23 @@ def train_mvfd_sbn(
             "c0_disagreement": totals["c0_disagreement"] / sample_denom,
             "f0_disagreement": totals["f0_disagreement"] / sample_denom,
             "w0_disagreement": totals["w0_disagreement"] / sample_denom,
+            "c0_teacher_weight": totals["c0_teacher_weight"] / sample_denom,
+            "f0_teacher_weight": totals["f0_teacher_weight"] / sample_denom,
+            "w0_teacher_weight": totals["w0_teacher_weight"] / sample_denom,
+            "teacher_weight_entropy": totals["teacher_weight_entropy"] / sample_denom,
+            "teacher_weight_max": totals["teacher_weight_max"] / sample_denom,
+            "teacher_weights_by_class": {
+                class_name: {
+                    arm: (
+                        float(class_weight_sums[class_index, arm_index])
+                        / float(class_counts[class_index])
+                        if class_counts[class_index] > 0
+                        else None
+                    )
+                    for arm_index, arm in enumerate(AUX_VIEWS)
+                }
+                for class_index, class_name in enumerate(loaders.classes)
+            },
             "source": metrics,
             "lr": optimizer.param_groups[0]["lr"],
         }
@@ -386,6 +492,10 @@ def train_mvfd_sbn(
                     "f0_ce": record["f0_ce"],
                     "r0_teacher_cos": record["r0_teacher_cos"],
                     "r0_teacher_l2": record["r0_teacher_l2"],
+                    "teacher_weight_max": record["teacher_weight_max"],
+                    "c0_teacher_weight": record["c0_teacher_weight"],
+                    "f0_teacher_weight": record["f0_teacher_weight"],
+                    "w0_teacher_weight": record["w0_teacher_weight"],
                     "macro_f1": metrics["macro_f1"],
                     "hard_class_f1": metrics["hard_class_f1"],
                     "worst_class_f1": metrics["worst_class_f1"],
