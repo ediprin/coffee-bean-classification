@@ -1054,3 +1054,154 @@ metric.
 Given the clean causal ablation, further tuning on the same validation folds
 should be avoided. MVFD-SBN should now be treated as the frozen candidate
 method for a genuinely independent confirmation/generalization evaluation.
+
+
+---
+
+## 16. CA-MVFD-SBN: confidence-aware teacher aggregation
+
+Artifact analyzed:
+- `ca-mvfd-sbn-analysis-package.zip`
+- SHA-256: `3ab24eff53d5c9c77cf2efabeb423f47044e9c602a0b7740648db9352fb9f109`
+- 5/5 folds complete
+- 50 epochs per fold
+- 97 validation images per fold
+- scientific commit: `6077f7ce7b2053e24c5843666fb468f1b621c917`
+- validation identity hashes match the frozen R0/MVFD references
+- `test_images_accessed=false` on all folds
+
+CA-MVFD-SBN changes only the teacher aggregation of frozen MVFD-SBN.
+
+Equal-mean MVFD teacher:
+
+`t = stopgrad((e_C + e_F + e_W) / 3)`
+
+CA-MVFD teacher:
+
+`CE_v = CE(z_v, y)`
+
+`beta_v = [1 - softmax([CE_C,CE_F,CE_W])_v] / (K-1)`, with `K=3`
+
+`t_CA = stopgrad(beta_C e_C + beta_F e_F + beta_W e_W)`
+
+The remaining objective stays frozen:
+
+`L = CE_R + 0.05(CE_C+CE_F+CE_W) + 0.007 L_feat`
+
+Mean validation metrics:
+
+| Model | Accuracy | Balanced Acc | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|---:|---:|
+| R0_CONTROL | 90.93% | 90.56% | 90.65% | 87.01% | 64.55% |
+| equal-mean MVFD-SBN | 91.55% | 92.09% | 91.77% | 85.26% | 67.88% |
+| CA-MVFD-SBN | 91.13% | 91.80% | 91.38% | 85.04% | 65.58% |
+
+CA-MVFD-SBN vs frozen equal-mean MVFD-SBN:
+- Accuracy: -0.412 pp
+- Balanced Accuracy: -0.286 pp
+- Macro-F1: -0.384 pp
+- Hard-F1: -0.221 pp
+- Worst-F1: -2.303 pp
+
+Per-fold Macro-F1 delta, CA-MVFD minus equal-mean MVFD:
+
+| Fold | MVFD-SBN | CA-MVFD-SBN | CA - MVFD |
+|---|---:|---:|---:|
+| 1 | 91.57% | 91.27% | -0.30 pp |
+| 2 | 94.27% | 94.21% | -0.06 pp |
+| 3 | 91.34% | 90.68% | -0.66 pp |
+| 4 | 90.10% | 88.11% | -1.98 pp |
+| 5 | 91.56% | 92.65% | +1.08 pp |
+
+CA-MVFD-SBN exceeds equal-mean MVFD-SBN in Macro-F1 on only 1/5 folds.
+
+Prediction comparison across the 485 validation fold-observations:
+- CA-MVFD rescues 6 equal-mean MVFD errors;
+- CA-MVFD damages 8 equal-mean MVFD correct predictions;
+- net: -2 correct fold-observations.
+
+These rows are fold-observations and are not independent unique samples.
+
+### Aggregation diagnostic
+
+The confidence-aware weights remain extremely close to uniform at the
+R0-selected best checkpoints:
+
+- mean C0 weight: 0.3361
+- mean F0 weight: 0.3288
+- mean W0 weight: 0.3351
+- mean maximum per-sample weight: 0.3490
+- mean weight entropy: 1.09598
+- maximum possible 3-view entropy: ln(3) = 1.09861
+
+The observed mean entropy is therefore approximately 99.76% of the uniform
+maximum. The mean maximum view weight is only about 0.0156 above the uniform
+1/3 value.
+
+Class-conditional weights are also weakly differentiated. Even among the
+classes with the largest average spread, the highest-minus-lowest mean weight
+is only about:
+- Floater: 0.0259
+- Fade: 0.0246
+- Broken: 0.0170
+- Slight Insect Damage: 0.0163
+- Withered: 0.0152
+
+Thus the proposed confidence signal does not create a materially selective
+teacher under this shared-backbone, auxiliary-head training setup.
+
+At the selected best checkpoints, compared with equal-mean MVFD:
+- CA feature loss: 7.699 vs 6.236
+- CA weighted feature contribution: 0.05389 vs 0.04365
+- CA R0-teacher cosine: 0.98776 vs approximately 0.98997
+- CA R0-teacher L2: 2.681 vs approximately 2.430
+
+The confidence-aware teacher is therefore slightly less aligned with R0 while
+not delivering better validation generalization.
+
+### CA-MVFD conclusion
+
+CA-MVFD-SBN does not improve the frozen equal-mean MVFD-SBN method.
+
+The result is consistent with a simple explanation: the C0/F0/W0 auxiliary
+heads share one backbone and are trained jointly, so their training
+cross-entropies are too similar for the confidence-aware rule to provide strong
+sample-wise discrimination. The resulting teacher is almost an equal mean,
+with small confidence-dependent perturbations that do not improve validation
+performance.
+
+Per the predeclared stopping rule, reliability weighting should not be
+escalated to a learned RGA/attention module on the same validation protocol.
+
+The preferred thesis candidate therefore remains the simpler equal-mean
+MVFD-SBN.
+
+## 17. Frozen method status after CA-MVFD
+
+Preferred method:
+
+**MVFD-SBN with equal-mean transformed-view teacher**
+
+Training-only:
+- R0/C0/F0/W0 views
+- one shared MobileNetV3-Large backbone
+- Selective BatchNorm
+- training-only C0/F0/W0 auxiliary heads
+- equal-mean detached transformed-view GAP teacher
+- explicit feature distillation into R0
+
+Objective:
+
+`L = CE_R + 0.05(CE_C+CE_F+CE_W) + 0.007 ||e_R-stopgrad(mean(e_C,e_F,e_W))||^2`
+
+Deployment:
+- raw RGB only
+- one MobileNetV3-Large
+- GAP
+- one 17-class primary classifier
+- no transformed preprocessing or auxiliary module at inference
+
+The method-development stage should now stop. Further teacher weighting,
+attention, gating, class-specific routing, or architecture stacking on the same
+validation folds would constitute post-hoc tuning without a new independent
+evaluation basis.
