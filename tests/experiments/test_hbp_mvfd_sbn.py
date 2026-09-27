@@ -1,3 +1,5 @@
+import ast
+import json
 import copy
 from pathlib import Path
 
@@ -79,3 +81,25 @@ def test_hbp_feature_distillation_detaches_teacher():
     loss.backward()
     assert student.grad is not None
     assert teacher.grad is None
+
+
+def test_kaggle_notebook_materialization_signature_matches_repo_api():
+    root = Path(__file__).resolve().parents[2]
+    path = root / "notebooks" / "Coffee17_HBP_MVFD_SBN_Kaggle.ipynb"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    source = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in payload["cells"]
+        if cell.get("cell_type") == "code"
+    )
+    tree = ast.parse(source)
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", None) == "materialize_preprocessing_development"
+    ]
+    assert len(calls) == 1
+    call = calls[0]
+    assert len(call.args) == 4
+    assert [kw.arg for kw in call.keywords] == ["fold"]
