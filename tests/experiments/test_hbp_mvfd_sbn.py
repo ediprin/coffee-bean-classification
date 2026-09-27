@@ -103,3 +103,19 @@ def test_kaggle_notebook_materialization_signature_matches_repo_api():
     call = calls[0]
     assert len(call.args) == 4
     assert [kw.arg for kw in call.keywords] == ["fold"]
+
+
+def test_kaggle_notebook_uses_hbp_result_schema():
+    root = Path(__file__).resolve().parents[2]
+    path = root / "notebooks" / "Coffee17_HBP_MVFD_SBN_Kaggle.ipynb"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    source = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in payload["cells"]
+        if cell.get("cell_type") == "code"
+    )
+    assert 'result["DELTA_MVFD_ON_HBP"]' in source
+    assert 'result["HBP_R0_CONTROL"]' in source
+    assert 'result["HBP_MVFD_SBN_ALL4"]' in source
+    assert 'result["delta_vs_r0_control"]' not in source
+    assert "result['metrics']" not in source
