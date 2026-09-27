@@ -10,6 +10,7 @@ on:
       - codex/mvfd-sbn-v1
       - codex/mvfd-sbn-ablation-v1
       - codex/ca-mvfd-sbn-v1
+      - codex/preprocessing-nuisance-analysis-v1
   pull_request:
     branches:
       - main
