@@ -736,3 +736,34 @@ The protocol documents this pre-result correction. The revised notebook pins:
 `ab1f2d6728bd7bf78599da73069229d40271447e`
 
 No outer test or neural training was accessed during the failed preflight.
+
+
+
+### WR-PDR deterministic preflight failure and fix
+
+The first Kaggle execution of WR-PDR-HBP stopped during fold-1 WR-HBP training
+before any completed fold result was produced.
+
+Failure:
+
+`torch.median(dim=...)` inside the VisuShrink sigma estimator has no
+deterministic CUDA implementation when
+`torch.use_deterministic_algorithms(True)` is active.
+
+The scientific correction preserves the original VisuShrink equation and moves
+only the median statistic to CPU during strict-deterministic CUDA execution:
+
+`sigma = median(abs(detail)) / 0.6745`.
+
+The threshold is then returned to CUDA and the remaining wavelet computation is
+unchanged.
+
+This is an execution-compatibility fix made before observing any WR-PDR
+classification result. No gate decision is affected.
+
+Revised scientific pin:
+
+`33f27cb451a4b19cd90accacf55df4f79bd783df`
+
+The Kaggle notebook also runs the WR-HBP deterministic-CUDA wavelet unit test
+before training.
