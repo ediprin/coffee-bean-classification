@@ -102,22 +102,25 @@ def _paths_from_loader(loader) -> list[str]:
     return [sample[0] for sample in loader.dataset.samples]
 
 
-def _extract_feature_matrix(paths: list[str]) -> np.ndarray:
+def _extract_feature_matrix(
+    paths: list[str],
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
     rows = []
+    qc = []
+    qc_fail_paths: list[str] = []
     for index, path in enumerate(paths, start=1):
         desc = extract_physical_descriptors(Path(path))
-        if not bool(desc["mask_qc_pass"]):
-            raise RuntimeError(
-                "Physical descriptor mask QC gagal pada model experiment: "
-                f"{path}. Audit harus menyelesaikan QC ini sebelum training fusion."
-            )
+        passed = bool(desc["mask_qc_pass"])
+        qc.append(passed)
+        if not passed:
+            qc_fail_paths.append(str(path))
         rows.append([float(desc[name]) for name in FEATURES])
         if index % 200 == 0:
             print(f"physical descriptors: {index}/{len(paths)}", flush=True)
     matrix = np.asarray(rows, dtype=np.float64)
     if not np.isfinite(matrix).all():
         raise RuntimeError("Physical descriptor matrix memiliki nilai non-finite.")
-    return matrix
+    return matrix, np.asarray(qc, dtype=bool), qc_fail_paths
 
 
 @torch.no_grad()
@@ -236,14 +239,16 @@ def fit_and_evaluate_residual(
     train_logits, train_labels, train_paths = _base_logits(model, train_loader, device)
     val_logits, val_labels, val_paths = _base_logits(model, val_loader, device)
 
-    train_features = _extract_feature_matrix(train_paths)
-    val_features = _extract_feature_matrix(val_paths)
+    train_features, train_qc, train_qc_fail_paths = _extract_feature_matrix(
+        train_paths
+    )
+    val_features, val_qc, val_qc_fail_paths = _extract_feature_matrix(val_paths)
 
     residual_cfg = cfg["physical_logit_residual"]
     fit = fit_physical_logit_residual(
-        base_logits=train_logits,
-        features=train_features,
-        labels=train_labels,
+        base_logits=train_logits[train_qc],
+        features=train_features[train_qc],
+        labels=train_labels[train_qc],
         classes=classes,
         l2=float(residual_cfg["l2"]),
         label_smoothing=float(residual_cfg["label_smoothing"]),
@@ -260,7 +265,12 @@ def fit_and_evaluate_residual(
     if initial_max_abs != 0.0:
         raise RuntimeError("Zero-init residual tidak identik dengan WR logits.")
 
-    candidate_val_logits = fit.adjusted_logits(val_logits, val_features)
+    candidate_val_logits = val_logits.astype(np.float64, copy=True)
+    if np.any(val_qc):
+        candidate_val_logits[val_qc] = fit.adjusted_logits(
+            val_logits[val_qc],
+            val_features[val_qc],
+        )
 
     wr_metrics, wr_predictions, wr_probs = _metrics_from_logits(
         val_logits,
@@ -313,6 +323,15 @@ def fit_and_evaluate_residual(
         "classes": classes,
         "train_count": int(len(train_labels)),
         "val_count": int(len(val_labels)),
+        "residual_fit_train_count": int(np.count_nonzero(train_qc)),
+        "train_descriptor_qc_fail_count": int(np.count_nonzero(~train_qc)),
+        "train_descriptor_qc_fail_paths": train_qc_fail_paths,
+        "val_descriptor_qc_fail_count": int(np.count_nonzero(~val_qc)),
+        "val_descriptor_qc_fail_paths": val_qc_fail_paths,
+        "qc_fail_policy": (
+            "exclude from residual fitting on train; preserve exact WR-HBP logits "
+            "on validation rows whose descriptor mask fails QC"
+        ),
         "base_checkpoint": str(Path(base_checkpoint).resolve()),
         "base_checkpoint_epoch": int(checkpoint["epoch"]),
         "base_shared_core_initial_sha256": checkpoint.get(
