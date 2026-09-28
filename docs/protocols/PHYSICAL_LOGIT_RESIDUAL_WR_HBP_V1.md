@@ -69,6 +69,25 @@ This experiment additionally requires:
 If a required operation has no deterministic CUDA implementation, the run must
 raise rather than silently fall back to a nondeterministic path.
 
+### Deterministic VisuShrink implementation note
+
+The first strict-deterministic Kaggle attempt stopped before completing fold 1
+because PyTorch's CUDA implementation of `median(dim=...)` is not deterministic.
+The failure occurred inside the VisuShrink noise estimator, before a model result
+was produced.
+
+The frozen correction keeps the original VisuShrink equation unchanged:
+
+`sigma = median(abs(detail)) / 0.6745`.
+
+Only that median statistic is computed on CPU when strict deterministic CUDA is
+enabled, then the threshold tensor is returned to the original CUDA device for
+soft-thresholding. The wavelet branch remains no-grad preprocessing, so this does
+not alter the trainable graph.
+
+This correction was made in response to an execution-compatibility failure, not
+to any observed classification outcome.
+
 ## 4. Frozen physical feature vector
 
 Only information supported by the completed descriptor audit is retained.
