@@ -95,7 +95,7 @@ def _validate_w0_ras_config() -> dict:
         raise RuntimeError(f"W0-RAS auxiliary contract berubah: {aux}")
 
     if cfg["preprocessing"]["code"] != "R0":
-        raise RuntimeError("W0-RAS deployment/training classifier input harus R0.")
+        raise RuntimeError("W0-RAS classifier input harus R0.")
     if cfg["model"]["head"] != "gap" or cfg["model"]["out_indices"] != [4]:
         raise RuntimeError("W0-RAS V1 dikunci ke MobileNetV3-Large GAP.")
     if int(cfg["training"]["epochs"]) != 50:
@@ -117,7 +117,7 @@ def w0_l1_hh_retention(images: torch.Tensor, eps: float = 1.0e-8) -> torch.Tenso
     threshold = visushrink_threshold(details, eps=eps)
     post = soft_threshold(details, threshold)
 
-    # Existing Haar band order is [LL, LH, HL, HH], hence detail index 2 = HH.
+    # Frozen Haar order is [LL, LH, HL, HH], so detail index 2 is HH.
     hh_pre = details[:, :, 2]
     hh_post = post[:, :, 2]
 
@@ -185,6 +185,20 @@ def _compute_train_target_stats(
     }
 
 
+def _target_stats_match(left: dict, right: dict, atol: float = 1.0e-7) -> bool:
+    if (
+        int(left.get("count", -1)) != int(right.get("count", -2))
+        or left.get("source") != right.get("source")
+        or left.get("validation_accessed") is not False
+        or right.get("validation_accessed") is not False
+    ):
+        return False
+    for key in ("mean", "std", "minimum", "maximum"):
+        if abs(float(left[key]) - float(right[key])) > atol:
+            return False
+    return True
+
+
 def _run_complete(run_dir: Path, epochs: int) -> bool:
     best = run_dir / "best.pt"
     last = run_dir / "last.pt"
@@ -218,15 +232,22 @@ def train_w0_ras(
             f"{initial_sha} != {expected_initial_model_sha256}"
         )
 
-    # Do not shift the base training RNG stream merely because an auxiliary
-    # head is added. This follows the paired-init pattern used elsewhere here.
-    rng_after_model = torch.random.get_rng_state()
+    # Preserve the base training RNG stream when adding the auxiliary head.
+    rng_after_model = capture_rng_state()
     aux_head = nn.Linear(int(model.pool.output_dim), 1).to(device)
     aux_initial_sha = model_state_fingerprint(aux_head)
-    torch.random.set_rng_state(rng_after_model)
+    restore_rng_state(rng_after_model)
 
     runtime = PreprocessingRuntime.from_config(cfg["preprocessing"], device)
-    target_stats = _compute_train_target_stats(cfg, seed=seed, device=device)
+
+    # Computing fold-only target statistics iterates an extra DataLoader. Keep
+    # this bookkeeping from shifting the R0 training/dropout RNG stream.
+    rng_before_stats = capture_rng_state()
+    try:
+        target_stats = _compute_train_target_stats(cfg, seed=seed, device=device)
+    finally:
+        restore_rng_state(rng_before_stats)
+
     target_mean = float(target_stats["mean"])
     target_std = float(target_stats["std"])
     target_eps = float(cfg["auxiliary"]["target_std_epsilon"])
@@ -263,7 +284,7 @@ def train_w0_ras(
             raise RuntimeError("Checkpoint resume berasal dari run-contract berbeda.")
         if checkpoint.get("classes") != loaders.classes:
             raise RuntimeError("Urutan kelas checkpoint berbeda.")
-        if checkpoint.get("target_stats") != target_stats:
+        if not _target_stats_match(checkpoint.get("target_stats", {}), target_stats):
             raise RuntimeError("Target standardization stats berubah saat resume.")
         required = {
             "model",
@@ -490,7 +511,7 @@ def run_w0_ras(
             f"Git commit berbeda dari frozen commit: {actual_commit} != {required_commit}"
         )
 
-    validate_primary_configs()
+    primary = validate_primary_configs()
     cfg = _validate_w0_ras_config()
 
     development = validate_development(data_root, development_contract)
@@ -518,7 +539,6 @@ def run_w0_ras(
     )
     frozen_config_sha = canonical_json_sha256(cfg)
 
-    primary = validate_primary_configs()
     contract = {
         "format": "bilinear_lmmd.w0_ras.arm_contract.v1",
         "protocol": "coffee17-w0-ras-v1",
@@ -597,6 +617,13 @@ def run_w0_ras(
             last = torch.load(
                 run_dir / "last.pt", map_location="cpu", weights_only=False
             )
+            if not (run_dir / "validation/metrics.json").is_file():
+                evaluate_preprocessing_checkpoint(
+                    run_dir / "best.pt",
+                    data_root=Path(cfg["data"]["root"]),
+                    split=str(cfg["data"].get("val_split", "val")),
+                    output_dir=run_dir / "validation",
+                )
             train_summary = {
                 "target_stats": last["target_stats"],
                 "epoch1_weighted_aux_to_ce_ratio": float(
