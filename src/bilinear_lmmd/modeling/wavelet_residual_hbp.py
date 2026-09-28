@@ -100,6 +100,9 @@ class WaveletResidualHBPModel(nn.Module):
         self.classifier_type = "linear"
 
         # Extra candidate-only branch. Constructed after the shared core.
+        # Restore the RNG afterwards so candidate-only initialization does not
+        # change subsequent DataLoader/dropout randomness relative to control.
+        rng_state = torch.random.get_rng_state()
         self.wavelet_branch = nn.Sequential(
             nn.Conv2d(
                 3,
@@ -120,6 +123,7 @@ class WaveletResidualHBPModel(nn.Module):
             nn.BatchNorm2d(channels[0]),
         )
         self.wavelet_gate = nn.Parameter(torch.zeros(1))
+        torch.random.set_rng_state(rng_state)
         self.wavelet_eps = float(wavelet_eps)
 
     def gate_value(self) -> Tensor:
