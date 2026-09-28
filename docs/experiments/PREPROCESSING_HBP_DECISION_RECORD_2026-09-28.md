@@ -767,3 +767,34 @@ Revised scientific pin:
 
 The Kaggle notebook also runs the WR-HBP deterministic-CUDA wavelet unit test
 before training.
+
+
+
+### WR-PDR second deterministic preflight correction
+
+The second Kaggle attempt again stopped before any completed fold result.
+
+Failure:
+
+`adaptive_avg_pool2d_backward_cuda` inside HBP stage alignment has no
+deterministic implementation under strict deterministic PyTorch execution.
+
+For the frozen MobileNetV3 HBP feature grids, alignment ratios are exact:
+
+- 56 -> 7;
+- 14 -> 7.
+
+The deterministic HBP path now replaces adaptive average pooling only under
+strict deterministic execution with the mathematically equivalent
+non-overlapping block mean implemented by reshape + mean. The legacy HBP path is
+unchanged when deterministic algorithms are disabled.
+
+The Kaggle unit-test preflight now includes a **full WR-HBP CUDA forward and
+backward pass**, so unsupported deterministic kernels should be caught before
+the five-fold run starts.
+
+Revised scientific pin:
+
+`d4c7ff0daf09e2b6f81364bca557496058e2ef27`
+
+No WR-PDR fold result had completed before this correction.
