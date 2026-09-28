@@ -1129,3 +1129,76 @@ Preprocessing remains a valid analysis contribution through the primary study,
 complementarity/rescue evidence, cue audit, and the documented negative
 transfer/direct-combination results. It should not be represented as a
 universally accuracy-improving input transform.
+
+
+
+---
+
+## 18. WR-HBP V1 result: development gate PASS
+
+Full result:
+
+`docs/results/WAVELET_RESIDUAL_HBP_RESULTS.md`
+
+Source artifact SHA-256:
+
+`3fff1a877e22787b2135810afd39ad490a22e2eb43bb83d336ba4ade6c922ee9`
+
+Scientific commit:
+
+`01c9212965bc9040ef151204b9404d564f523a0f`
+
+Five matched folds, seed 42, completed with identical initial RGB-HBP core and
+outer test untouched.
+
+| Metric | R0-HBP | WR-HBP | Delta |
+|---|---:|---:|---:|
+| Accuracy | 91.34% | 91.75% | +0.41 pp |
+| Balanced Accuracy | 91.45% | 91.93% | +0.48 pp |
+| Macro-F1 | 91.02% | **91.77%** | **+0.75 pp** |
+| Hard-F1 | 86.12% | **86.24%** | **+0.11 pp** |
+| Worst-F1 | 65.33% | **66.76%** | **+1.42 pp** |
+
+Macro-F1 delta was positive in **5/5 folds**.
+
+Paired validation outcomes:
+
+- rescue: 7;
+- damage: 5;
+- net: +2 correct.
+
+Selected-checkpoint wavelet gates:
+
+[+0.1362, +0.1569, +0.1544, +0.1571, -0.1280]
+
+Mean gate:
+
++0.0953 ± 0.1252.
+
+Parameter overhead:
+
+- +897 parameters;
+- +0.0252%.
+
+Frozen development gate:
+
+- Macro mean positive: PASS;
+- Macro positive >=3/5: PASS;
+- Hard mean nonnegative: PASS;
+- Worst mean nonnegative: PASS.
+
+Decision:
+
+> **WR-HBP PASSES DEVELOPMENT SCREENING.**
+
+Current interpretation:
+
+1. direct W0 replacement harms HBP;
+2. tested preprocessing-to-raw transfer mechanisms do not consistently preserve
+   the desired Macro/Hard/Worst behavior;
+3. preserving raw RGB and adding a tiny explicit L1 wavelet-detail residual is
+   the first tested preprocessing/HBP combination to satisfy all frozen
+   development criteria.
+
+This remains post-primary exploratory evidence on reused folds with seed 42.
+Outer test remains untouched.
