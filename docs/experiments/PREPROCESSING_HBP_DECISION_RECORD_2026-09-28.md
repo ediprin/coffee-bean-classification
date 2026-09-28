@@ -478,7 +478,7 @@ outperformed MobileNetV3-HBP there.
 
 ---
 
-## 11. Current canonical experiment: matched R0-HBP vs W0-HBP
+## 11. Completed matched R0-HBP vs W0-HBP
 
 Canonical branch:
 
@@ -488,51 +488,110 @@ Canonical protocol:
 
 `docs/protocols/W0_HBP_MATCHED_V1.md`
 
-Canonical Kaggle notebook:
+Canonical notebook:
 
 `notebooks/Coffee17_W0_HBP_MATCHED_Kaggle.ipynb`
 
-### Design
+Completed result:
 
-Five matched folds, seed 42:
+`docs/results/W0_HBP_MATCHED_RESULTS.md`
 
-- control: R0 -> MobileNetV3-Large -> HBP -> Linear17;
-- candidate: W0 -> MobileNetV3-Large -> HBP -> Linear17.
+Machine-readable summary:
 
-Both arms are intentionally retrained because the exact prior per-fold HBP
-control artifacts were unavailable.
+`docs/results/w0_hbp_matched_summary.json`
 
-This retraining is a **matched control reconstruction**, not a new method
-proposal.
+Source package SHA-256:
 
-For every fold, both arms must have:
+`f12670b3691dd2e482962d3edaa6fee1bfafdef9b600ceaccf87592952640bf4`
 
-- the same clean identities;
-- the same validation rows and labels;
-- the same seed;
-- the same initial HBP model-state fingerprint;
-- the same backbone/head;
-- the same optimizer/schedule;
-- the same augmentation;
-- the same checkpoint-selection rule.
+### Integrity
 
-The only experimental factor is input preprocessing R0 versus W0.
+Five matched folds completed, seed 42.
 
-### Screening gate
+For every fold:
 
-W0-HBP passes only if all conditions hold:
+- R0-HBP and W0-HBP used the same clean validation rows;
+- both arms had the same initial HBP model-state fingerprint;
+- R0-HBP was retrained as the matched control;
+- W0-HBP was trained as the candidate;
+- all non-preprocessing training variables were matched;
+- outer test was not accessed.
 
-1. mean paired Macro-F1 delta > 0;
-2. Macro-F1 improves in at least 3/5 folds;
-3. mean paired Hard-F1 delta >= 0;
-4. mean paired Worst-F1 delta >= 0.
+Common initial model-state SHA-256:
 
-If the gate fails:
+`6d425c6c149005afde1224ed74ccfe4eb84c95e574d21e25a0e728578d79f9cc`
 
-> stop W0-HBP; do not tune W0 threshold, wavelet level, HBP stages, image
-> resolution, or loss on these reused development folds.
+### Aggregate result
 
-Outer test remains untouched.
+| Metric | R0-HBP | W0-HBP | W0 - R0 |
+|---|---:|---:|---:|
+| Accuracy | 91.55% | 90.10% | -1.44 pp |
+| Balanced Accuracy | 91.63% | 90.13% | -1.50 pp |
+| Macro-F1 | 91.27% | 90.04% | -1.23 pp |
+| Hard-F1 | 86.23% | 84.09% | -2.13 pp |
+| Worst-F1 | 64.95% | 63.78% | -1.17 pp |
+
+Macro-F1 delta by fold:
+
+- fold 1: +0.14 pp;
+- fold 2: -1.00 pp;
+- fold 3: -2.23 pp;
+- fold 4: -1.33 pp;
+- fold 5: -1.75 pp.
+
+Macro-F1 improved in **1/5 folds**.
+
+Across 485 unique paired validation observations:
+
+- W0 rescue: 5;
+- W0 damage: 12;
+- both correct: 432;
+- both wrong: 36.
+
+Net top-1 effect: **-7 correct predictions** for W0-HBP.
+
+Mean hard-group delta:
+
+- sour/black: -4.80 pp;
+- shape/withered: +0.71 pp;
+- insect damage: -2.41 pp.
+
+Largest mean per-class gains:
+
+- Fade: +4.81 pp;
+- Immature: +2.72 pp;
+- Withered: +2.55 pp.
+
+Largest mean per-class losses:
+
+- Partial Sour: -7.78 pp;
+- Severe Insect Damage: -4.64 pp;
+- Floater: -4.44 pp;
+- Partial Black: -3.36 pp;
+- Full Sour: -3.27 pp;
+- Cut: -3.13 pp.
+
+### Frozen gate
+
+All four gate conditions failed:
+
+1. mean paired Macro-F1 delta > 0: FAIL;
+2. Macro-F1 positive in >=3/5 folds: FAIL;
+3. mean paired Hard-F1 delta >= 0: FAIL;
+4. mean paired Worst-F1 delta >= 0: FAIL.
+
+Decision:
+
+> **FAIL / STOP W0-HBP.**
+
+Direct W0 preprocessing does not improve HBP under the frozen matched
+Coffee17 preprocessing-study protocol.
+
+Do not tune wavelet level, VisuShrink threshold, HBP stages, image resolution,
+or loss on these reused development folds.
+
+This closes the direct W0+HBP path while preserving the earlier preprocessing
+complementarity and cue-analysis findings as separate evidence.
 
 ---
 
@@ -572,10 +631,10 @@ Do not propose or rerun the following as new methods:
 - generic output KD of preprocessing teachers;
 - naive shared multi-view CE without selective normalization.
 
-For the current question, the only authorized new comparison is the frozen
-matched direct preprocessing test:
+The matched direct preprocessing test `R0-HBP vs W0-HBP` is now completed
+and failed its frozen gate.
 
-`R0-HBP vs W0-HBP`.
+Do not rerun or tune direct W0-HBP on these reused development folds.
 
 Any later method proposal must first be checked against the experiment master
 record and this decision record.
