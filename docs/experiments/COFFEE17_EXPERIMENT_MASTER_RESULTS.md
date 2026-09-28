@@ -1222,3 +1222,24 @@ Revised scientific pin:
 
 The failed attempt produced no Coffee17 physical-descriptor result, used no
 outer-test materialization, and executed no neural training.
+
+
+
+### WR-PDR deterministic preflight correction
+
+The initial WR-PDR Kaggle run stopped during fold-1 base training because
+PyTorch's CUDA `median(dim=...)` used by VisuShrink is not available under
+strict deterministic algorithms.
+
+No fold result was completed.
+
+The correction keeps the VisuShrink formula unchanged and computes only the
+median statistic on CPU when strict deterministic CUDA is active, then returns
+the threshold to CUDA.
+
+Revised scientific pin:
+
+`33f27cb451a4b19cd90accacf55df4f79bd783df`
+
+This is an execution-compatibility correction made before any WR-PDR outcome was
+observed.
