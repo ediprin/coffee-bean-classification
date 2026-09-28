@@ -299,6 +299,39 @@ class HierarchicalBilinearPooling(nn.Module):
         x = torch.sign(x) * torch.sqrt(torch.abs(x) + 1e-8)
         return F.normalize(x, p=2, dim=1)
 
+    @staticmethod
+    def _align_to_target(feature: Tensor, target_size: tuple[int, int]) -> Tensor:
+        if feature.shape[-2:] == target_size:
+            return feature
+
+        if torch.are_deterministic_algorithms_enabled():
+            source_h, source_w = feature.shape[-2:]
+            target_h, target_w = target_size
+            if source_h % target_h != 0 or source_w % target_w != 0:
+                raise RuntimeError(
+                    "Strict deterministic HBP alignment requires exact integer "
+                    f"spatial ratios, got {source_h}x{source_w} -> "
+                    f"{target_h}x{target_w}."
+                )
+
+            block_h = source_h // target_h
+            block_w = source_w // target_w
+            b, ch = feature.shape[:2]
+            return (
+                feature.reshape(
+                    b,
+                    ch,
+                    target_h,
+                    block_h,
+                    target_w,
+                    block_w,
+                )
+                .mean(dim=5)
+                .mean(dim=3)
+            )
+
+        return F.adaptive_avg_pool2d(feature, target_size)
+
     def forward(self, features: list[Tensor]) -> Tensor:
         if len(features) != 3:
             raise ValueError(f"HBP menerima 3 feature map, didapat {len(features)}.")
@@ -306,8 +339,7 @@ class HierarchicalBilinearPooling(nn.Module):
         projected = []
         for projection, feature in zip(self.projections, features):
             feature = projection(feature)
-            if feature.shape[-2:] != target_size:
-                feature = F.adaptive_avg_pool2d(feature, target_size)
+            feature = self._align_to_target(feature, target_size)
             projected.append(feature)
 
         pairwise = []
