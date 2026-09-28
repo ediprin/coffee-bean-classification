@@ -41,7 +41,21 @@ def luminance_l1_visushrink_details(raw_rgb: Tensor, eps: float = 1.0e-8) -> Ten
 
     bands, _ = haar_dwt2(luminance)
     details = bands[:, :, 1:]
-    threshold = visushrink_threshold(details, eps=eps)
+
+    # torch.median(dim=...) on CUDA has no deterministic implementation in
+    # current PyTorch releases. The wavelet preprocessing is already executed
+    # under no_grad, so strict-deterministic runs compute only the VisuShrink
+    # statistic on CPU and return the scalar thresholds to the original device.
+    # This preserves the frozen VisuShrink definition while avoiding a
+    # nondeterministic CUDA reduction.
+    if details.is_cuda and torch.are_deterministic_algorithms_enabled():
+        threshold = visushrink_threshold(
+            details.detach().cpu(),
+            eps=eps,
+        ).to(device=details.device, dtype=details.dtype)
+    else:
+        threshold = visushrink_threshold(details, eps=eps)
+
     retained = soft_threshold(details, threshold)
 
     # B x 1 x 3 x H x W -> B x 3 x H x W (LH, HL, HH)
