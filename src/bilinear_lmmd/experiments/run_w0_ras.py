@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -37,12 +38,31 @@ from bilinear_lmmd.engine.preprocessing_study import (
     _evaluate_model,
     evaluate_preprocessing_checkpoint,
 )
-from bilinear_lmmd.engine.shared_multiview import validation_identity_label_sha256
 from bilinear_lmmd.engine.train import atomic_torch_save, resolve_device
 from bilinear_lmmd.modeling.models import build_model
 
 
 PROTOCOL = "coffee17-w0-ras-v1"
+
+
+def validation_identity_label_sha256(data_root: Path) -> tuple[int, str]:
+    """Hash validation identities exactly like the latest MVFD/HBP pattern."""
+
+    val_root = Path(data_root).expanduser().resolve() / "source" / "val"
+    if not val_root.is_dir():
+        raise FileNotFoundError(f"Validation split tidak ditemukan: {val_root}")
+
+    items: list[tuple[str, str]] = []
+    for path in sorted(p for p in val_root.rglob("*") if p.is_file()):
+        class_name = path.parent.name
+        identity = f"{class_name}/{path.name}"
+        items.append((identity, class_name))
+
+    payload = "".join(
+        f"{identity}\t{label}\n"
+        for identity, label in sorted(items)
+    )
+    return len(items), hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _json(path: Path, label: str) -> dict:
