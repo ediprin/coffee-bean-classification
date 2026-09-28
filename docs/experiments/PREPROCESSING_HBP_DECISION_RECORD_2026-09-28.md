@@ -707,3 +707,32 @@ Claim boundary:
 - outer test remains untouched.
 
 Do not treat this as an independent final-confirmatory superiority claim yet.
+
+
+
+### Physical-descriptor audit preflight correction
+
+The first Kaggle attempt stopped at the frozen unit-test stage before any
+Coffee17 class-wise audit was executed:
+
+`test_red_otsu_mask_extracts_center_bean` failed.
+
+Diagnosis:
+
+- red-channel Otsu can isolate a small very-dark internal spot instead of the
+  whole pale bean;
+- this is a segmentation robustness issue, not an experimental result.
+
+Because the failure occurred before descriptor analysis and before any
+class-wise result was observed, the bean-mask extractor was corrected without
+using Coffee17 labels or outcome feedback.
+
+Revised label-free mask:
+
+`border RGB median -> RGB distance from background -> Otsu -> morphology -> largest component -> fill holes`
+
+The protocol documents this pre-result correction. The revised notebook pins:
+
+`ab1f2d6728bd7bf78599da73069229d40271447e`
+
+No outer test or neural training was accessed during the failed preflight.
