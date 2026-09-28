@@ -1,0 +1,66 @@
+{
+  "format": "coffee17.w0_ras.r0_reference.v1",
+  "source": "matched R0 development-fold control already frozen in shared-multiview/MVFD line",
+  "seed": 42,
+  "expected_initial_model_state_sha256": "e288e9d23781017c7afd8e97fc5a522eaef84ada4751ca8034d133017a70b995",
+  "validation_identity_hash_definition": "sort identity=class/filename; concatenate '<identity>\\t<class>\\n'; SHA256 UTF-8",
+  "folds": {
+    "fold_1": {
+      "count": 97,
+      "identity_label_sha256": "37c2e04d069200cd8c1768016d1fa7e9a6fb19511988f2f32397ad8f3aaf00cd",
+      "r0_control": {
+        "accuracy": 0.9175257731958762,
+        "balanced_accuracy": 0.9259103641456583,
+        "macro_f1": 0.9246797320326732,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.8782967032967033
+      }
+    },
+    "fold_2": {
+      "count": 97,
+      "identity_label_sha256": "853da93b314ce3d2e992c1c67718aea27780cfcf36f5e045e1533b34bb7788b4",
+      "r0_control": {
+        "accuracy": 0.9381443298969072,
+        "balanced_accuracy": 0.9386554621848741,
+        "macro_f1": 0.9385729226559676,
+        "worst_class_f1": 0.7272727272727273,
+        "hard_class_f1": 0.8921947333712039
+      }
+    },
+    "fold_3": {
+      "count": 97,
+      "identity_label_sha256": "783cb11115dad436c4f0ea126df8bf39d1c98638d668fb0dc5b9e09ffb668d0f",
+      "r0_control": {
+        "accuracy": 0.9175257731958762,
+        "balanced_accuracy": 0.915126050420168,
+        "macro_f1": 0.9128613792973654,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.9012432012432012
+      }
+    },
+    "fold_4": {
+      "count": 97,
+      "identity_label_sha256": "b1c181a9620352555a1c4d962a4bc2cdfcd02edb9feb80d7e04c402e5a80b03e",
+      "r0_control": {
+        "accuracy": 0.8762886597938144,
+        "balanced_accuracy": 0.8607142857142858,
+        "macro_f1": 0.8658471190478112,
+        "worst_class_f1": 0.5,
+        "hard_class_f1": 0.8075053418803418
+      }
+    },
+    "fold_5": {
+      "count": 97,
+      "identity_label_sha256": "4a7340263bc5416bcde64de6b20312af55a6fe74b80a6db06890a07ac8429a97",
+      "r0_control": {
+        "accuracy": 0.8969072164948454,
+        "balanced_accuracy": 0.8876750700280113,
+        "macro_f1": 0.8906682705990665,
+        "worst_class_f1": 0.6666666666666666,
+        "hard_class_f1": 0.871162987339458
+      }
+    }
+  },
+  "comparison": "W0_RAS vs frozen matched R0_CONTROL",
+  "test_images_accessed": false
+}
