@@ -1243,3 +1243,25 @@ Revised scientific pin:
 
 This is an execution-compatibility correction made before any WR-PDR outcome was
 observed.
+
+
+
+### WR-PDR second deterministic preflight correction
+
+A second attempt stopped before completing fold 1 because CUDA
+`adaptive_avg_pool2d_backward` in HBP alignment is unsupported by strict
+deterministic algorithms.
+
+The frozen HBP grids have exact integer ratios (56->7 and 14->7), so strict
+deterministic execution now uses the equivalent reshape + non-overlapping block
+mean. The legacy adaptive-average-pooling implementation remains unchanged
+outside strict deterministic mode.
+
+The notebook preflight now executes a complete WR-HBP CUDA forward/backward
+unit test before fold training.
+
+Revised scientific pin:
+
+`d4c7ff0daf09e2b6f81364bca557496058e2ef27`
+
+No WR-PDR fold result had completed before this correction.
