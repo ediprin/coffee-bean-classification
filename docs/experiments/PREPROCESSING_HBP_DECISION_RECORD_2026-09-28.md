@@ -638,3 +638,72 @@ Do not rerun or tune direct W0-HBP on these reused development folds.
 
 Any later method proposal must first be checked against the experiment master
 record and this decision record.
+
+
+
+---
+
+## 14. WR-HBP V1 completed: development gate PASS
+
+Branch:
+
+`codex/wavelet-residual-hbp-v1`
+
+Protocol:
+
+`docs/protocols/WAVELET_RESIDUAL_HBP_V1.md`
+
+Result:
+
+`docs/results/WAVELET_RESIDUAL_HBP_RESULTS.md`
+
+Source artifact SHA-256:
+
+`3fff1a877e22787b2135810afd39ad490a22e2eb43bb83d336ba4ade6c922ee9`
+
+Five matched folds, seed 42, completed with outer test untouched.
+
+| Metric | R0-HBP | WR-HBP | Delta |
+|---|---:|---:|---:|
+| Accuracy | 91.34% | 91.75% | +0.41 pp |
+| Balanced Accuracy | 91.45% | 91.93% | +0.48 pp |
+| Macro-F1 | 91.02% | **91.77%** | **+0.75 pp** |
+| Hard-F1 | 86.12% | **86.24%** | **+0.11 pp** |
+| Worst-F1 | 65.33% | **66.76%** | **+1.42 pp** |
+
+Macro-F1 improved in **5/5 folds**.
+
+Paired validation outcomes:
+
+- rescue: 7;
+- damage: 5;
+- net: +2 correct.
+
+Parameter overhead:
+
+- +897 parameters;
+- +0.0252%.
+
+Frozen gate passed all conditions:
+
+1. mean Macro delta > 0: PASS;
+2. Macro positive >=3/5 folds: PASS (5/5);
+3. mean Hard delta >=0: PASS;
+4. mean Worst delta >=0: PASS.
+
+Decision:
+
+> **PASS / PROMOTE WR-HBP PAST DEVELOPMENT SCREENING.**
+
+WR-HBP is the first preprocessing/HBP combination in this development chain to
+pass the complete frozen gate while preserving raw RGB as the main
+representation.
+
+Claim boundary:
+
+- post-primary exploratory development;
+- reused development folds;
+- seed 42 only;
+- outer test remains untouched.
+
+Do not treat this as an independent final-confirmatory superiority claim yet.
