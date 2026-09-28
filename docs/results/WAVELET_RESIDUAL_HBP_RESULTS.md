@@ -170,3 +170,69 @@ Claim boundary:
 Therefore this result is sufficient to **promote WR-HBP past development
 screening**, not sufficient by itself for an independent final-confirmatory
 superiority claim.
+
+
+
+## Additional post-hoc diagnostic: what WR-HBP is actually changing
+
+A deeper paired-probability analysis of the uploaded five-fold package shows
+that the gain is broader than the +2 net top-1 decisions alone suggest.
+
+Across all 485 paired validation observations:
+
+- mean true-class probability delta (WR-HBP - R0-HBP): **+1.06 pp**;
+- median true-class probability delta: **+0.58 pp**;
+- true-class probability increased on **276/485** observations;
+- mean true-class-vs-best-rival margin delta: **+1.57 pp**;
+- the true-class margin increased on **281/485** observations.
+
+This indicates that WR-HBP often strengthens the correct class evidence without
+necessarily changing the final argmax.
+
+### Classes with the strongest mean true-class probability increase
+
+- Withered: **+3.40 pp**; margin **+5.81 pp**;
+- Fungus Damage: **+3.25 pp**; margin **+4.56 pp**;
+- Fade: **+2.66 pp**; margin **+5.65 pp**;
+- Slight Insect Damage: **+2.12 pp**; margin **+3.54 pp**;
+- Full Sour: **+1.86 pp**; margin **+3.33 pp**.
+
+### Main remaining weakness
+
+Partial Sour is the clearest outlier:
+
+- mean true-class probability delta: **-2.02 pp**;
+- mean true-class margin delta: **-4.67 pp**.
+
+The changed-decision audit shows two cases where an originally correct
+Partial-Sour prediction moved to Full Sour, while one Full-Sour error was
+corrected from Partial Sour to Full Sour.
+
+Therefore the remaining sour-group loss is best interpreted as a **within-group
+decision-boundary shift between Partial Sour and Full Sour**, rather than a
+general absence of useful wavelet signal for sour beans.
+
+### Wavelet-gate stability
+
+The selected-checkpoint gate signs are not directly physically interpretable
+because the learned projection branch can absorb a sign flip. The more useful
+quantity is gate magnitude.
+
+Absolute selected gate values lie in the narrow range **0.128-0.157**, with:
+
+- mean absolute gate: **0.1465**;
+- sample standard deviation: **0.0135**.
+
+Thus all five folds learned a non-trivial residual contribution of similar
+magnitude even though fold 5 used the opposite scalar sign.
+
+### Implication for the next method-development hypothesis
+
+The evidence now points toward **selective complementarity**, not simply a
+stronger wavelet branch.
+
+WR-HBP already improves the texture/edge-sensitive classes most clearly, while
+the remaining weakness is concentrated in a small sour-class boundary. Any
+next extension should preserve the successful WR-HBP path and add one
+orthogonal low-frequency/color-contrast cue rather than increasing wavelet
+strength or adding generic attention.
