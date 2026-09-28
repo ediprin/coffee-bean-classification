@@ -88,6 +88,28 @@ not alter the trainable graph.
 This correction was made in response to an execution-compatibility failure, not
 to any observed classification outcome.
 
+
+
+### Deterministic HBP spatial-alignment implementation note
+
+A second strict-deterministic preflight stopped during the first backward pass
+because PyTorch's CUDA `adaptive_avg_pool2d_backward` used for HBP stage
+alignment has no deterministic implementation.
+
+For the frozen MobileNetV3 HBP grids, the spatial ratios are exact integer
+partitions (56->7 and 14->7). Under strict deterministic execution, HBP therefore
+uses an equivalent non-overlapping block mean implemented as reshape + mean.
+When deterministic algorithms are disabled, the legacy
+`adaptive_avg_pool2d` path remains unchanged.
+
+The deterministic path is validated against adaptive average pooling for the
+exact-bin case and the Kaggle preflight now executes a complete WR-HBP CUDA
+forward + backward smoke test before any fold training.
+
+This correction was made after an execution failure and before any completed
+WR-PDR fold result was observed.
+
+
 ## 4. Frozen physical feature vector
 
 Only information supported by the completed descriptor audit is retained.
