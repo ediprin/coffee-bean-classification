@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 
+import pytest
 import torch
 
 from bilinear_lmmd.core.config import load_config
@@ -62,3 +63,17 @@ def test_gate_zero_logits_match_control() -> None:
         rtol=0.0,
         atol=1.0e-7,
     )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA diperlukan")
+def test_luminance_details_runs_under_strict_deterministic_cuda() -> None:
+    previous = torch.are_deterministic_algorithms_enabled()
+    try:
+        torch.use_deterministic_algorithms(True)
+        raw = torch.rand(2, 3, 224, 224, device="cuda")
+        details = luminance_l1_visushrink_details(raw)
+        assert details.is_cuda
+        assert details.shape == (2, 3, 112, 112)
+        assert torch.isfinite(details).all()
+    finally:
+        torch.use_deterministic_algorithms(previous)
