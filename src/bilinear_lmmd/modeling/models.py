@@ -1303,6 +1303,28 @@ class AdaptationModel(nn.Module):
 
 def build_model(cfg: dict) -> nn.Module:
     head = cfg.get("head", "hbp")
+    if head in {
+        "progressive_multigranularity",
+        "progressive_multigranularity_consistency",
+    }:
+        from bilinear_lmmd.modeling.progressive_multigranularity import (
+            ProgressiveMultiGranularityModel,
+        )
+
+        if str(cfg.get("classifier", "linear")) != "linear":
+            raise ValueError(
+                "Progressive multi-granularity hanya mendukung classifier linear."
+            )
+        return ProgressiveMultiGranularityModel(
+            backbone=cfg["backbone"],
+            num_classes=int(cfg["num_classes"]),
+            out_indices=tuple(cfg.get("out_indices", (1, 3, 4))),
+            feature_dim=int(cfg.get("pmg_feature_dim", 256)),
+            branch_dim=int(cfg.get("pmg_branch_dim", 512)),
+            dropout=float(cfg.get("dropout", 0.2)),
+            pretrained=bool(cfg.get("pretrained", True)),
+            category_consistency=head.endswith("_consistency"),
+        )
     if head in {"decoupled_gap_hbp_fixed", "decoupled_gap_hbp_learned"}:
         if str(cfg.get("classifier", "linear")) != "linear":
             raise ValueError("Decoupled GAP-HBP hanya mendukung classifier linear.")
