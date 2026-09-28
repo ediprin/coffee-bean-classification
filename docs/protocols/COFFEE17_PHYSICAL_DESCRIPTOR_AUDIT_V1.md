@@ -31,8 +31,9 @@ The audit is grounded in prior coffee literature and defect definitions:
 - SCAA defect handbook: Partial Sour and Partial Black are defined by affected
   area being less than one half; Severe vs Slight Insect Damage differs by
   perforation count.
-- Tulsi et al. (2026): label-free coffee-bean segmentation via red-channel Otsu
-  plus morphology provides precedent for handcrafted morphology extraction.
+- Tulsi et al. (2026): label-free coffee-bean segmentation and morphology extraction
+  provide precedent for handcrafted physical descriptors. The final audit uses a
+  border-background-distance Otsu mask after red-channel Otsu failed preflight.
 
 ## Data boundary
 
@@ -54,14 +55,29 @@ No neural model is trained and no model checkpoint is accessed.
 
 ## Label-free bean mask
 
-Coffee17 uses a controlled white background and standardized single-bean images.
-The bean mask is extracted with:
+Coffee17 uses a controlled light/white background and standardized single-bean
+images.
 
-1. red-channel Otsu threshold;
-2. remove very small components;
-3. morphological closing;
-4. retain the largest connected component;
-5. fill interior holes for bean-shape measurement.
+The initial frozen implementation used red-channel Otsu, following a published
+coffee-bean segmentation precedent. Its synthetic preflight exposed an important
+failure mode before any Coffee17 audit result was produced: a small very-dark
+internal spot could become the foreground mode and cause a pale bean body to be
+discarded.
+
+The pre-result correction therefore uses a more robust, still label-free
+background-distance procedure:
+
+1. estimate the background RGB vector as the median of image-border pixels;
+2. compute each pixel's Euclidean RGB distance from that estimated background;
+3. apply Otsu thresholding to the distance map;
+4. remove very small components;
+5. morphological closing;
+6. retain the largest connected component;
+7. fill interior holes for bean-shape measurement.
+
+No Coffee17 class label or class-specific threshold is used in segmentation.
+The correction was made because the unit-test preflight failed, before any
+class-wise audit result was observed.
 
 Mask QC is recorded for every image. No failed image may be silently dropped.
 
