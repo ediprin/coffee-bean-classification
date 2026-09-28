@@ -5,7 +5,7 @@ from PIL import Image
 
 from bilinear_lmmd.analysis.coffee17_physical_descriptors import (
     ALL_FEATURES,
-    bean_mask_from_red_otsu,
+    bean_mask_from_background_otsu,
     extract_physical_descriptors,
 )
 
@@ -21,9 +21,9 @@ def _synthetic_bean() -> np.ndarray:
     return image
 
 
-def test_red_otsu_mask_extracts_center_bean() -> None:
+def test_background_otsu_mask_extracts_center_bean() -> None:
     image = _synthetic_bean()
-    mask = bean_mask_from_red_otsu(image)
+    mask = bean_mask_from_background_otsu(image)
     assert mask.shape == image.shape[:2]
     assert mask.dtype == bool
     assert mask[64, 64]
