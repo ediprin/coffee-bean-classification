@@ -1058,3 +1058,74 @@ Deprecated notebooks on `codex/w0-hbp-v1`:
 - `Coffee17_W0_HBP_V3_Kaggle.ipynb`.
 
 Do not use them.
+
+
+---
+
+## 17. Matched direct W0-HBP result: FAIL
+
+Full result:
+
+`docs/results/W0_HBP_MATCHED_RESULTS.md`
+
+Source artifact SHA-256:
+
+`f12670b3691dd2e482962d3edaa6fee1bfafdef9b600ceaccf87592952640bf4`
+
+Five matched Coffee17 preprocessing-study folds completed with seed 42.
+R0-HBP and W0-HBP were retrained from the same initialization and training
+recipe; only input preprocessing differed. Outer test was not accessed.
+
+| Metric | R0-HBP | W0-HBP | Delta W0-R0 |
+|---|---:|---:|---:|
+| Accuracy | 91.55% | 90.10% | -1.44 pp |
+| Balanced Accuracy | 91.63% | 90.13% | -1.50 pp |
+| Macro-F1 | 91.27% | 90.04% | -1.23 pp |
+| Hard-F1 | 86.23% | 84.09% | -2.13 pp |
+| Worst-F1 | 64.95% | 63.78% | -1.17 pp |
+
+Macro-F1 improved in only **1/5 folds**.
+
+Matched validation outcome counts across 485 unique observations:
+
+- W0 rescue: 5;
+- W0 damage: 12;
+- both correct: 432;
+- both wrong: 36.
+
+Net top-1 effect: **-7 correct predictions**.
+
+Hard-group mean delta:
+
+- sour/black: -4.80 pp;
+- shape/withered: +0.71 pp;
+- insect damage: -2.41 pp.
+
+The pre-registered/frozen screening gate failed all conditions:
+
+- mean Macro delta > 0: FAIL;
+- Macro positive in >=3/5 folds: FAIL;
+- mean Hard delta >= 0: FAIL;
+- mean Worst delta >= 0: FAIL.
+
+Decision:
+
+> **STOP W0-HBP.**
+
+Direct W0 preprocessing does not improve the established HBP representation
+under this matched development protocol. No W0/HBP hyperparameter tuning is
+authorized on the reused folds.
+
+### Updated preprocessing conclusion
+
+The completed evidence now supports three separate statements:
+
+1. preprocessing representations are class-dependent and complementary;
+2. attempts to compress transformed-view information into a raw-only model are
+   not reliably beneficial across representation levels;
+3. directly feeding W0 into HBP also fails under matched evaluation.
+
+Preprocessing remains a valid analysis contribution through the primary study,
+complementarity/rescue evidence, cue audit, and the documented negative
+transfer/direct-combination results. It should not be represented as a
+universally accuracy-improving input transform.
