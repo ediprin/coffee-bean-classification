@@ -1202,3 +1202,23 @@ Current interpretation:
 
 This remains post-primary exploratory evidence on reused folds with seed 42.
 Outer test remains untouched.
+
+
+
+### Physical-descriptor audit preflight correction
+
+The first notebook execution stopped during unit tests before class-wise
+descriptor analysis. Red-channel Otsu failed a synthetic robustness case because
+a very-dark internal spot could become the selected foreground while the pale
+bean body was omitted.
+
+The label-free bean mask was therefore revised, before seeing Coffee17 audit
+outcomes, to use border-estimated background RGB distance followed by Otsu and
+largest-component morphology.
+
+Revised scientific pin:
+
+`ab1f2d6728bd7bf78599da73069229d40271447e`
+
+The failed attempt produced no Coffee17 physical-descriptor result, used no
+outer-test materialization, and executed no neural training.
