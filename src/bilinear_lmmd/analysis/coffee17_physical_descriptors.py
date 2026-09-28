@@ -59,19 +59,44 @@ def _load_rgb(path: Path) -> np.ndarray:
         return np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
 
 
-def bean_mask_from_red_otsu(rgb: np.ndarray) -> np.ndarray:
-    """Segment the single Coffee17 bean from its controlled white background.
+def bean_mask_from_background_otsu(rgb: np.ndarray) -> np.ndarray:
+    """Segment the single Coffee17 bean from its controlled light background.
 
-    The extraction is label-free. It follows the red-channel Otsu strategy used
-    by Tulsi et al. for controlled coffee-bean imagery, then keeps only the
-    largest connected component and fills interior holes for *bean-shape*
-    measurement. Hole-like defect proxies are computed later from the original
-    image inside an eroded copy of this bean mask.
+    A robust background color is estimated from image-border pixels. Each pixel
+    is scored by Euclidean RGB distance from that border background, then Otsu
+    thresholding separates bean from background. This avoids a failure mode of
+    red-channel Otsu where a small very-dark defect can become the foreground
+    mode while the rest of a pale bean is discarded.
+
+    The extraction is label-free and uses no Coffee17 class information.
     """
 
-    red = rgb[..., 0]
-    threshold = filters.threshold_otsu(red)
-    mask = red < threshold
+    if rgb.ndim != 3 or rgb.shape[2] != 3:
+        raise ValueError("rgb harus HxWx3.")
+
+    height, width, _ = rgb.shape
+    border_width = max(2, min(height, width) // 20)
+
+    top = rgb[:border_width, :, :].reshape(-1, 3)
+    bottom = rgb[-border_width:, :, :].reshape(-1, 3)
+    if height > 2 * border_width:
+        left = rgb[border_width:-border_width, :border_width, :].reshape(-1, 3)
+        right = rgb[border_width:-border_width, -border_width:, :].reshape(-1, 3)
+        border = np.concatenate([top, bottom, left, right], axis=0)
+    else:
+        border = np.concatenate([top, bottom], axis=0)
+
+    background_rgb = np.median(border, axis=0)
+    distance = np.linalg.norm(
+        rgb - background_rgb.reshape(1, 1, 3),
+        axis=2,
+    )
+
+    if float(distance.max()) <= 1.0e-8:
+        raise ValueError("Image hampir seragam; bean tidak dapat disegmentasi.")
+
+    threshold = filters.threshold_otsu(distance)
+    mask = distance > threshold
 
     min_size = max(16, int(round(mask.size * 0.0005)))
     mask = morphology.remove_small_objects(mask, min_size=min_size)
@@ -81,7 +106,7 @@ def bean_mask_from_red_otsu(rgb: np.ndarray) -> np.ndarray:
     labels = measure.label(mask, connectivity=2)
     regions = measure.regionprops(labels)
     if not regions:
-        raise ValueError("Bean mask kosong setelah Otsu.")
+        raise ValueError("Bean mask kosong setelah background-distance Otsu.")
     region = max(regions, key=lambda r: r.area)
     return labels == region.label
 
@@ -206,7 +231,7 @@ def _dark_component_features(
 
 def extract_physical_descriptors(path: Path) -> dict[str, float | int | bool]:
     rgb = _load_rgb(path)
-    mask = bean_mask_from_red_otsu(rgb)
+    mask = bean_mask_from_background_otsu(rgb)
 
     area_fraction = float(mask.mean())
     rows, cols = np.nonzero(mask)
