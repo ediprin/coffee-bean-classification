@@ -1,6 +1,6 @@
 # Coffee17 Experiment Master Results
 
-Last updated: 2026-09-23
+Last updated: 2026-09-28
 
 This document is the canonical running record for the Coffee17 preprocessing,
 fusion, distillation, shared-multiview, and selective-BN experiments conducted
@@ -538,13 +538,17 @@ The evidence chain currently supports the following:
 8. Even after optimization is repaired, raw-only inference does not yet inherit
    enough useful information from C0/F0/W0 to outperform the matched R0 control.
 
-Current unresolved research problem:
+Current status after later follow-up experiments:
 
-> How can useful information learned from C0/F0/W0 during training be
-> transferred into the R0 representation, while preserving one raw-RGB
-> lightweight model at inference?
+> The preprocessing -> raw-only representation-transfer family is closed on the
+> reused Coffee17 development folds. Scalar W0-RAS, spatial W0-AT, direct
+> intermediate tensor matching, and HBP+MVFD all failed their intended
+> discrimination objective; GAP MVFD improved Macro/Worst while reducing Hard.
 
-This is now the next method-development target.
+Preprocessing remains a substantive thesis variable. The current frozen
+question is a direct matched comparison of R0-HBP versus W0-HBP, with both arms
+retrained on the same 5 folds and seed 42 so that preprocessing is the only
+experimental factor.
 
 ---
 
@@ -897,3 +901,160 @@ weighting, attention, or class-specific mechanisms, a matched SBN +
 auxiliary-head CE-only control (lambda_feat = 0) is needed to determine whether
 the observed gain is specifically attributable to transformed-view feature
 distillation rather than auxiliary-task regularization alone.
+
+
+
+---
+
+## 15. Post-MVFD follow-up: W0 cue audit and transfer-family closure
+
+Full decision record:
+
+`docs/experiments/PREPROCESSING_HBP_DECISION_RECORD_2026-09-28.md`
+
+### W0 cue audit
+
+A post-hoc cue audit on the opened preprocessing OOF found 15/111 W0
+descriptors with BH-FDR q < 0.05 in the adjusted continuous true-class
+probability analysis.
+
+The coherent family was relative detail survivability after VisuShrink:
+
+- RGB L1-HH retained-energy ratios: positive association;
+- several LH/HL retained ratios: positive association;
+- VisuShrink thresholds: negative association.
+
+Mean-RGB L1-HH retained ratio had one-way class eta-squared approximately
+0.628. Pre-energy/post-energy alone did not form the stable signal family.
+F0 angular descriptors did not yield a stable FDR-significant family.
+
+This is exploratory association, not causal evidence.
+
+### W0-RAS
+
+Training-only scalar supervision for mean-RGB L1-HH retained-energy ratio
+failed.
+
+Mean delta vs matched R0:
+
+- Accuracy: -0.62 pp;
+- Balanced Accuracy: -0.11 pp;
+- Macro-F1: -0.33 pp;
+- Hard-F1: -2.12 pp;
+- Worst-F1: +1.15 pp.
+
+The auxiliary regression target was learnable, yet classification did not
+improve consistently.
+
+Decision: **STOP W0-RAS**. No lambda/band variants.
+
+### W0-AT
+
+Normalized stage-3 spatial attention transfer from W0 to R0 also failed.
+
+Mean delta vs matched R0:
+
+- Accuracy: -1.65 pp;
+- Balanced Accuracy: -1.15 pp;
+- Macro-F1: -1.44 pp;
+- Hard-F1: -3.78 pp;
+- Worst-F1: -3.18 pp.
+
+Hard-F1 decreased on 5/5 folds.
+
+Raw/W0 attention cosine was already about 0.984 at epoch 1 and about 0.9976 at
+selected best checkpoints. The auxiliary loss did not dominate CE.
+
+Decision: **STOP W0-AT**. No beta/stage/exponent search and no HBP+W0-AT.
+
+### ML-MVFD
+
+Direct intermediate tensor MSE failed strongly:
+
+- Macro-F1: 86.78%;
+- Hard-F1: 79.55%;
+- Worst-F1: 57.85%;
+- 0/5 folds improved versus GAP MVFD.
+
+Decision: close direct intermediate tensor matching.
+
+### HBP + MVFD
+
+Applying the existing MVFD formulation to HBP embeddings did not preserve the
+GAP MVFD benefit:
+
+| Model | Macro-F1 | Hard-F1 | Worst-F1 |
+|---|---:|---:|---:|
+| HBP R0 control | ~91.58% | ~86.23% | ~65.26% |
+| HBP + MVFD | ~90.61% | ~84.38% | ~67.00% |
+| Delta | -0.97 pp | -1.86 pp | +1.74 pp |
+
+Macro improved in 1/5 folds; Hard improved in 1/5 folds.
+
+Decision: do not stack HBP with more variants of the same MVFD formulation.
+
+### Transfer-family decision
+
+Completed representation-level tests now cover:
+
+- scalar cue transfer: failed;
+- normalized spatial map transfer: failed;
+- full intermediate tensor transfer: failed strongly;
+- final GAP feature transfer: Macro/Worst gain with Hard decline;
+- final HBP feature transfer: Macro/Hard decline.
+
+Therefore the preprocessing -> raw-only transfer family is closed on the reused
+Coffee17 development folds.
+
+This does **not** remove preprocessing from the thesis. Primary preprocessing,
+complementarity, rescue analysis, and the W0 cue audit remain substantive
+evidence.
+
+---
+
+## 16. Current canonical direct preprocessing test: R0-HBP vs W0-HBP
+
+Canonical branch:
+
+`codex/w0-hbp-matched-v1`
+
+Protocol:
+
+`docs/protocols/W0_HBP_MATCHED_V1.md`
+
+Notebook:
+
+`notebooks/Coffee17_W0_HBP_MATCHED_Kaggle.ipynb`
+
+Design:
+
+- 5 Coffee17 preprocessing-study folds;
+- seed 42;
+- R0-HBP control retrained;
+- W0-HBP candidate trained;
+- identical initialization, model, optimizer, schedule, augmentation, and
+  validation rows;
+- only preprocessing differs.
+
+Retraining R0-HBP is intentional matched-control reconstruction because the
+exact old per-fold HBP control artifacts are unavailable. It is not treated as
+a new method.
+
+Screening gate:
+
+1. mean paired Macro-F1 delta > 0;
+2. Macro-F1 positive in at least 3/5 folds;
+3. mean paired Hard-F1 delta >= 0;
+4. mean paired Worst-F1 delta >= 0.
+
+If the gate fails, stop W0-HBP without post-hoc W0/HBP tuning.
+
+Outer test remains untouched.
+
+Deprecated notebooks on `codex/w0-hbp-v1`:
+
+- `Coffee17_W0_HBP_Kaggle.ipynb`;
+- `Coffee17_W0_HBP_V2_Kaggle.ipynb`;
+- `Coffee17_W0_HBP_V3_Kaggle.ipynb`.
+
+Do not use them.
