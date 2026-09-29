@@ -120,6 +120,38 @@ def core_fingerprint(model: nn.Module) -> str:
     return _tensor_fingerprint(model.state_dict())
 
 
+def deterministic_adaptive_avg_pool2d(
+    x: torch.Tensor,
+    output_size: tuple[int, int],
+) -> torch.Tensor:
+    """Adaptive-average pooling using explicit slice means.
+
+    PyTorch's CUDA backward for adaptive_avg_pool2d is nondeterministic on
+    current Kaggle builds. This implements the same adaptive bin boundaries
+    with deterministic mean reductions, so strict deterministic training can
+    remain enabled.
+    """
+
+    if x.ndim != 4:
+        raise ValueError("Expected BCHW tensor.")
+    out_h, out_w = (int(output_size[0]), int(output_size[1]))
+    if out_h <= 0 or out_w <= 0:
+        raise ValueError("output_size harus positif.")
+
+    height, width = int(x.shape[-2]), int(x.shape[-1])
+    rows = []
+    for i in range(out_h):
+        h0 = (i * height) // out_h
+        h1 = ((i + 1) * height + out_h - 1) // out_h
+        cols = []
+        for j in range(out_w):
+            w0 = (j * width) // out_w
+            w1 = ((j + 1) * width + out_w - 1) // out_w
+            cols.append(x[:, :, h0:h1, w0:w1].mean(dim=(-2, -1)))
+        rows.append(torch.stack(cols, dim=-1))
+    return torch.stack(rows, dim=-2)
+
+
 class DCLTrainingWrapper(nn.Module):
     """Training-only DCL heads around the unchanged HBP inference core."""
 
@@ -148,7 +180,7 @@ class DCLTrainingWrapper(nn.Module):
         class_logits = self.core.classifier(self.core.dropout(embedding))
         swap_logits = self.swap_classifier(embedding)
         location = self.location_head(features[-1])
-        location = F.adaptive_avg_pool2d(
+        location = deterministic_adaptive_avg_pool2d(
             location,
             output_size=(self.grid_size, self.grid_size),
         )
