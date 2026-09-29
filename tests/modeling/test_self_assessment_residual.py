@@ -20,7 +20,7 @@ from bilinear_lmmd.modeling.self_assessment_residual import (
 
 def _cfg() -> dict:
     cfg = copy.deepcopy(
-        load_config("configs/wr_hbp_self_assessment/WR_HBP_SAR_V1.yaml")
+        load_config("configs/wr_hbp_self_assessment/WR_HBP_SAR_V2.yaml")
     )
     cfg["model"]["pretrained"] = False
     return cfg
