@@ -88,6 +88,7 @@ def _control_contract_is_compatible(existing: dict, proposed: dict) -> bool:
         "model",
         "dcl",
         "training",
+        "resolved_config_sha256",
         "outer_test_accessed",
     )
     return all(existing.get(key) == proposed.get(key) for key in exact_fields)
@@ -229,9 +230,13 @@ def run_matched_pair(
             existing = _json(contract_path, f"{arm} existing contract")
             if existing == contract:
                 contracts[arm] = existing
-            elif arm == "HBP_CE" and _control_contract_is_compatible(existing, contract):
+            elif (
+                arm == "HBP_CE"
+                and _control_contract_is_compatible(existing, contract)
+                and _run_complete(arm_dir, int(cfg["training"]["epochs"]))
+            ):
                 print(
-                    "REUSE HBP_CE dari compatible legacy commit: "
+                    "REUSE completed HBP_CE dari compatible legacy commit: "
                     f"{existing.get('git_commit')}",
                     flush=True,
                 )
