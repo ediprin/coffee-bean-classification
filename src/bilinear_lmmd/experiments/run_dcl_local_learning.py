@@ -269,7 +269,10 @@ def run_matched_pair(
         lock_name=f"DCL_LOCAL_fold{fold}_seed42.training.lock",
         stale_seconds=900,
     ):
-        for arm in ARMS:
+        # The candidate is the new/risky code path. Run it first so any
+        # remaining candidate-only failure cannot waste a full control run.
+        training_order = ("HBP_DCL", "HBP_CE")
+        for arm in training_order:
             if _run_complete(arm_dirs[arm], epochs):
                 print(f"SKIP {arm}: completed.", flush=True)
                 continue
@@ -352,6 +355,10 @@ def run_matched_pair(
         },
         "arm_contract_sha256": {
             arm: contracts[arm]["run_contract_sha256"]
+            for arm in ARMS
+        },
+        "arm_git_commit": {
+            arm: contracts[arm]["git_commit"]
             for arm in ARMS
         },
     }
