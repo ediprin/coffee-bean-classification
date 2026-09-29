@@ -52,7 +52,7 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
     for fold in FOLDS:
         fold_root = output_root / f"fold_{fold}" / "seed42"
         result = _json(fold_root / "pair_result.json")
-        if result.get("protocol") != "coffee17-wr-hbp-self-assessment-v1":
+        if result.get("protocol") != "coffee17-wr-hbp-self-assessment-v2":
             raise RuntimeError(f"Fold {fold}: protocol tidak cocok.")
         if result.get("matched_validation_rows") is not True:
             raise RuntimeError(f"Fold {fold}: validation rows tidak matched.")
@@ -142,8 +142,8 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
     gate["decision"] = "PASS" if all(gate.values()) else "FAIL"
 
     payload = {
-        "format": "bilinear_lmmd.wr_hbp_self_assessment.summary.v1",
-        "protocol": "coffee17-wr-hbp-self-assessment-v1",
+        "format": "bilinear_lmmd.wr_hbp_self_assessment.summary.v2",
+        "protocol": "coffee17-wr-hbp-self-assessment-v2",
         "scope": (
             "five strict-deterministic development folds; WR-HBP base trained "
             "with the frozen recipe, then frozen; only a localized top-5 "
