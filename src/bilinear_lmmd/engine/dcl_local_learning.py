@@ -7,7 +7,6 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch.nn import functional as F
 from tqdm import tqdm
 
 from bilinear_lmmd.core.reproducibility import (
@@ -274,7 +273,14 @@ def _local_permutation(
             grid[row - 1] = grid[row]
             grid[row] = tmp
 
-    return grid.flatten()
+    permutation = grid.flatten()
+    identity = torch.arange(grid_size * grid_size, dtype=torch.long)
+    if torch.equal(permutation, identity):
+        # A "shuffled" sample must actually be destructed; otherwise the
+        # binary auxiliary target would be contradictory.
+        permutation = permutation.clone()
+        permutation[0], permutation[1] = permutation[1].clone(), permutation[0].clone()
+    return permutation
 
 
 def region_confusion_batch(
@@ -373,6 +379,129 @@ def _build_arm(cfg: dict, arm: str) -> nn.Module:
 
 def _core_from_arm(model: nn.Module, arm: str) -> nn.Module:
     return model if arm == "HBP_CE" else model.core
+
+
+def gpu_training_smoke_test(
+    cfg: dict,
+    *,
+    device: str = "cuda:0",
+) -> dict:
+    """Run one strict-deterministic forward/backward for both arms on CUDA.
+
+    This is intentionally executed before any 50-epoch arm so unsupported
+    deterministic CUDA operators fail in seconds rather than after the matched
+    control has already finished.
+    """
+
+    validate_config(cfg)
+    if not torch.are_deterministic_algorithms_enabled():
+        raise RuntimeError("GPU smoke test membutuhkan strict determinism aktif.")
+
+    resolved = resolve_device(device)
+    if resolved.type != "cuda":
+        raise RuntimeError("GPU smoke test harus dijalankan pada CUDA.")
+
+    seed = int(cfg["seed"])
+    batch = 2
+    raw_cpu = torch.linspace(
+        0.0,
+        1.0,
+        steps=batch * 3 * 224 * 224,
+        dtype=torch.float32,
+    ).reshape(batch, 3, 224, 224)
+    labels_cpu = torch.tensor([0, 1], dtype=torch.long)
+    reports: dict[str, dict] = {}
+
+    for arm in ARMS:
+        seed_everything(seed)
+        model = _build_arm(cfg, arm).to(resolved)
+        model.train()
+        raw = raw_cpu.to(resolved)
+        labels = labels_cpu.to(resolved)
+        model.zero_grad(set_to_none=True)
+
+        if arm == "HBP_CE":
+            logits = model(imagenet_normalize(raw)).logits
+            loss = nn.CrossEntropyLoss(
+                label_smoothing=float(cfg["training"]["label_smoothing"])
+            )(logits, labels)
+            components = {"classification": float(loss.detach().cpu().item())}
+        else:
+            grid_size = int(cfg["dcl"]["grid_size"])
+            shuffled, permutations = region_confusion_batch(
+                raw,
+                grid_size=grid_size,
+                seed=seed * 1_000_003,
+            )
+            combined = torch.cat((raw, shuffled), dim=0)
+            combined_labels = torch.cat((labels, labels), dim=0)
+            outputs = model.forward_training(imagenet_normalize(combined))
+
+            class_loss = nn.CrossEntropyLoss(
+                label_smoothing=float(cfg["training"]["label_smoothing"])
+            )(outputs["class_logits"], combined_labels)
+            swap_targets = torch.cat(
+                (
+                    torch.ones(batch, dtype=torch.long, device=resolved),
+                    torch.zeros(batch, dtype=torch.long, device=resolved),
+                ),
+                dim=0,
+            )
+            swap_loss = nn.CrossEntropyLoss()(
+                outputs["swap_logits"], swap_targets
+            )
+            identity_loc, shuffled_loc = location_targets(
+                permutations,
+                grid_size=grid_size,
+                device=resolved,
+            )
+            location_loss = nn.L1Loss()(
+                outputs["location"],
+                torch.cat((identity_loc, shuffled_loc), dim=0),
+            )
+            loss = (
+                float(cfg["dcl"]["classification_weight"]) * class_loss
+                + float(cfg["dcl"]["swap_weight"]) * swap_loss
+                + float(cfg["dcl"]["location_weight"]) * location_loss
+            )
+            components = {
+                "classification": float(class_loss.detach().cpu().item()),
+                "swap": float(swap_loss.detach().cpu().item()),
+                "location": float(location_loss.detach().cpu().item()),
+            }
+
+        loss.backward()
+        torch.cuda.synchronize(resolved)
+
+        finite_gradients = 0
+        trainable_with_grad = 0
+        for parameter in model.parameters():
+            if not parameter.requires_grad or parameter.grad is None:
+                continue
+            trainable_with_grad += 1
+            if torch.isfinite(parameter.grad).all():
+                finite_gradients += 1
+        if trainable_with_grad == 0 or finite_gradients != trainable_with_grad:
+            raise RuntimeError(
+                f"GPU smoke {arm}: gradient non-finite atau tidak terbentuk "
+                f"({finite_gradients}/{trainable_with_grad})."
+            )
+
+        reports[arm] = {
+            "loss": float(loss.detach().cpu().item()),
+            "components": components,
+            "gradient_tensors": int(trainable_with_grad),
+            "all_gradients_finite": True,
+        }
+        del model, raw, labels, loss
+        torch.cuda.empty_cache()
+
+    return {
+        "device": str(resolved),
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "arms": reports,
+        "passed": True,
+    }
 
 
 def train_arm(
