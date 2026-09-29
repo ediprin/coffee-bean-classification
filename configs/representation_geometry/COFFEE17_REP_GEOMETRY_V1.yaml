@@ -1,0 +1,37 @@
+protocol: coffee17-representation-geometry-audit-v1
+seed: 42
+device: auto
+
+data:
+  root: data/coffee17-preprocessing-development
+  source: source
+  train_split: train
+  val_split: val
+  image_size: 224
+  batch_size: 64
+  workers: 4
+  object_crop: false
+
+encoders:
+  - name: mobilenetv3_imagenet
+    model_name: mobilenetv3_large_100
+    pretrained: true
+  - name: dinov2_small
+    model_name: vit_small_patch14_dinov2.lvd142m
+    pretrained: true
+  - name: convnext_tiny_imagenet
+    model_name: convnext_tiny.fb_in22k_ft_in1k
+    pretrained: true
+
+evaluation:
+  embedding_normalization: l2
+  knn_k: 5
+  linear_probe_c: 1.0
+  linear_probe_max_iter: 3000
+  hard_pairs:
+    - [Withered, Immature]
+    - [Severe Insect Damage, Slight Insect Damage]
+    - [Cut, Slight Insect Damage]
+    - [Partial Sour, Full Sour]
+    - [Slight Insect Damage, Fade]
+    - [Full Black, Partial Black]
