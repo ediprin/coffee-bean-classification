@@ -494,9 +494,14 @@ def gpu_training_smoke_test(
         seed_everything(seed)
         model = _build_arm(cfg, arm).to(resolved)
         model.train()
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=float(cfg["training"]["lr"]),
+            weight_decay=float(cfg["training"]["weight_decay"]),
+        )
         raw = raw_cpu.to(resolved)
         labels = labels_cpu.to(resolved)
-        model.zero_grad(set_to_none=True)
+        optimizer.zero_grad(set_to_none=True)
 
         if arm == "HBP_CE":
             logits = model(imagenet_normalize(raw)).logits
@@ -549,7 +554,23 @@ def gpu_training_smoke_test(
             }
 
         loss.backward()
-        torch.cuda.synchronize(resolved)
+
+        if arm == "HBP_DCL":
+            required_grads = {
+                "swap_classifier": model.swap_classifier.weight.grad,
+                "location_head": model.location_head.weight.grad,
+                "core_classifier": model.core.classifier.weight.grad,
+            }
+            missing_required = [
+                name
+                for name, grad in required_grads.items()
+                if grad is None or not torch.isfinite(grad).all()
+            ]
+            if missing_required:
+                raise RuntimeError(
+                    "GPU smoke DCL: auxiliary/core gradient tidak valid: "
+                    + ", ".join(missing_required)
+                )
 
         finite_gradients = 0
         trainable_with_grad = 0
@@ -565,13 +586,17 @@ def gpu_training_smoke_test(
                 f"({finite_gradients}/{trainable_with_grad})."
             )
 
+        optimizer.step()
+        torch.cuda.synchronize(resolved)
+
         reports[arm] = {
             "loss": float(loss.detach().cpu().item()),
             "components": components,
             "gradient_tensors": int(trainable_with_grad),
             "all_gradients_finite": True,
+            "optimizer_step_passed": True,
         }
-        del model, raw, labels, loss
+        del model, optimizer, raw, labels, loss
         torch.cuda.empty_cache()
 
     return {
