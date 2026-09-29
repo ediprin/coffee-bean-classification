@@ -1,10 +1,15 @@
 # Coffee17 Experiment Master Results
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 
 This document is the canonical running record for the Coffee17 preprocessing,
-fusion, distillation, shared-multiview, and selective-BN experiments conducted
-so far.
+fusion, distillation, shared-multiview, selective-BN, representation, and
+fine-grained local-learning experiments conducted so far.
+
+**Before proposing any new experiment, read**
+`docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md`.
+The ledger contains explicit STOP/CLOSED/BLOCKED entries to prevent old
+hypotheses from being proposed again under a new name.
 
 Important scope note: the original preprocessing OOF was opened before the
 later fusion/KD/MVCE/SBN methods were designed. Therefore all later methods are
@@ -1265,3 +1270,197 @@ Revised scientific pin:
 `d4c7ff0daf09e2b6f81364bca557496058e2ef27`
 
 No WR-PDR fold result had completed before this correction.
+
+
+---
+
+## 19. WR-PDR-HBP V1 result: FAIL
+
+Full result:
+
+`docs/results/WR_PDR_HBP_V1_RESULTS.md`
+
+Five strict-deterministic matched folds, seed 42, outer test untouched.
+
+| Metric | WR-HBP | WR-PDR-HBP | Delta |
+|---|---:|---:|---:|
+| Accuracy | 91.75% | 90.52% | -1.24 pp |
+| Balanced Accuracy | 91.91% | 90.54% | -1.37 pp |
+| Macro-F1 | 91.77% | 90.33% | -1.44 pp |
+| Hard-F1 | 86.41% | 83.35% | -3.05 pp |
+| Worst-F1 | 66.60% | 59.93% | -6.67 pp |
+
+Macro-F1 improved in 0/5 folds.
+Paired outcomes: 0 rescue, 6 damage, net -6 correct.
+
+Decision:
+
+> **STOP WR-PDR-HBP.** Do not tune physical-descriptor residual weights or
+> descriptor subsets on the reused development folds.
+
+---
+
+## 20. WR-HBP GCE V1 result: FAIL
+
+Canonical result:
+
+`docs/results/WR_HBP_GCE_V1_RESULTS.md`
+
+Matched WR-HBP CE versus GCE:
+
+| Metric | WR-HBP CE | WR-HBP GCE | Delta |
+|---|---:|---:|---:|
+| Accuracy | 91.75% | 91.13% | -0.62 pp |
+| Balanced Accuracy | 91.91% | 90.91% | -1.01 pp |
+| Macro-F1 | 91.77% | 90.71% | -1.06 pp |
+| Hard-F1 | 86.41% | 85.60% | -0.80 pp |
+| Worst-F1 | 66.60% | 63.00% | -3.60 pp |
+
+Macro-F1 improved in 0/5 folds; Hard-F1 improved in 1/5 folds.
+Paired outcomes: 5 rescue, 8 damage, net -3 correct.
+
+Frozen gate: **FAIL**.
+
+Decision:
+
+> **STOP GCE on WR-HBP.** Loss substitution did not resolve the persistent hard
+> errors.
+
+---
+
+## 21. WR-HBP SAR V1 result: FAIL / negligible effect
+
+Canonical result:
+
+`docs/results/WR_HBP_SELF_ASSESSMENT_V1_RESULTS.md`
+
+| Metric | WR-HBP base | WR-HBP SAR | Delta |
+|---|---:|---:|---:|
+| Accuracy | 91.75% | 91.96% | +0.21 pp |
+| Balanced Accuracy | 91.91% | 92.15% | +0.24 pp |
+| Macro-F1 | 91.77% | 91.97% | +0.20 pp |
+| Hard-F1 | 86.41% | 86.83% | +0.42 pp |
+| Worst-F1 | 66.60% | 66.60% | 0.00 pp |
+
+The improvement occurred in only 1/5 folds.
+Paired outcomes across 485 observations: 1 rescue, 0 damage.
+Worst-F1 did not improve.
+
+Frozen screening gate: **FAIL** because Hard-F1 was not positive in at least
+3/5 folds.
+
+Decision:
+
+> **STOP SAR V1.** The effect is too small and fold-local to support the
+> proposed reassessment mechanism.
+
+---
+
+## 22. Frozen representation geometry audit: DINOv2 does not support H_R
+
+Full result:
+
+`docs/results/COFFEE17_REPRESENTATION_GEOMETRY_V1_RESULTS.md`
+
+Five locked development folds compared frozen ImageNet MobileNetV3-Large with
+frozen DINOv2-S/14 using 5-NN and a fixed-C linear probe.
+
+Linear probe:
+
+| Metric | MobileNetV3 | DINOv2-S/14 | Delta |
+|---|---:|---:|---:|
+| Macro-F1 | 63.86% | 60.52% | -3.34 pp |
+| Hard-F1 | 57.63% | 54.56% | -3.07 pp |
+
+DINOv2 Macro-F1 improved in only 1/5 folds; Hard-F1 improved in 0/5 folds.
+Audited hard-pair confusion total increased from 40 to 43.
+
+5-NN Macro-F1 delta was -5.81 pp and negative in 5/5 folds.
+
+Of 124 validation observations for which both MobileNet decoders were wrong,
+91 were also wrong under both DINOv2 decoders.
+
+Frozen gate:
+
+`NO_CLEAR_H_R_SUPPORT`
+
+Decision:
+
+> Do not proceed to DINOv2 distillation by default. A stronger frozen global
+> representation did not solve the persistent Coffee17 hard errors in this
+> audit.
+
+---
+
+## 23. DCL-style local destruction/construction V1 result: FAIL
+
+Full result:
+
+`docs/results/COFFEE17_DCL_LOCAL_LEARNING_V1_RESULTS.md`
+
+Scientific code used by all folds:
+
+`4dfacc01de28191c7bb11a00353a6bfc303adf5f`
+
+All five folds passed the strict CUDA smoke test. The HBP inference architecture
+was identical between control and treatment; outer test was untouched.
+
+| Metric | HBP-CE | HBP-DCL | Delta |
+|---|---:|---:|---:|
+| Accuracy | 91.55% | 85.36% | -6.19 pp |
+| Balanced Accuracy | 91.72% | 84.53% | -7.18 pp |
+| Macro-F1 | 91.47% | 83.31% | -8.17 pp |
+| Hard-F1 | 87.39% | 75.12% | -12.27 pp |
+| Worst-F1 | 65.64% | 18.00% | -47.64 pp |
+
+Macro-F1 and Hard-F1 improved in 0/5 folds.
+
+Paired predictions:
+- rescue: 11;
+- damage: 41;
+- net: -30 correct.
+
+Preregistered hard-pair confusion total increased:
+
+25 -> 43.
+
+Largest pair increases:
+- Withered <-> Immature: 4 -> 13;
+- Partial Sour <-> Full Sour: 6 -> 16.
+
+Frozen gate:
+
+`NO_CLEAR_DCL_SUPPORT`
+
+Decision:
+
+> **STOP DCL-style destruction/construction.** Do not tune grid size, auxiliary
+> weights, or closely related destructive-local variants on these reused folds.
+
+This result rejects the tested destructive-local mechanism; it does not prove
+that every local-evidence approach is invalid.
+
+---
+
+## 24. Anti-loop registry for older local-evidence experiments
+
+The repository already contains implementations/configs for three local-evidence
+directions whose numerical outcomes are not currently present in the canonical
+result documents:
+
+- E1 HBP local MoE:
+  `configs/coffee17/E1_mobilenetv3_hbp_local_moe_source.yaml`;
+- M1s spatially preserved HBP:
+  `configs/coffee17/M1s_mobilenetv3_sp_hbp_source.yaml`;
+- O1 HBP object crop:
+  `configs/coffee17/O1_mobilenetv3_hbp_object_crop_source.yaml`.
+
+These are **not to be treated as untested** merely because their old result
+artifact is missing. Their status is
+`BLOCKED_RESULT_MISSING` in
+`docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md`.
+
+In particular, proposals such as "global/local max expert", "preserve spatial
+HBP", "object-centric crop", or trivial variants such as Top-K pooling must first
+be checked against these older experiments before any new training is
+authorized.
