@@ -19,10 +19,6 @@ encoders:
   - name: dinov2_small
     model_name: vit_small_patch14_dinov2.lvd142m
     pretrained: true
-  - name: convnext_tiny_imagenet
-    model_name: convnext_tiny.fb_in22k_ft_in1k
-    pretrained: true
-
 evaluation:
   embedding_normalization: l2
   knn_k: 5
