@@ -259,21 +259,48 @@ def preflight_matched_initialization(cfg: dict) -> dict:
         )
 
     control.eval()
-    candidate.core.eval()
+    candidate.eval()
     raw = torch.linspace(
         0.0, 1.0, steps=2 * 3 * 224 * 224, dtype=torch.float32
     ).reshape(2, 3, 224, 224)
     normalized = imagenet_normalize(raw)
     control_logits = control(normalized).logits
-    candidate_logits = candidate.core(normalized).logits
-    max_abs = float((control_logits - candidate_logits).abs().max().item())
-    if max_abs > 1e-7:
-        raise RuntimeError(f"Initial control/DCL logits berbeda: {max_abs}")
+    candidate_core_logits = candidate.core(normalized).logits
+    candidate_training_outputs = candidate.forward_training(normalized)
+    candidate_training_logits = candidate_training_outputs["class_logits"]
+
+    core_max_abs = float(
+        (control_logits - candidate_core_logits).abs().max().item()
+    )
+    training_path_max_abs = float(
+        (control_logits - candidate_training_logits).abs().max().item()
+    )
+    if core_max_abs > 1e-7:
+        raise RuntimeError(
+            f"Initial control/DCL inference logits berbeda: {core_max_abs}"
+        )
+    if training_path_max_abs > 1e-7:
+        raise RuntimeError(
+            "Initial control/DCL classification training path berbeda: "
+            f"{training_path_max_abs}"
+        )
+    if tuple(candidate_training_outputs["swap_logits"].shape) != (2, 2):
+        raise RuntimeError("DCL swap head preflight shape bukan [2,2].")
+    expected_locations = int(cfg["dcl"]["grid_size"]) ** 2
+    if tuple(candidate_training_outputs["location"].shape) != (
+        2,
+        expected_locations,
+    ):
+        raise RuntimeError(
+            "DCL location head preflight shape salah: "
+            f"{tuple(candidate_training_outputs['location'].shape)}"
+        )
 
     return {
         "initial_core_state_sha256": control_sha,
         "matched_core_tensor_equality": True,
-        "initial_logit_max_abs_difference": max_abs,
+        "initial_logit_max_abs_difference": core_max_abs,
+        "training_path_logit_max_abs_difference": training_path_max_abs,
         "control_inference_parameter_count": sum(p.numel() for p in control.parameters()),
         "candidate_inference_parameter_count": sum(
             p.numel() for p in candidate.core.parameters()
