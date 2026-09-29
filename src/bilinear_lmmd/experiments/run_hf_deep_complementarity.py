@@ -364,6 +364,19 @@ def _load_hbp_checkpoint(
     state = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     if state.get("classes") != classes:
         raise RuntimeError("Urutan kelas checkpoint HBP berbeda dari fold runtime.")
+    checkpoint_cfg = state.get("config")
+    if isinstance(checkpoint_cfg, dict) and isinstance(checkpoint_cfg.get("model"), dict):
+        expected = cfg["model"]
+        observed = checkpoint_cfg["model"]
+        for key in (
+            "backbone", "pretrained", "head", "classifier", "num_classes",
+            "out_indices", "projection_dim", "dropout",
+        ):
+            if observed.get(key) != expected.get(key):
+                raise RuntimeError(
+                    f"External HBP checkpoint model.{key} berbeda: "
+                    f"{observed.get(key)!r} != {expected.get(key)!r}"
+                )
     weights = state.get("inference_core", state.get("model"))
     if weights is None:
         raise RuntimeError("Checkpoint HBP tidak memiliki inference_core/model.")
