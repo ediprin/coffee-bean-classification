@@ -45,6 +45,14 @@ def validate_config(cfg: dict) -> None:
         raise ValueError("image_size harus 224.")
     if int(data.get("batch_size", -1)) != 32:
         raise ValueError("batch_size harus 32.")
+    if int(data.get("workers", -1)) != 4:
+        raise ValueError("workers harus 4.")
+    if data.get("source", "source") != "source":
+        raise ValueError("data.source harus source.")
+    if data.get("train_split", "train") != "train":
+        raise ValueError("train_split harus train.")
+    if data.get("val_split", "val") != "val":
+        raise ValueError("val_split harus val.")
     if list(data.get("rotation_angles", [])) != [0, 45, 90, 135, 180, 225, 270]:
         raise ValueError("rotation schedule harus canonical preprocessing-study.")
     if bool(data.get("object_crop", False)):
@@ -53,6 +61,8 @@ def validate_config(cfg: dict) -> None:
     model = cfg.get("model", {})
     if model.get("backbone") != "mobilenetv3_large_100":
         raise ValueError("Backbone harus MobileNetV3-Large.")
+    if model.get("pretrained") is not True:
+        raise ValueError("Backbone harus memakai ImageNet pretrained weights.")
     if model.get("head") != "hbp":
         raise ValueError("Head harus HBP.")
     if list(model.get("out_indices", [])) != [1, 3, 4]:
@@ -63,6 +73,8 @@ def validate_config(cfg: dict) -> None:
         raise ValueError("Classifier harus linear.")
     if int(model.get("num_classes", -1)) != 17:
         raise ValueError("Coffee17 harus 17 kelas.")
+    if abs(float(model.get("dropout", -1.0)) - 0.2) > 1e-12:
+        raise ValueError("dropout harus 0.2.")
 
     training = cfg.get("training", {})
     if int(training.get("epochs", -1)) != 50:
@@ -73,14 +85,20 @@ def validate_config(cfg: dict) -> None:
         raise ValueError("weight_decay harus 1e-4.")
     if training.get("classification_loss") != "cross_entropy":
         raise ValueError("classification_loss harus cross_entropy.")
+    if bool(training.get("freeze_backbone", True)):
+        raise ValueError("Backbone harus end-to-end trainable.")
     if abs(float(training.get("label_smoothing", -1.0)) - 0.1) > 1e-12:
         raise ValueError("label_smoothing harus 0.1.")
     if training.get("scheduler") != "cosine":
         raise ValueError("scheduler harus cosine.")
     if float(training.get("ema_decay", 0.0)) != 0.0:
         raise ValueError("EMA tidak dipakai.")
+    if int(training.get("ema_start_epoch", -1)) != 0:
+        raise ValueError("ema_start_epoch harus 0.")
 
     dcl = cfg.get("dcl", {})
+    if dcl.get("implementation") != "local_rcm_dcl_style":
+        raise ValueError("implementation harus local_rcm_dcl_style.")
     if int(dcl.get("grid_size", -1)) != 4:
         raise ValueError("DCL V1 dikunci grid 4x4 untuk input 224.")
     if int(dcl.get("neighbor_span", -1)) != 2:
@@ -95,9 +113,28 @@ def validate_config(cfg: dict) -> None:
     if dcl.get("validation_tuning") is not False:
         raise ValueError("DCL V1 tidak mengizinkan validation tuning.")
 
+    expected_pairs = [
+        ["Withered", "Immature"],
+        ["Severe Insect Damage", "Slight Insect Damage"],
+        ["Cut", "Slight Insect Damage"],
+        ["Partial Sour", "Full Sour"],
+        ["Slight Insect Damage", "Fade"],
+        ["Full Black", "Partial Black"],
+    ]
     pairs = cfg.get("evaluation", {}).get("targeted_confusion_pairs", [])
-    if len(pairs) != 6:
-        raise ValueError("DCL V1 harus memakai 6 targeted hard pairs.")
+    if pairs != expected_pairs:
+        raise ValueError("DCL V1 targeted hard pairs berubah dari preregistration.")
+
+    expected_hard_groups = {
+        "withered_immature": ["Withered", "Immature"],
+        "insect_severity": ["Severe Insect Damage", "Slight Insect Damage"],
+        "cut_insect": ["Cut", "Slight Insect Damage"],
+        "sour_extent": ["Partial Sour", "Full Sour"],
+        "slight_fade": ["Slight Insect Damage", "Fade"],
+        "black_extent": ["Full Black", "Partial Black"],
+    }
+    if cfg.get("evaluation", {}).get("hard_groups", {}) != expected_hard_groups:
+        raise ValueError("DCL V1 hard_groups berubah dari preregistration.")
 
 
 def build_core(cfg: dict) -> nn.Module:
@@ -342,6 +379,20 @@ def location_targets(
     return identity.to(device), shuffled.to(device)
 
 
+def validate_evaluation_classes(classes: list[str], cfg: dict) -> None:
+    configured = set()
+    for pair in cfg["evaluation"]["targeted_confusion_pairs"]:
+        configured.update(pair)
+    for members in cfg["evaluation"]["hard_groups"].values():
+        configured.update(members)
+    unknown = sorted(configured.difference(classes))
+    if unknown:
+        raise ValueError(
+            "Nama kelas evaluation tidak ditemukan pada Coffee17 runtime: "
+            + ", ".join(unknown)
+        )
+
+
 @torch.no_grad()
 def _evaluate(
     core: nn.Module,
@@ -523,6 +574,7 @@ def train_arm(
     loaders = build_preprocessing_study_loaders(cfg["data"], seed=seed)
     if len(loaders.classes) != int(cfg["model"]["num_classes"]):
         raise ValueError("Jumlah kelas dataset dan model berbeda.")
+    validate_evaluation_classes(loaders.classes, cfg)
 
     model = _build_arm(cfg, arm)
     core = _core_from_arm(model, arm)
