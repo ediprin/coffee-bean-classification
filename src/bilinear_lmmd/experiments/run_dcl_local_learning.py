@@ -59,7 +59,9 @@ def _json(path: Path, label: str) -> dict:
 def _run_complete(run_dir: Path, epochs: int) -> bool:
     best = run_dir / "best.pt"
     last = run_dir / "last.pt"
-    if not best.is_file() or not last.is_file():
+    metrics = run_dir / "validation" / "metrics.json"
+    predictions = run_dir / "validation" / "predictions.csv"
+    if not all(path.is_file() for path in (best, last, metrics, predictions)):
         return False
     checkpoint = torch.load(last, map_location="cpu", weights_only=False)
     return int(checkpoint.get("epoch", 0)) >= epochs
