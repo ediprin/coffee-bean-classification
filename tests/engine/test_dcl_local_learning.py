@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 import torch
+import yaml
 
 from bilinear_lmmd.engine.dcl_local_learning import (
     _local_permutation,
     deterministic_adaptive_avg_pool2d,
+    gpu_training_smoke_test,
     location_targets,
     region_confusion_batch,
+    validate_config,
+)
+from bilinear_lmmd.engine.physical_logit_residual_wr_hbp import (
+    configure_strict_determinism,
 )
 
 
@@ -107,3 +116,37 @@ def test_deterministic_adaptive_pool_backward_matches_pytorch_cpu() -> None:
     assert left.grad is not None
     assert right.grad is not None
     assert torch.allclose(left.grad, right.grad, rtol=0.0, atol=1e-7)
+
+
+def _locked_config() -> dict:
+    path = Path("configs/dcl_local_learning/DCL_LOCAL_V1.yaml")
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def test_locked_dcl_config_validates() -> None:
+    validate_config(_locked_config())
+
+
+def test_config_rejects_changed_hard_pair() -> None:
+    cfg = _locked_config()
+    cfg["evaluation"]["targeted_confusion_pairs"][0][0] = "Changed"
+    with pytest.raises(ValueError, match="preregistration"):
+        validate_config(cfg)
+
+
+def test_config_requires_pretrained_backbone() -> None:
+    cfg = _locked_config()
+    cfg["model"]["pretrained"] = False
+    with pytest.raises(ValueError, match="pretrained"):
+        validate_config(cfg)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_gpu_strict_deterministic_training_smoke() -> None:
+    configure_strict_determinism(42)
+    report = gpu_training_smoke_test(_locked_config(), device="cuda:0")
+    assert report["passed"] is True
+    assert report["deterministic_algorithms"] is True
+    for arm in ("HBP_CE", "HBP_DCL"):
+        assert report["arms"][arm]["all_gradients_finite"] is True
+        assert report["arms"][arm]["optimizer_step_passed"] is True
