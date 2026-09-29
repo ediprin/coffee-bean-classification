@@ -249,6 +249,8 @@ def preflight_matched_initialization(cfg: dict) -> dict:
 
     left = control.state_dict()
     right = candidate.core.state_dict()
+    if tuple(left.keys()) != tuple(right.keys()):
+        raise RuntimeError("Initial control/DCL core state keys berbeda.")
     mismatched = [
         key for key in left
         if key not in right or not torch.equal(left[key].cpu(), right[key].cpu())
@@ -298,6 +300,7 @@ def preflight_matched_initialization(cfg: dict) -> dict:
 
     return {
         "initial_core_state_sha256": control_sha,
+        "matched_core_state_keys": True,
         "matched_core_tensor_equality": True,
         "initial_logit_max_abs_difference": core_max_abs,
         "training_path_logit_max_abs_difference": training_path_max_abs,
