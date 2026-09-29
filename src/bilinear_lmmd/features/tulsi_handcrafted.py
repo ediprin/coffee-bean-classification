@@ -312,26 +312,31 @@ def mrmr_select(
     relevance = mutual_info_classif(
         z, y, discrete_features=False, random_state=random_state
     )
-    redundancy = np.zeros((z.shape[1], z.shape[1]), dtype=np.float64)
-    for target in range(z.shape[1]):
-        values = mutual_info_regression(
-            z, z[:, target], discrete_features=False, random_state=random_state
-        )
-        redundancy[:, target] = values
-    redundancy = 0.5 * (redundancy + redundancy.T)
-    np.fill_diagonal(redundancy, 0.0)
 
     selected: list[int] = [int(np.argmax(relevance))]
+    redundancy_sum = np.zeros(z.shape[1], dtype=np.float64)
+
     while len(selected) < k:
+        newest = selected[-1]
+        if float(np.var(z[:, newest])) > 1e-12:
+            against_newest = mutual_info_regression(
+                z,
+                z[:, newest],
+                discrete_features=False,
+                random_state=random_state,
+            )
+            redundancy_sum += np.asarray(against_newest, dtype=np.float64)
+
         best_index = -1
         best_score = -np.inf
         for candidate in range(z.shape[1]):
             if candidate in selected:
                 continue
-            red = float(np.mean(redundancy[candidate, selected]))
+            red = float(redundancy_sum[candidate] / len(selected))
             score = float(relevance[candidate]) - red
             if score > best_score + 1e-15 or (
-                abs(score - best_score) <= 1e-15 and candidate < best_index
+                abs(score - best_score) <= 1e-15
+                and (best_index < 0 or candidate < best_index)
             ):
                 best_score = score
                 best_index = candidate
