@@ -33,6 +33,8 @@ def _stats(values: list[float]) -> dict:
         "mean": statistics.mean(values),
         "std": statistics.stdev(values) if len(values) > 1 else 0.0,
         "values": values,
+        "positive_folds": sum(value > 0.0 for value in values),
+        "negative_folds": sum(value < 0.0 for value in values),
     }
 
 
@@ -230,12 +232,37 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
                     "mobilenet_majority_correct_dino_both_wrong"
                 ] += 1
 
+    linear_macro = comparison["dinov2_minus_mobilenet"]["linear_probe"]["macro_f1"]
+    linear_hard = comparison["dinov2_minus_mobilenet"]["linear_probe"]["hard_class_f1"]
+    mobilenet_pair_total = sum(
+        pair_confusions["mobilenetv3_imagenet"]["linear_probe"].values()
+    )
+    dinov2_pair_total = sum(
+        pair_confusions["dinov2_small"]["linear_probe"].values()
+    )
+    representation_gate = {
+        "criteria": {
+            "linear_probe_macro_mean_delta_gt_0": linear_macro["mean"] > 0.0,
+            "linear_probe_macro_positive_folds_ge_4": linear_macro["positive_folds"] >= 4,
+            "linear_probe_hard_mean_delta_gt_0": linear_hard["mean"] > 0.0,
+            "linear_probe_hard_positive_folds_ge_4": linear_hard["positive_folds"] >= 4,
+            "audited_pair_confusions_reduced": dinov2_pair_total < mobilenet_pair_total,
+        },
+        "mobilenet_linear_probe_pair_confusions_total": mobilenet_pair_total,
+        "dinov2_linear_probe_pair_confusions_total": dinov2_pair_total,
+    }
+    representation_gate["decision"] = (
+        "SUPPORT_H_R_REPRESENTATION"
+        if all(representation_gate["criteria"].values())
+        else "NO_CLEAR_H_R_SUPPORT"
+    )
+
     payload = {
         "format": "bilinear_lmmd.representation_geometry.summary.v1",
         "protocol": "coffee17-representation-geometry-audit-v1",
         "scope": (
             "five locked Coffee17 development folds; raw RGB; frozen encoders; "
-            "no encoder fine-tuning; kNN/nearest-centroid/fixed-C linear probe; "
+            "no encoder fine-tuning; kNN/fixed-C linear probe; "
             "outer test untouched"
         ),
         "aggregate": aggregate,
@@ -244,6 +271,7 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
         "pair_confusion_totals": pair_confusions,
         "comparison": comparison,
         "sample_consensus": sample_consensus,
+        "representation_gate": representation_gate,
         "cross_representation_persistent_rows": persistent_rows,
         "outer_test_accessed": False,
     }
