@@ -20,6 +20,7 @@ from bilinear_lmmd.core.run_lock import exclusive_training_lock
 from bilinear_lmmd.engine.dcl_local_learning import (
     ARMS,
     PROTOCOL,
+    gpu_training_smoke_test,
     preflight_matched_initialization,
     train_arm,
     validate_config,
@@ -37,6 +38,15 @@ METRICS = (
     "hard_class_f1",
     "worst_class_f1",
 )
+
+# These commits differ from the corrected protocol only in DCL-candidate
+# implementation / notebook plumbing. The HBP_CE code path is unchanged.
+# Reusing an existing control from one of them avoids wasting a completed
+# 50-epoch control while keeping provenance explicit.
+CONTROL_COMPATIBLE_COMMITS = {
+    "993b67aaac1a8bbefa2ddb32ab4ce23056dd6172",
+    "6f304629f1802f240a1110e6ed6b8c3b7f28d152",
+}
 
 
 def _json(path: Path, label: str) -> dict:
@@ -61,6 +71,26 @@ def _write_contract(path: Path, payload: dict) -> None:
             raise RuntimeError(f"Existing contract berbeda: {path}")
         return
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _control_contract_is_compatible(existing: dict, proposed: dict) -> bool:
+    if existing.get("git_commit") not in CONTROL_COMPATIBLE_COMMITS:
+        return False
+    exact_fields = (
+        "format",
+        "protocol",
+        "fold",
+        "seed",
+        "arm",
+        "validation_identity_label_sha256",
+        "validation_count",
+        "initial_core_state_sha256",
+        "model",
+        "dcl",
+        "training",
+        "outer_test_accessed",
+    )
+    return all(existing.get(key) == proposed.get(key) for key in exact_fields)
 
 
 def _prediction_rows(path: Path) -> list[dict[str, str]]:
@@ -145,6 +175,14 @@ def run_matched_pair(
 
     determinism = configure_strict_determinism(int(cfg["seed"]))
     preflight = preflight_matched_initialization(cfg)
+
+    # Fail fast on the exact strict-deterministic CUDA backward path before
+    # spending minutes training the control.
+    smoke = gpu_training_smoke_test(cfg, device=device)
+    if smoke.get("passed") is not True:
+        raise RuntimeError("GPU training smoke test gagal.")
+    print(json.dumps({"gpu_training_smoke": smoke}, indent=2), flush=True)
+
     val_count, val_sha = validation_identity_label_sha256(data_root)
 
     output_root = Path(output_root).expanduser().resolve()
@@ -184,11 +222,36 @@ def run_matched_pair(
         }
         contract_sha = canonical_json_sha256(contract)
         contract["run_contract_sha256"] = contract_sha
-        contracts[arm] = contract
 
-        arm_dirs[arm].mkdir(parents=True, exist_ok=True)
-        _write_contract(arm_dirs[arm] / "run_contract.json", contract)
-        run_cfg = arm_dirs[arm] / "run_config.yaml"
+        arm_dir = arm_dirs[arm]
+        contract_path = arm_dir / "run_contract.json"
+        if contract_path.is_file():
+            existing = _json(contract_path, f"{arm} existing contract")
+            if existing == contract:
+                contracts[arm] = existing
+            elif arm == "HBP_CE" and _control_contract_is_compatible(existing, contract):
+                print(
+                    "REUSE HBP_CE dari compatible legacy commit: "
+                    f"{existing.get('git_commit')}",
+                    flush=True,
+                )
+                contracts[arm] = existing
+            else:
+                # A stale DCL candidate must never be resumed across a
+                # scientific-code change. Remove only that arm; keep any
+                # compatible finished control.
+                import shutil
+                print(f"RESET stale arm: {arm}", flush=True)
+                shutil.rmtree(arm_dir, ignore_errors=True)
+                arm_dir.mkdir(parents=True, exist_ok=True)
+                _write_contract(contract_path, contract)
+                contracts[arm] = contract
+        else:
+            arm_dir.mkdir(parents=True, exist_ok=True)
+            _write_contract(contract_path, contract)
+            contracts[arm] = contract
+
+        run_cfg = arm_dir / "run_config.yaml"
         if not run_cfg.is_file():
             run_cfg.write_text(
                 yaml.safe_dump(arm_cfg, sort_keys=False, allow_unicode=True),
@@ -264,6 +327,7 @@ def run_matched_pair(
         ],
         "matched_core_initialization": True,
         "matched_validation_rows": True,
+        "gpu_training_smoke": smoke,
         "inference_architecture_identical": (
             preflight["control_inference_parameter_count"]
             == preflight["candidate_inference_parameter_count"]
