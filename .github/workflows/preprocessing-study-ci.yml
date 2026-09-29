@@ -10,6 +10,7 @@ on:
       - codex/mvfd-sbn-v1
       - codex/hbp-mvfd-sbn-v1
       - codex/dcl-local-learning-v1
+      - codex/hf-deep-complementarity-v1
   pull_request:
     branches:
       - main
@@ -36,6 +37,10 @@ jobs:
             python -m pytest -q \
               tests/engine/test_dcl_local_learning.py \
               tests/experiments/test_dcl_local_learning_runner.py
+          elif [ "$GITHUB_REF_NAME" = "codex/hf-deep-complementarity-v1" ]; then
+            python -m pytest -q \
+              tests/features/test_tulsi_handcrafted.py \
+              tests/experiments/test_hf_deep_complementarity.py
           else
             python -m pytest -q
           fi
