@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import copy
 
+import torch
+
 from bilinear_lmmd.experiments.run_dcl_local_learning import (
     _control_contract_is_compatible,
+    _run_complete,
 )
 
 
@@ -45,3 +48,19 @@ def test_unapproved_legacy_commit_is_not_reused() -> None:
     existing = _contract("unknown")
     proposed = _contract("new-commit")
     assert not _control_contract_is_compatible(existing, proposed)
+
+
+def test_run_complete_requires_validation_artifacts(tmp_path) -> None:
+    run_dir = tmp_path / "arm"
+    run_dir.mkdir()
+    (run_dir / "best.pt").write_bytes(b"best")
+    torch.save({"epoch": 50}, run_dir / "last.pt")
+    assert not _run_complete(run_dir, 50)
+
+    validation = run_dir / "validation"
+    validation.mkdir()
+    (validation / "metrics.json").write_text("{}", encoding="utf-8")
+    (validation / "predictions.csv").write_text(
+        "path,actual,predicted,correct\n", encoding="utf-8"
+    )
+    assert _run_complete(run_dir, 50)
