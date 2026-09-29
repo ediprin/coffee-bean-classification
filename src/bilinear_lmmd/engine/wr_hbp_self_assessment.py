@@ -175,6 +175,121 @@ def _evaluate(
     return metrics, labels, predictions, probabilities, paths
 
 
+@torch.no_grad()
+def _write_reassessment_diagnostics(
+    model,
+    loader,
+    device,
+    classes: list[str],
+    output_path: Path,
+) -> None:
+    model.eval()
+    paths = [sample[0] for sample in loader.dataset.samples]
+    rows: list[list[object]] = []
+    offset = 0
+
+    for images, targets in loader:
+        output = _forward(model, images, device)
+        if output.expert_logits is None or output.gate_weights is None:
+            raise RuntimeError("Output SAR tidak memuat diagnostics.")
+
+        base_logits = output.expert_logits["base"]
+        residual = output.expert_logits["residual"]
+        final_logits = output.logits
+        attention = output.gate_weights
+
+        base_probs = torch.softmax(base_logits, dim=1)
+        final_probs = torch.softmax(final_logits, dim=1)
+        top_indices = torch.topk(
+            base_logits,
+            k=model.top_k,
+            dim=1,
+            largest=True,
+            sorted=True,
+        ).indices
+
+        clipped_attention = attention.clamp_min(1.0e-12)
+        attention_entropy = -(
+            clipped_attention * clipped_attention.log()
+        ).sum(dim=-1).mean(dim=1)
+
+        for index in range(targets.shape[0]):
+            target = int(targets[index].item())
+            base_order = torch.argsort(
+                base_probs[index],
+                descending=True,
+            )
+            rank_positions = (
+                base_order == target
+            ).nonzero(as_tuple=False)
+            if rank_positions.numel() != 1:
+                raise RuntimeError("True-rank tidak unik.")
+            true_rank = int(rank_positions.item()) + 1
+
+            base_negative = base_probs[index].clone()
+            base_negative[target] = -1.0
+            final_negative = final_probs[index].clone()
+            final_negative[target] = -1.0
+
+            topk_ids = [int(i) for i in top_indices[index].tolist()]
+            topk_names = [classes[i] for i in topk_ids]
+            topk_residual = [
+                float(residual[index, i].item())
+                for i in topk_ids
+            ]
+
+            rows.append([
+                paths[offset + index],
+                classes[target],
+                classes[int(base_probs[index].argmax().item())],
+                classes[int(final_probs[index].argmax().item())],
+                true_rank,
+                int(target in topk_ids),
+                float(base_probs[index, target].item()),
+                float(final_probs[index, target].item()),
+                float(
+                    base_probs[index, target].item()
+                    - base_negative.max().item()
+                ),
+                float(
+                    final_probs[index, target].item()
+                    - final_negative.max().item()
+                ),
+                float(residual[index, target].item()),
+                float(residual[index].abs().max().item()),
+                float(attention_entropy[index].item()),
+                "|".join(topk_names),
+                "|".join(f"{value:.8f}" for value in topk_residual),
+            ])
+        offset += targets.shape[0]
+
+    if offset != len(paths):
+        raise RuntimeError("Jumlah diagnostics rows berbeda dari validation.")
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "path",
+            "actual",
+            "base_predicted",
+            "sar_predicted",
+            "base_true_rank",
+            "true_in_base_topk",
+            "base_true_probability",
+            "sar_true_probability",
+            "base_true_margin",
+            "sar_true_margin",
+            "true_class_residual",
+            "max_abs_residual",
+            "mean_attention_entropy",
+            "base_topk_classes",
+            "topk_residuals",
+        ])
+        writer.writerows(rows)
+
+
 def train_self_assessment(
     cfg: dict,
     *,
@@ -334,6 +449,13 @@ def train_self_assessment(
         classes=loaders.classes,
         checkpoint=best_path,
         split="val",
+    )
+    _write_reassessment_diagnostics(
+        eval_model,
+        loaders.val,
+        device,
+        loaders.classes,
+        run_dir / "validation" / "reassessment_diagnostics.csv",
     )
 
     return {
