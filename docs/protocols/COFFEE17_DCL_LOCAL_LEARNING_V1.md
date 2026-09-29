@@ -72,7 +72,7 @@ All three weights are fixed at 1.0 before training. V1 performs no validation tu
 
 ## Execution safety
 
-Before any 50-epoch arm is allowed to start, the runner performs a strict-deterministic CUDA smoke test on **both** HBP_CE and HBP_DCL. The smoke test executes the real forward path, all DCL losses, backward propagation, required auxiliary/core gradient checks, and one AdamW optimizer step. Any unsupported CUDA operation therefore fails before a full control run can be wasted.
+Before any 50-epoch arm is allowed to start, the runner performs a strict-deterministic CUDA smoke test on **both** HBP_CE and HBP_DCL at the real configured batch size (32 originals; DCL therefore processes 64 original+shuffled images). The smoke test executes the real forward path, all DCL losses, backward propagation, required auxiliary/core gradient checks, and one AdamW optimizer step. This catches deterministic-kernel and batch-memory failures before a full arm can be wasted.
 
 The candidate arm is trained before the control arm. This ordering has no effect on initialization because each arm is independently reseeded, but it minimizes wasted compute if a candidate-only runtime failure remains.
 
