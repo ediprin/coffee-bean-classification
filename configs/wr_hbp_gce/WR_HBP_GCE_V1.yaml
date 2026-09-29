@@ -1,0 +1,62 @@
+seed: 42
+device: auto
+
+data:
+  root: data/coffee17-preprocessing-development
+  source: source
+  train_split: train
+  val_split: val
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  rotation_angles: [0, 45, 90, 135, 180, 225, 270]
+  augmentation_mode: preprocessing_study
+  object_crop: false
+
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  head: hbp
+  classifier: linear
+  num_classes: 17
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  dropout: 0.2
+
+adaptation:
+  method: source_only
+
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  freeze_backbone: false
+  scheduler: cosine
+  ema_decay: 0.0
+  ema_start_epoch: 0
+  output_dir: outputs/wr-hbp-gce
+
+wavelet_residual:
+  domain: luminance
+  level: L1
+  bands: [LH, HL, HH]
+  threshold: visushrink_soft
+  injection: shallow_residual
+  hidden_channels: 16
+  gate: tanh_zero_init
+  eps: 1.0e-8
+
+gce:
+  implementation: restricted_topk_negatives
+  top_k: 2
+  negative_selection: per_sample_highest_logits
+  label_smoothing: 0.1
+  validation_tuning: false
+
+evaluation:
+  targeted_confusion_pairs:
+    - [Full Sour, Partial Sour]
+    - [Full Black, Partial Black]
+    - [Severe Insect Damage, Slight Insect Damage]
