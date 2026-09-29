@@ -132,6 +132,10 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
             str(fold): folds[fold].get("arm_git_commit", {})
             for fold in FOLDS
         },
+        "legacy_control_reused_folds": [
+            fold for fold in FOLDS
+            if folds[fold].get("legacy_control_reused") is True
+        ],
         "gpu_training_smoke_passed_all_folds": True,
         "screening_gate": gate,
         "outer_test_accessed": False,
