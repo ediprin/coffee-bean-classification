@@ -34,6 +34,7 @@ class TopKSelfAssessmentResidual(nn.Module):
         embedding_dim: int = 128,
         hidden_dim: int = 128,
         feature_index: int = 1,
+        attention_scale: str = "sqrt_dim_cosine",
     ) -> None:
         super().__init__()
         if not 1 <= top_k < num_classes:
@@ -49,6 +50,12 @@ class TopKSelfAssessmentResidual(nn.Module):
         self.embedding_dim = int(embedding_dim)
         self.hidden_dim = int(hidden_dim)
         self.feature_index = int(feature_index)
+        if attention_scale != "sqrt_dim_cosine":
+            raise ValueError(
+                "attention_scale harus 'sqrt_dim_cosine' pada SAR V2."
+            )
+        self.attention_scale = attention_scale
+        self.attention_logit_scale = math.sqrt(float(self.embedding_dim))
 
         for parameter in self.base.parameters():
             parameter.requires_grad_(False)
@@ -144,7 +151,7 @@ class TopKSelfAssessmentResidual(nn.Module):
             "bld,bkd->bkl",
             spatial,
             class_vectors,
-        ) / math.sqrt(float(self.embedding_dim))
+        ) * self.attention_logit_scale
         attention = torch.softmax(attention_logits, dim=-1)
         attended = torch.einsum(
             "bkl,bld->bkd",
