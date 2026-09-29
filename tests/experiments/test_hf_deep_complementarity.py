@@ -111,3 +111,23 @@ def test_summary_gate_passes_only_frozen_conditions(tmp_path) -> None:
         path.write_text(json.dumps(bad, indent=2), encoding="utf-8")
     result = summarize(output_root=root, config_path=CONFIG, output=output)
     assert result["screening_gate"]["decision"] == "NO_CLEAR_HF_COMPLEMENTARITY"
+
+
+def test_kaggle_notebook_is_valid_and_pins_audited_code() -> None:
+    notebook_path = Path(
+        "notebooks/Coffee17_HF_Deep_Complementarity_V1_Kaggle.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell.get("cell_type") == "code"
+    )
+    assert (
+        'SCIENTIFIC_CODE_COMMIT = "ac6eceee8319a6fd970d9f1de955bf300d3be115"'
+        in code
+    )
+    assert "--shared-hf-cache" in code
+    assert "run_hf_deep_complementarity_summary" in code
+    assert "coffee17-hf-deep-complementarity-v1-resume-package.zip" in code
+    compile(code, str(notebook_path), "exec")
