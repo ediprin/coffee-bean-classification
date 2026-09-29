@@ -194,7 +194,7 @@ def run_fold(
     base_cfg = copy.deepcopy(cfg)
     base_cfg["training"]["output_dir"] = str(base_dir)
     base_contract = {
-        "format": "bilinear_lmmd.wr_hbp_self_assessment.base_contract.v1",
+        "format": "bilinear_lmmd.wr_hbp_self_assessment.base_contract.v2",
         "protocol": PROTOCOL,
         "fold": int(fold),
         "seed": 42,
@@ -261,7 +261,7 @@ def run_fold(
         sar_cfg = copy.deepcopy(cfg)
         sar_cfg["training"]["output_dir"] = str(sar_dir)
         sar_contract = {
-            "format": "bilinear_lmmd.wr_hbp_self_assessment.head_contract.v1",
+            "format": "bilinear_lmmd.wr_hbp_self_assessment.head_contract.v2",
             "protocol": PROTOCOL,
             "fold": int(fold),
             "seed": 42,
@@ -341,7 +341,7 @@ def run_fold(
     )
 
     result = {
-        "format": "bilinear_lmmd.wr_hbp_self_assessment.fold_result.v1",
+        "format": "bilinear_lmmd.wr_hbp_self_assessment.fold_result.v2",
         "protocol": PROTOCOL,
         "fold": int(fold),
         "seed": 42,
