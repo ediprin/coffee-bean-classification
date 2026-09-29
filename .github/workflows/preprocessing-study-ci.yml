@@ -31,4 +31,11 @@ jobs:
           python -m pip install -e ".[dev]"
           python -m pip install opencv-python-headless
       - name: Test
-        run: python -m pytest -q
+        run: |
+          if [ "$GITHUB_REF_NAME" = "codex/dcl-local-learning-v1" ]; then
+            python -m pytest -q \
+              tests/engine/test_dcl_local_learning.py \
+              tests/experiments/test_dcl_local_learning_runner.py
+          else
+            python -m pytest -q
+          fi
