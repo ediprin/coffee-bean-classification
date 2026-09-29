@@ -483,14 +483,20 @@ def gpu_training_smoke_test(
         raise RuntimeError("GPU smoke test harus dijalankan pada CUDA.")
 
     seed = int(cfg["seed"])
-    batch = 2
+    # Use the real configured batch size. The DCL arm concatenates original
+    # and shuffled samples, so this smoke test also validates peak batch-memory
+    # behavior (32 -> 64 examples) before full training starts.
+    batch = int(cfg["data"]["batch_size"])
     raw_cpu = torch.linspace(
         0.0,
         1.0,
         steps=batch * 3 * 224 * 224,
         dtype=torch.float32,
     ).reshape(batch, 3, 224, 224)
-    labels_cpu = torch.tensor([0, 1], dtype=torch.long)
+    labels_cpu = (
+        torch.arange(batch, dtype=torch.long)
+        % int(cfg["model"]["num_classes"])
+    )
     reports: dict[str, dict] = {}
 
     for arm in ARMS:
