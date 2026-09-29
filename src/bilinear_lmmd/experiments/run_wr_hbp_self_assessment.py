@@ -283,7 +283,7 @@ def run_fold(
         if not _run_complete_head(sar_dir, sar_epochs):
             configure_strict_determinism(int(cfg["seed"]))
             train_self_assessment(
-                cfg,
+                sar_cfg,
                 base_checkpoint=base_dir / "best.pt",
                 run_dir=sar_dir,
                 run_contract_sha256=sar_contract_sha,
