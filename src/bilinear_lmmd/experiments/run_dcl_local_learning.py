@@ -365,6 +365,9 @@ def run_matched_pair(
             arm: contracts[arm]["git_commit"]
             for arm in ARMS
         },
+        "legacy_control_reused": (
+            contracts["HBP_CE"]["git_commit"] != actual_commit
+        ),
     }
 
     result_path = pair_root / "pair_result.json"
