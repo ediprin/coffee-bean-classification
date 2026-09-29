@@ -34,7 +34,7 @@ from bilinear_lmmd.modeling.self_assessment_residual import (
 )
 
 
-PROTOCOL = "coffee17-wr-hbp-self-assessment-v1"
+PROTOCOL = "coffee17-wr-hbp-self-assessment-v2"
 
 
 def validate_config(cfg: dict) -> None:
@@ -45,25 +45,27 @@ def validate_config(cfg: dict) -> None:
     if sar.get("base_frozen") is not True:
         raise ValueError("WR-HBP base harus frozen.")
     if int(sar.get("top_k", -1)) != 5:
-        raise ValueError("V1 dikunci top_k=5.")
+        raise ValueError("V2 dikunci top_k=5.")
     if int(sar.get("feature_index", -1)) != 1:
-        raise ValueError("V1 memakai mid-level feature_index=1.")
+        raise ValueError("V2 memakai mid-level feature_index=1.")
     if int(sar.get("embedding_dim", -1)) != 128:
-        raise ValueError("V1 embedding_dim=128.")
+        raise ValueError("V2 embedding_dim=128.")
     if int(sar.get("hidden_dim", -1)) != 128:
-        raise ValueError("V1 hidden_dim=128.")
+        raise ValueError("V2 hidden_dim=128.")
     if sar.get("fusion") != "topk_additive_residual":
         raise ValueError("Fusion harus topk_additive_residual.")
     if sar.get("residual_init") != "zero":
         raise ValueError("Residual harus zero-initialized.")
+    if sar.get("attention_scale") != "sqrt_dim_cosine":
+        raise ValueError("SAR V2 harus memakai attention_scale=sqrt_dim_cosine.")
     if sar.get("validation_tuning") is not False:
         raise ValueError("Validation tuning tidak diizinkan.")
     if int(sar.get("epochs", -1)) != 20:
-        raise ValueError("V1 reassessment epochs=20.")
+        raise ValueError("V2 reassessment epochs=20.")
     if abs(float(sar.get("lr", -1.0)) - 3.0e-4) > 1.0e-12:
-        raise ValueError("V1 reassessment lr=3e-4.")
+        raise ValueError("V2 reassessment lr=3e-4.")
     if abs(float(sar.get("weight_decay", -1.0)) - 1.0e-4) > 1.0e-12:
-        raise ValueError("V1 reassessment weight_decay=1e-4.")
+        raise ValueError("V2 reassessment weight_decay=1e-4.")
 
 
 def build_self_assessment(
@@ -87,6 +89,7 @@ def build_self_assessment(
         embedding_dim=int(sar["embedding_dim"]),
         hidden_dim=int(sar["hidden_dim"]),
         feature_index=int(sar["feature_index"]),
+        attention_scale=str(sar["attention_scale"]),
     )
 
 
