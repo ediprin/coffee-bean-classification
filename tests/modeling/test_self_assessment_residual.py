@@ -111,6 +111,28 @@ def test_zero_residual_preflight(tmp_path) -> None:
     assert result["trainable_parameter_count"] > 0
 
 
+def test_sqrt_dim_cosine_attention_is_not_forced_uniform(tmp_path) -> None:
+    cfg, path = _base_checkpoint(tmp_path)
+    model = build_self_assessment(cfg, base_checkpoint=path).eval()
+
+    d = model.embedding_dim
+    spatial = torch.zeros(1, 4, d)
+    classes = torch.zeros(1, 1, d)
+    spatial[0, 0, 0] = 1.0
+    spatial[0, 1, 1] = 1.0
+    spatial[0, 2, 2] = 1.0
+    spatial[0, 3, 3] = 1.0
+    classes[0, 0, 0] = 1.0
+
+    logits = torch.einsum("bld,bkd->bkl", spatial, classes)
+    logits = logits * model.attention_logit_scale
+    attention = torch.softmax(logits, dim=-1)
+
+    assert model.attention_scale == "sqrt_dim_cosine"
+    assert model.attention_logit_scale == pytest.approx(d ** 0.5)
+    assert attention[0, 0, 0].item() > 0.99
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA diperlukan")
 def test_strict_deterministic_cuda_backward(tmp_path) -> None:
     cfg, path = _base_checkpoint(tmp_path)
