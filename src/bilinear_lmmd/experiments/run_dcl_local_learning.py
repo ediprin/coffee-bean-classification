@@ -337,7 +337,9 @@ def run_matched_pair(
         "matched_validation_rows": True,
         "gpu_training_smoke": smoke,
         "inference_architecture_identical": (
-            preflight["control_inference_parameter_count"]
+            preflight.get("matched_core_state_keys") is True
+            and preflight.get("matched_core_tensor_equality") is True
+            and preflight["control_inference_parameter_count"]
             == preflight["candidate_inference_parameter_count"]
         ),
         "inference_parameter_count": preflight["control_inference_parameter_count"],
