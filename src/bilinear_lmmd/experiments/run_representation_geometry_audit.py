@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import random
 from pathlib import Path
 
@@ -12,7 +11,6 @@ import timm
 import torch
 import yaml
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import confusion_matrix
 from sklearn.neighbors import KNeighborsClassifier
 from timm.data import resolve_model_data_config
 from tqdm import tqdm
@@ -98,7 +96,6 @@ def _validate_config(cfg: dict) -> None:
     expected = {
         "mobilenetv3_imagenet": "mobilenetv3_large_100",
         "dinov2_small": "vit_small_patch14_dinov2.lvd142m",
-        "convnext_tiny_imagenet": "convnext_tiny.fb_in22k_ft_in1k",
     }
     observed = {
         item["name"]: item["model_name"]
@@ -106,8 +103,7 @@ def _validate_config(cfg: dict) -> None:
     }
     if observed != expected:
         raise ValueError(
-            "Encoder V1 harus tepat MobileNetV3/ImageNet, DINOv2-S/14, "
-            "dan ConvNeXt-Tiny/ImageNet."
+            "Encoder V1 harus tepat MobileNetV3/ImageNet dan DINOv2-S/14."
         )
 
 
@@ -126,11 +122,15 @@ def _preflight_models(cfg: dict) -> dict[str, bool]:
 
 
 def _build_encoder(model_name: str, device: torch.device):
-    model = timm.create_model(
-        model_name,
-        pretrained=True,
-        num_classes=0,
-    )
+    create_kwargs = {
+        "pretrained": True,
+        "num_classes": 0,
+    }
+    if "dinov2" in model_name:
+        # Coffee17 protocol is fixed at 224x224. timm resamples the pretrained
+        # positional embedding when img_size differs from the pretrained recipe.
+        create_kwargs["img_size"] = 224
+    model = timm.create_model(model_name, **create_kwargs)
     model.eval().to(device)
     model.requires_grad_(False)
     data_cfg = resolve_model_data_config(model)
@@ -204,7 +204,6 @@ def _decoder_predictions(
         int(train_y.max()) + 1,
     )
     centroid_similarity = val_x @ centroids.T
-    centroid_pred = centroid_similarity.argmax(axis=1).astype(np.int64)
 
     linear = LogisticRegression(
         C=linear_c,
@@ -217,7 +216,6 @@ def _decoder_predictions(
     return (
         {
             "knn5": knn_pred,
-            "nearest_centroid": centroid_pred,
             "linear_probe": linear_pred,
         },
         neighbor_labels,
@@ -305,9 +303,6 @@ def _write_sample_diagnostics(
             "identity": identity,
             "actual": classes[target],
             "knn5_predicted": classes[int(predictions["knn5"][index])],
-            "nearest_centroid_predicted": classes[
-                int(predictions["nearest_centroid"][index])
-            ],
             "linear_probe_predicted": classes[int(predictions["linear_probe"][index])],
             "knn_same_class_fraction": purity,
             "own_centroid_cosine_similarity": own_sim,
@@ -317,10 +312,10 @@ def _write_sample_diagnostics(
             "neighbor_labels": "|".join(
                 classes[int(class_id)] for class_id in neighbor_labels[index]
             ),
-            "all_three_correct": int(
+            "both_correct": int(
                 all(int(pred[index]) == target for pred in predictions.values())
             ),
-            "all_three_wrong": int(
+            "both_wrong": int(
                 all(int(pred[index]) != target for pred in predictions.values())
             ),
         }
