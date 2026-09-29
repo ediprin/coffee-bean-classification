@@ -9,6 +9,7 @@ on:
       - codex/at-sbn-v1
       - codex/mvfd-sbn-v1
       - codex/hbp-mvfd-sbn-v1
+      - codex/dcl-local-learning-v1
   pull_request:
     branches:
       - main
