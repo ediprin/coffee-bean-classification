@@ -86,3 +86,24 @@ def test_deterministic_adaptive_pool_has_backward() -> None:
     y.backward()
     assert x.grad is not None
     assert torch.isfinite(x.grad).all()
+
+
+def test_local_permutation_is_never_identity() -> None:
+    identity = torch.arange(16)
+    for seed in range(256):
+        permutation = _local_permutation(4, seed=seed)
+        assert not torch.equal(permutation, identity)
+
+
+def test_deterministic_adaptive_pool_backward_matches_pytorch_cpu() -> None:
+    base = torch.arange(2 * 3 * 7 * 7, dtype=torch.float32).reshape(2, 3, 7, 7)
+    left = base.clone().requires_grad_(True)
+    right = base.clone().requires_grad_(True)
+    weights = torch.linspace(0.1, 1.0, steps=2 * 3 * 4 * 4).reshape(2, 3, 4, 4)
+
+    (deterministic_adaptive_avg_pool2d(left, (4, 4)) * weights).sum().backward()
+    (torch.nn.functional.adaptive_avg_pool2d(right, (4, 4)) * weights).sum().backward()
+
+    assert left.grad is not None
+    assert right.grad is not None
+    assert torch.allclose(left.grad, right.grad, rtol=0.0, atol=1e-7)
