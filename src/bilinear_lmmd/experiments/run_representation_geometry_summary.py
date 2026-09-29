@@ -11,9 +11,8 @@ FOLDS = (1, 2, 3, 4, 5)
 ENCODERS = (
     "mobilenetv3_imagenet",
     "dinov2_small",
-    "convnext_tiny_imagenet",
 )
-DECODERS = ("knn5", "nearest_centroid", "linear_probe")
+DECODERS = ("knn5", "linear_probe")
 METRICS = (
     "accuracy",
     "balanced_accuracy",
@@ -50,7 +49,6 @@ def _majority_correct(row: dict[str, str]) -> bool:
         row[key] == actual
         for key in (
             "knn5_predicted",
-            "nearest_centroid_predicted",
             "linear_probe_predicted",
         )
     )
@@ -146,29 +144,11 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
             }
             for decoder in DECODERS
         },
-        "convnext_minus_mobilenet": {
-            decoder: {
-                metric: _stats([
-                    float(
-                        fold_results[fold]["encoders"]["convnext_tiny_imagenet"]
-                        ["metrics"][decoder][metric]
-                    )
-                    - float(
-                        fold_results[fold]["encoders"]["mobilenetv3_imagenet"]
-                        ["metrics"][decoder][metric]
-                    )
-                    for fold in FOLDS
-                ])
-                for metric in METRICS
-            }
-            for decoder in DECODERS
-        },
     }
 
     geometry_delta = {}
     for pair in pair_names:
         dino = []
-        convnext = []
         for fold in FOLDS:
             base = float(
                 fold_results[fold]["encoders"]["mobilenetv3_imagenet"]
@@ -180,26 +160,17 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
                     ["pair_geometry"][pair]["inter_to_pooled_intra_ratio"]
                 ) - base
             )
-            convnext.append(
-                float(
-                    fold_results[fold]["encoders"]["convnext_tiny_imagenet"]
-                    ["pair_geometry"][pair]["inter_to_pooled_intra_ratio"]
-                ) - base
-            )
         geometry_delta[pair] = {
             "dinov2_minus_mobilenet": _stats(dino),
             "dinov2_positive_folds": sum(v > 0.0 for v in dino),
-            "convnext_minus_mobilenet": _stats(convnext),
-            "convnext_positive_folds": sum(v > 0.0 for v in convnext),
         }
 
     sample_consensus = {
         "validation_observations": 0,
-        "mobilenet_all_three_wrong": 0,
-        "mobilenet_all_three_wrong_dino_majority_correct": 0,
-        "mobilenet_all_three_wrong_dino_all_three_wrong": 0,
-        "mobilenet_all_three_wrong_convnext_majority_correct": 0,
-        "mobilenet_majority_correct_dino_all_three_wrong": 0,
+        "mobilenet_both_wrong": 0,
+        "mobilenet_both_wrong_dino_majority_correct": 0,
+        "mobilenet_both_wrong_dino_both_wrong": 0,
+        "mobilenet_majority_correct_dino_both_wrong": 0,
     }
     persistent_rows = []
 
@@ -223,23 +194,21 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
         for identity in identities:
             m = rows["mobilenetv3_imagenet"][identity]
             d = rows["dinov2_small"][identity]
-            c = rows["convnext_tiny_imagenet"][identity]
             sample_consensus["validation_observations"] += 1
-            m_all_wrong = m["all_three_wrong"] == "1"
-            d_all_wrong = d["all_three_wrong"] == "1"
-            c_majority = _majority_correct(c)
+            m_both_wrong = m["both_wrong"] == "1"
+            d_both_wrong = d["both_wrong"] == "1"
             d_majority = _majority_correct(d)
             m_majority = _majority_correct(m)
 
-            if m_all_wrong:
-                sample_consensus["mobilenet_all_three_wrong"] += 1
+            if m_both_wrong:
+                sample_consensus["mobilenet_both_wrong"] += 1
                 if d_majority:
                     sample_consensus[
-                        "mobilenet_all_three_wrong_dino_majority_correct"
+                        "mobilenet_both_wrong_dino_majority_correct"
                     ] += 1
-                if d_all_wrong:
+                if d_both_wrong:
                     sample_consensus[
-                        "mobilenet_all_three_wrong_dino_all_three_wrong"
+                        "mobilenet_both_wrong_dino_both_wrong"
                     ] += 1
                     persistent_rows.append({
                         "fold": fold,
@@ -256,14 +225,9 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
                             d["centroid_similarity_margin"]
                         ),
                     })
-                if c_majority:
-                    sample_consensus[
-                        "mobilenet_all_three_wrong_convnext_majority_correct"
-                    ] += 1
-
-            if m_majority and d_all_wrong:
+            if m_majority and d_both_wrong:
                 sample_consensus[
-                    "mobilenet_majority_correct_dino_all_three_wrong"
+                    "mobilenet_majority_correct_dino_both_wrong"
                 ] += 1
 
     payload = {
