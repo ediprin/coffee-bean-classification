@@ -61,7 +61,16 @@ def _run_complete_base(run_dir: Path, epochs: int) -> bool:
 def _run_complete_head(run_dir: Path, epochs: int) -> bool:
     best = run_dir / "best_head.pt"
     last = run_dir / "last_head.pt"
-    if not best.is_file() or not last.is_file():
+    required_outputs = (
+        run_dir / "validation" / "metrics.json",
+        run_dir / "validation" / "predictions.csv",
+        run_dir / "validation" / "reassessment_diagnostics.csv",
+    )
+    if (
+        not best.is_file()
+        or not last.is_file()
+        or any(not path.is_file() for path in required_outputs)
+    ):
         return False
     checkpoint = torch.load(last, map_location="cpu", weights_only=False)
     return int(checkpoint.get("epoch", 0)) >= epochs
