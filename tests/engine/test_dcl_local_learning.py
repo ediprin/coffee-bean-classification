@@ -4,6 +4,7 @@ import torch
 
 from bilinear_lmmd.engine.dcl_local_learning import (
     _local_permutation,
+    deterministic_adaptive_avg_pool2d,
     location_targets,
     region_confusion_batch,
 )
@@ -70,3 +71,18 @@ def test_region_confusion_requires_divisible_grid() -> None:
         assert "habis dibagi" in str(exc)
     else:
         raise AssertionError("Expected ValueError for non-divisible image size.")
+
+
+def test_deterministic_adaptive_pool_matches_pytorch_forward() -> None:
+    x = torch.arange(2 * 3 * 7 * 7, dtype=torch.float32).reshape(2, 3, 7, 7)
+    expected = torch.nn.functional.adaptive_avg_pool2d(x, (4, 4))
+    observed = deterministic_adaptive_avg_pool2d(x, (4, 4))
+    assert torch.allclose(observed, expected, rtol=0.0, atol=1e-6)
+
+
+def test_deterministic_adaptive_pool_has_backward() -> None:
+    x = torch.randn(2, 3, 7, 7, requires_grad=True)
+    y = deterministic_adaptive_avg_pool2d(x, (4, 4)).sum()
+    y.backward()
+    assert x.grad is not None
+    assert torch.isfinite(x.grad).all()
