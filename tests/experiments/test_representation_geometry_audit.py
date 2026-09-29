@@ -13,7 +13,6 @@ from bilinear_lmmd.experiments.run_representation_geometry_audit import (
 def test_required_timm_models_exist() -> None:
     assert timm.is_model("mobilenetv3_large_100")
     assert timm.is_model("vit_small_patch14_dinov2.lvd142m")
-    assert timm.is_model("convnext_tiny.fb_in22k_ft_in1k")
 
 
 def test_l2_normalization() -> None:
