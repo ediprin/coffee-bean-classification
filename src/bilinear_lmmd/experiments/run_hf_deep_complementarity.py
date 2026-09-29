@@ -398,6 +398,60 @@ def _extract_embeddings(model: nn.Module, loader, device: torch.device) -> np.nd
     return result
 
 
+def _shared_hf_features(
+    cache_path: Path,
+    *,
+    identities: list[str],
+    paths: list[Path],
+) -> np.ndarray:
+    """Persistent identity-keyed HF cache shared across folds.
+
+    Only identities explicitly requested by the current development fold are
+    extracted. Missing identities are appended; outer-test identities are
+    never discovered or traversed by this function.
+    """
+
+    cache_path = Path(cache_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    stored_ids: list[str] = []
+    stored_matrix = np.empty((0, len(FEATURE_NAMES)), dtype=np.float64)
+    if cache_path.is_file():
+        data = np.load(cache_path, allow_pickle=False)
+        version = str(data["version"].item())
+        if version != FEATURE_EXTRACTOR_VERSION:
+            raise RuntimeError(
+                f"Shared HF cache version berbeda: {version} != "
+                f"{FEATURE_EXTRACTOR_VERSION}"
+            )
+        stored_ids = [str(v) for v in data["identities"].tolist()]
+        stored_matrix = np.asarray(data["matrix"], dtype=np.float64)
+        if stored_matrix.shape != (len(stored_ids), len(FEATURE_NAMES)):
+            raise RuntimeError("Shared HF cache shape invalid.")
+
+    index = {identity: i for i, identity in enumerate(stored_ids)}
+    missing = [
+        (identity, path)
+        for identity, path in zip(identities, paths)
+        if identity not in index
+    ]
+    if missing:
+        new_matrix = extract_feature_matrix([path for _, path in missing])
+        start = len(stored_ids)
+        stored_ids.extend(identity for identity, _ in missing)
+        stored_matrix = np.concatenate((stored_matrix, new_matrix), axis=0)
+        index.update(
+            {identity: start + offset for offset, (identity, _) in enumerate(missing)}
+        )
+        np.savez_compressed(
+            cache_path,
+            version=np.asarray(FEATURE_EXTRACTOR_VERSION),
+            identities=np.asarray(stored_ids),
+            matrix=stored_matrix,
+        )
+
+    return np.stack([stored_matrix[index[identity]] for identity in identities], axis=0)
+
+
 def _cache_matrix(
     path: Path,
     *,
@@ -520,6 +574,7 @@ def run_fold(
     resume: bool,
     authorize_training: bool,
     hbp_checkpoint: Path | None,
+    shared_hf_cache: Path | None,
 ) -> dict:
     if fold not in (1, 2, 3, 4, 5):
         raise ValueError("fold harus 1..5.")
@@ -610,20 +665,32 @@ def run_fold(
         cfg, hbp_checkpoint, device=resolved_device, classes=classes
     )
 
-    hf_train = _cache_matrix(
-        feature_dir / "hf71_train.npy",
-        identities=train_ids,
-        labels=y_train,
-        version=FEATURE_EXTRACTOR_VERSION,
-        build=lambda: extract_feature_matrix(train_paths),
-    )
-    hf_val = _cache_matrix(
-        feature_dir / "hf71_val.npy",
-        identities=val_ids,
-        labels=y_val,
-        version=FEATURE_EXTRACTOR_VERSION,
-        build=lambda: extract_feature_matrix(val_paths),
-    )
+    if shared_hf_cache is not None:
+        hf_train = _shared_hf_features(
+            shared_hf_cache,
+            identities=train_ids,
+            paths=train_paths,
+        )
+        hf_val = _shared_hf_features(
+            shared_hf_cache,
+            identities=val_ids,
+            paths=val_paths,
+        )
+    else:
+        hf_train = _cache_matrix(
+            feature_dir / "hf71_train.npy",
+            identities=train_ids,
+            labels=y_train,
+            version=FEATURE_EXTRACTOR_VERSION,
+            build=lambda: extract_feature_matrix(train_paths),
+        )
+        hf_val = _cache_matrix(
+            feature_dir / "hf71_val.npy",
+            identities=val_ids,
+            labels=y_val,
+            version=FEATURE_EXTRACTOR_VERSION,
+            build=lambda: extract_feature_matrix(val_paths),
+        )
 
     deep_train = _cache_matrix(
         feature_dir / "hbp_train.npy",
@@ -761,6 +828,11 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--authorize-training", action="store_true")
     parser.add_argument("--hbp-checkpoint", type=Path)
+    parser.add_argument(
+        "--shared-hf-cache",
+        type=Path,
+        help="Optional identity-keyed Tulsi71 cache shared across folds.",
+    )
     args = parser.parse_args()
     run_fold(
         config_path=args.config,
@@ -772,6 +844,7 @@ def main() -> None:
         resume=args.resume,
         authorize_training=args.authorize_training,
         hbp_checkpoint=args.hbp_checkpoint,
+        shared_hf_cache=args.shared_hf_cache,
     )
 
 
