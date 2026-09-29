@@ -47,6 +47,8 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
             raise RuntimeError(f"Fold {fold}: validation rows tidak matched.")
         if result.get("inference_architecture_identical") is not True:
             raise RuntimeError(f"Fold {fold}: inference architecture berubah.")
+        if result.get("gpu_training_smoke", {}).get("passed") is not True:
+            raise RuntimeError(f"Fold {fold}: GPU training smoke tidak PASS.")
         folds[fold] = result
 
     aggregate = {}
@@ -126,6 +128,11 @@ def run_summary(*, output_root: Path, output: Path) -> dict:
         "targeted_confusions": targeted,
         "targeted_confusion_delta": targeted_delta,
         "paired_prediction_outcomes": paired,
+        "arm_git_commit_by_fold": {
+            str(fold): folds[fold].get("arm_git_commit", {})
+            for fold in FOLDS
+        },
+        "gpu_training_smoke_passed_all_folds": True,
         "screening_gate": gate,
         "outer_test_accessed": False,
     }
