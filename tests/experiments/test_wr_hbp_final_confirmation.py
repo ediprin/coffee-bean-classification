@@ -131,15 +131,30 @@ def test_summary_is_one_shot_pooled_oof_and_gate_is_frozen(tmp_path) -> None:
     ]
     # Replace only the evaluation names that matter with a valid 17-class list.
     class_names[-1] = "Dried Cherry"
+    clean = tmp_path / "clean.json"
+    clean_rows = []
+    for fold in range(1, 6):
+        for idx, name in enumerate(class_names):
+            clean_rows.append({"identity": f"{name}/f{fold}_{idx}_0.jpg"})
+    _write_json(
+        clean,
+        {
+            "clean_content_sha256": "clean-sha",
+            "clean_count": 85,
+            "images": clean_rows,
+        },
+    )
     authority = tmp_path / "authority.json"
     _write_json(
         authority,
         {
             "decision": "AUTHORIZE_OOF_TEST_EVALUATION",
             "scope": "wr-hbp-final-confirmation-v1",
+            "clean_content_sha256": "clean-sha",
             "clean_count": 85,
         },
     )
+    authority_sha = sha256_file(authority)
     root = tmp_path / "outer"
     for fold in range(1, 6):
         fold_dir = root / f"fold_{fold}"
@@ -162,6 +177,7 @@ def test_summary_is_one_shot_pooled_oof_and_gate_is_frozen(tmp_path) -> None:
                 "training_executed": False,
                 "outer_test_accessed": True,
                 "classes": class_names,
+                "authority_sha256": authority_sha,
                 "DELTA_WR_MINUS_R0": {"macro_f1": 0.01},
             },
         )
@@ -170,6 +186,7 @@ def test_summary_is_one_shot_pooled_oof_and_gate_is_frozen(tmp_path) -> None:
         output_root=root,
         authority_path=authority,
         config_path=CONFIG,
+        clean_manifest_path=clean,
         output=output,
         bootstrap_replicates_override=20,
     )
@@ -177,3 +194,14 @@ def test_summary_is_one_shot_pooled_oof_and_gate_is_frozen(tmp_path) -> None:
     assert result["oof_identity_unique"] is True
     assert result["confirmation_gate"]["decision"] == "CONFIRMED_WR_HBP"
     assert result["further_tuning_authorized"] is False
+
+
+def test_final_config_rejects_changed_bootstrap_contract() -> None:
+    cfg = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    cfg["uncertainty"]["paired_stratified_bootstrap_replicates"] = 9999
+    try:
+        validate_config(cfg)
+    except ValueError as exc:
+        assert "bootstrap" in str(exc).lower()
+    else:
+        raise AssertionError("Changed bootstrap contract harus ditolak")
