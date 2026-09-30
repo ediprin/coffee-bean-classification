@@ -4,6 +4,7 @@ import argparse
 import copy
 import csv
 import json
+import os
 from pathlib import Path
 
 import torch
@@ -13,6 +14,7 @@ from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.core.reproducibility import (
     canonical_json_sha256,
     current_git_commit,
+    seed_everything,
     sha256_file,
 )
 from bilinear_lmmd.core.run_lock import exclusive_training_lock
@@ -32,6 +34,45 @@ METRICS = (
     "worst_class_f1",
     "hard_class_f1",
 )
+
+
+def _configure_strict_determinism(seed: int) -> dict:
+    required_workspace = ":4096:8"
+    current = os.environ.get("CUBLAS_WORKSPACE_CONFIG")
+    if current not in (None, required_workspace):
+        raise RuntimeError(
+            "CUBLAS_WORKSPACE_CONFIG berbeda dari frozen setting: "
+            f"{current!r} != {required_workspace!r}"
+        )
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = required_workspace
+    seed_everything(seed)
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
+        torch.backends.cuda.matmul.allow_tf32 = False
+    if hasattr(torch.backends.cudnn, "allow_tf32"):
+        torch.backends.cudnn.allow_tf32 = False
+    return {
+        "seed": int(seed),
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
+        "deterministic_algorithms": bool(torch.are_deterministic_algorithms_enabled()),
+        "cudnn_benchmark": bool(torch.backends.cudnn.benchmark),
+        "cudnn_deterministic": bool(torch.backends.cudnn.deterministic),
+        "cuda_matmul_allow_tf32": bool(
+            getattr(torch.backends.cuda.matmul, "allow_tf32", False)
+        ),
+        "cudnn_allow_tf32": bool(
+            getattr(torch.backends.cudnn, "allow_tf32", False)
+        ),
+        "torch_version": str(torch.__version__),
+        "cuda_version": str(torch.version.cuda),
+        "cudnn_version": (
+            int(torch.backends.cudnn.version())
+            if torch.backends.cudnn.version() is not None
+            else None
+        ),
+    }
 
 
 def _json(path: Path, label: str) -> dict:
@@ -103,6 +144,7 @@ def run_matched_pair(
     device: str = "auto",
     resume: bool = False,
     authorize_training: bool = False,
+    strict_determinism: bool = False,
 ) -> dict:
     if not authorize_training:
         raise RuntimeError("Training memerlukan --authorize-training.")
@@ -121,6 +163,11 @@ def run_matched_pair(
     cfg["data"]["root"] = str(Path(data_root).expanduser().resolve())
     validate_config(cfg)
 
+    determinism = (
+        _configure_strict_determinism(int(cfg["seed"]))
+        if strict_determinism
+        else None
+    )
     preflight = preflight_matched_initialization(cfg)
     val_count, val_sha = validation_identity_label_sha256(data_root)
 
@@ -149,6 +196,7 @@ def run_matched_pair(
             "validation_count": int(val_count),
             "shared_core_initial_sha256": preflight["shared_core_sha256"],
             "gate_zero_preflight": preflight,
+            "strict_determinism": determinism,
             "model": {
                 "backbone": arm_cfg["model"]["backbone"],
                 "head": arm_cfg["model"]["head"],
@@ -249,6 +297,7 @@ def run_matched_pair(
         "initial_logit_max_abs_difference": preflight[
             "initial_logit_max_abs_difference"
         ],
+        "strict_determinism": determinism,
         "matched_core_initialization": True,
         "matched_validation_rows": True,
         "r0_control_retrained": True,
@@ -285,6 +334,7 @@ def main() -> None:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--authorize-training", action="store_true")
+    parser.add_argument("--strict-determinism", action="store_true")
     args = parser.parse_args()
 
     run_matched_pair(
@@ -296,6 +346,7 @@ def main() -> None:
         device=args.device,
         resume=args.resume,
         authorize_training=args.authorize_training,
+        strict_determinism=args.strict_determinism,
     )
 
 
