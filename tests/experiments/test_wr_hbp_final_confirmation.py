@@ -254,3 +254,94 @@ def test_wr_hbp_development_notebook_exports_final_checkpoint_bundle() -> None:
     assert 'for name in ("best.pt", "last.pt", "run_contract.json")' in code
     assert "pair_result.json" in code
     compile(code, str(notebook_path), "exec")
+
+
+def test_authority_accepts_only_explicit_strict_checkpoint_recovery(tmp_path) -> None:
+    recovery_commit = "recovery-commit-locked"
+    clean = tmp_path / "clean.json"
+    folds = tmp_path / "folds.json"
+    _write_json(clean, {"clean_content_sha256": "clean", "clean_count": 10})
+    _write_json(folds, {"decision": "PASS", "clean_content_sha256": "clean"})
+    dev = tmp_path / "dev"
+    strict = {
+        "seed": 42,
+        "cublas_workspace_config": ":4096:8",
+        "deterministic_algorithms": True,
+        "cudnn_benchmark": False,
+        "cudnn_deterministic": True,
+        "cuda_matmul_allow_tf32": False,
+        "cudnn_allow_tf32": False,
+    }
+    for fold in range(1, 6):
+        pair = dev / f"fold_{fold}" / "seed42"
+        hashes = {}
+        for arm in ("R0_HBP", "WR_HBP"):
+            arm_root = pair / arm
+            best = arm_root / "best.pt"
+            last = arm_root / "last.pt"
+            best.parent.mkdir(parents=True, exist_ok=True)
+            classes = [f"class_{i}" for i in range(17)]
+            torch.save(
+                {"fold": fold, "arm": arm, "classes": classes, "config": {}},
+                best,
+            )
+            torch.save(
+                {"fold": fold, "arm": arm, "classes": classes, "epoch": 50},
+                last,
+            )
+            _write_json(
+                arm_root / "run_contract.json",
+                {
+                    "protocol": "coffee17-wavelet-residual-hbp-v1",
+                    "arm": arm,
+                    "seed": 42,
+                    "git_commit": recovery_commit,
+                    "outer_test_accessed": False,
+                    "training": {"epochs": 50},
+                    "strict_determinism": strict,
+                },
+            )
+            hashes[arm] = sha256_file(best)
+        _write_json(
+            pair / "pair_result.json",
+            {
+                "protocol": "coffee17-wavelet-residual-hbp-v1",
+                "seed": 42,
+                "matched_core_initialization": True,
+                "matched_validation_rows": True,
+                "r0_control_retrained": True,
+                "wr_candidate_trained": True,
+                "outer_test_accessed": False,
+                "strict_determinism": strict,
+                "best_checkpoint_sha256": hashes,
+                "DELTA_WR_MINUS_R0": {
+                    "macro_f1": 0.01,
+                    "hard_class_f1": 0.0,
+                    "worst_class_f1": 0.0,
+                },
+            },
+        )
+
+    out = tmp_path / "authority.json"
+    result = build_authority(
+        development_root=dev,
+        clean_manifest_path=clean,
+        fold_manifest_path=folds,
+        output=out,
+        recovery_development_commit=recovery_commit,
+    )
+    assert result["decision"] == "AUTHORIZE_OOF_TEST_EVALUATION"
+    assert result["development_mode"] == "checkpoint_loss_recovery_v1"
+    assert result["development_scientific_commit"] == recovery_commit
+
+    try:
+        build_authority(
+            development_root=dev,
+            clean_manifest_path=clean,
+            fold_manifest_path=folds,
+            output=tmp_path / "must_fail.json",
+        )
+    except RuntimeError as exc:
+        assert "commit" in str(exc).lower()
+    else:
+        raise AssertionError("Recovery tanpa explicit recovery commit harus ditolak")
