@@ -345,6 +345,7 @@ def test_authority_accepts_only_explicit_strict_checkpoint_recovery(tmp_path) ->
                 "r0_control_retrained": True,
                 "wr_candidate_trained": True,
                 "outer_test_accessed": False,
+                "shared_core_initial_sha256": ORIGINAL_SHARED_CORE_SHA256,
                 "strict_determinism": strict,
                 "best_checkpoint_sha256": hashes,
                 "DELTA_WR_MINUS_R0": {
