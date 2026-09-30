@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+
+import torch
 from pathlib import Path
 
 from bilinear_lmmd.core.reproducibility import sha256_file
 
 FOLDS = (1, 2, 3, 4, 5)
+DEVELOPMENT_SCIENTIFIC_COMMIT = "01c9212965bc9040ef151204b9404d564f523a0f"
 
 
 def _read(path: Path) -> dict:
@@ -56,15 +59,52 @@ def build_authority(
             raise RuntimeError(f"Fold {fold}: seed development bukan 42.")
 
         actual = {}
+        contracts = {}
         for arm in ("R0_HBP", "WR_HBP"):
-            best = pair / arm / "best.pt"
+            arm_root = pair / arm
+            best = arm_root / "best.pt"
+            last = arm_root / "last.pt"
+            contract_path = arm_root / "run_contract.json"
             digest = sha256_file(best)
             expected = result.get("best_checkpoint_sha256", {}).get(arm)
             if digest != expected:
                 raise RuntimeError(
                     f"Fold {fold} {arm}: SHA checkpoint tidak cocok."
                 )
+
+            contract = _read(contract_path)
+            if contract.get("protocol") != "coffee17-wavelet-residual-hbp-v1":
+                raise RuntimeError(f"Fold {fold} {arm}: run contract protocol salah.")
+            if contract.get("arm") != arm or int(contract.get("seed", -1)) != 42:
+                raise RuntimeError(f"Fold {fold} {arm}: run contract arm/seed salah.")
+            if contract.get("git_commit") != DEVELOPMENT_SCIENTIFIC_COMMIT:
+                raise RuntimeError(
+                    f"Fold {fold} {arm}: scientific commit development berubah."
+                )
+            if contract.get("outer_test_accessed") is not False:
+                raise RuntimeError(f"Fold {fold} {arm}: contract menyatakan test tersentuh.")
+            if int(contract.get("training", {}).get("epochs", -1)) != 50:
+                raise RuntimeError(f"Fold {fold} {arm}: epochs contract bukan 50.")
+
+            last_state = torch.load(last, map_location="cpu", weights_only=False)
+            if int(last_state.get("epoch", 0)) < 50:
+                raise RuntimeError(f"Fold {fold} {arm}: training belum 50 epoch.")
+            if last_state.get("classes") is None:
+                raise RuntimeError(f"Fold {fold} {arm}: last checkpoint tanpa classes.")
+
+            best_state = torch.load(best, map_location="cpu", weights_only=False)
+            if best_state.get("arm") != arm:
+                raise RuntimeError(f"Fold {fold} {arm}: best checkpoint arm salah.")
+            if best_state.get("classes") != last_state.get("classes"):
+                raise RuntimeError(f"Fold {fold} {arm}: class order best/last berbeda.")
+
             actual[arm] = digest
+            contracts[arm] = {
+                "run_contract_sha256": sha256_file(contract_path),
+                "last_checkpoint_sha256": sha256_file(last),
+                "completed_epoch": int(last_state["epoch"]),
+                "development_git_commit": contract["git_commit"],
+            }
 
         for metric in deltas:
             deltas[metric].append(float(result["DELTA_WR_MINUS_R0"][metric]))
@@ -73,6 +113,7 @@ def build_authority(
         records[str(fold)] = {
             "pair_result_sha256": sha256_file(pair / "pair_result.json"),
             "best_checkpoint_sha256": actual,
+            "arm_contracts": contracts,
         }
 
     gate = {
@@ -93,6 +134,7 @@ def build_authority(
         "clean_count": int(clean["clean_count"]),
         "fold_manifest_file_sha256": sha256_file(Path(fold_manifest_path)),
         "development_gate": gate,
+        "development_scientific_commit": DEVELOPMENT_SCIENTIFIC_COMMIT,
         "development_checkpoint_sha256": checkpoint_sha,
         "development_records": records,
         "test_images_accessed": False,
