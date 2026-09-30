@@ -1,6 +1,6 @@
 # Coffee17 Experiment Master Results
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 This document is the canonical running record for the Coffee17 preprocessing,
 fusion, distillation, shared-multiview, selective-BN, representation, and
@@ -1464,3 +1464,58 @@ In particular, proposals such as "global/local max expert", "preserve spatial
 HBP", "object-centric crop", or trivial variants such as Top-K pooling must first
 be checked against these older experiments before any new training is
 authorized.
+
+
+---
+
+## 25. HF–Deep Complementarity V1 result: FAIL
+
+Full result:
+
+`docs/results/COFFEE17_HF_DEEP_COMPLEMENTARITY_V1_RESULTS.md`
+
+Scientific code:
+
+`ac6eceee8319a6fd970d9f1de955bf300d3be115`
+
+Five strict development folds, seed 42. MRMR-20 was fitted only on each
+training fold. All downstream arms used the same fixed multinomial logistic
+probe. Outer test remained untouched.
+
+| Metric | HF20 | HBP-EMB | HF20 + HBP-EMB | Delta Fusion-HBP |
+|---|---:|---:|---:|---:|
+| Accuracy | 61.65% | 91.55% | 91.55% | +0.00 pp |
+| Balanced Accuracy | 61.24% | 91.77% | 91.69% | -0.08 pp |
+| Macro-F1 | 58.28% | 91.53% | 91.47% | -0.06 pp |
+| Hard-F1 | 46.27% | 87.48% | 87.04% | -0.44 pp |
+| Worst-F1 | 0.00% | 65.64% | 63.28% | -2.36 pp |
+
+Fusion Macro-F1 improved in only 2/5 folds; Hard-F1 in 1/5 folds; Worst-F1
+in 0/5 folds.
+
+Audited hard-pair confusions were unchanged:
+
+25 -> 25.
+
+Paired predictions across 485 validation observations:
+
+- rescue: 3;
+- damage: 3;
+- net: 0 correct.
+
+Frozen gate:
+
+`NO_CLEAR_HF_COMPLEMENTARITY`
+
+Decision:
+
+> **STOP HF–DEEP COMPLEMENTARITY V1.** The tested Tulsi-aligned MRMR20
+> descriptors do not provide reproducible complementary value beyond the HBP
+> embedding under the registered fixed-probe fusion. Do not rescue this
+> hypothesis with RealMLP, FT-Transformer, MRMR-K tuning, classifier-C tuning,
+> feature-family pruning, learned fusion, or modality reweighting on the reused
+> development folds.
+
+The negative result is specific to this explicit-descriptor complementarity
+test; it is not a universal claim that handcrafted coffee descriptors contain
+no class-related information.
