@@ -358,3 +358,30 @@ def test_authority_accepts_only_explicit_strict_checkpoint_recovery(tmp_path) ->
         assert "commit" in str(exc).lower()
     else:
         raise AssertionError("Recovery tanpa explicit recovery commit harus ditolak")
+
+
+def test_recovery_and_final_v2_notebook_is_the_supported_entrypoint() -> None:
+    notebook_path = Path(
+        "notebooks/Coffee17_WR_HBP_Recovery_And_Final_V2_Kaggle.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell.get("cell_type") == "code"
+    )
+    assert 'NOTEBOOK_BUILD = "WR-HBP-RECOVERY-AND-FINAL-V2"' in code
+    assert "checkpoint_loss_recovery_v1" in code
+    assert "--strict-determinism" in code
+    assert "--authorize-training" in code
+    assert "wavelet-residual-hbp-recovery-checkpoint-bundle" in code
+    assert (
+        "Final confirmation membutuhkan tepat satu sumber checkpoint development "
+        "WR-HBP yang lengkap"
+        not in code
+    )
+    outer_marker = "# 4. ONE-SHOT outer test"
+    assert outer_marker in code
+    _, post_outer = code.split(outer_marker, 1)
+    assert "--authorize-training" not in post_outer
+    compile(code, str(notebook_path), "exec")
