@@ -19,7 +19,7 @@ contract before any outer-test identity is materialized.
 - Frozen final-inference commit:
   `b62963faec8e337359ba4244a3ee5814709bc18f`
 - Audited checkpoint-loss recovery runtime:
-  `d188a53a7dd754bf3636347a4cba940a86351736`
+  `5578b3db3f029bce3548db71683422c39ab88741`
 - Supported Kaggle entrypoint:
   `notebooks/Coffee17_WR_HBP_Recovery_And_Final_V2_Kaggle.ipynb`
 
@@ -42,10 +42,10 @@ not an outer-test failure.
 ## Why the recovery runtime is now pinned to d188a53
 
 The code difference from the earlier recovery pin `982291...` to
-`d188a53...` is limited to documentation/notebook/test-state fixes. The
+`5578b3d...` is limited to documentation/notebook/test-state fixes. The
 scientific recovery runner and recovery authority implementation are unchanged.
 
-The `d188a53...` branch state passed repository CI.
+The `5578b3d...` branch state passed repository CI.
 
 Kaggle runtime preflight now excludes tests whose purpose is to inspect the
 repository notebook source itself (`-k "not kaggle_notebook"`). Those
@@ -55,8 +55,8 @@ actually train/evaluate the models.
 
 ## Scientific equivalence audit
 
-The following files are byte-identical between the audited recovery runtime
-`d188a53...` and frozen final-inference commit `b62963...`:
+The following scientific model/data/final-inference files are byte-identical between the audited recovery runtime
+`5578b3d...` and frozen final-inference commit `b62963...`:
 
 - `configs/wavelet_residual_hbp/WR_HBP_V1.yaml`
 - `src/bilinear_lmmd/modeling/wavelet_residual_hbp.py`
@@ -138,7 +138,7 @@ folds and both arms for:
 Recovery authority must record:
 
 - `development_mode = checkpoint_loss_recovery_v1`;
-- recovery development commit = `d188a53...`;
+- recovery development commit = `5578b3d...`;
 - `test_images_accessed = false`;
 - `further_primary_tuning_authorized = false`.
 
