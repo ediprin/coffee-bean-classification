@@ -79,8 +79,14 @@ authorized under the following frozen constraints:
 Recovery checkpoints are **not described as the lost original checkpoints**.
 The final authority must record
 `development_mode = checkpoint_loss_recovery_v1` and the exact recovery code
-commit. This amendment exists solely because checkpoint files were lost while
-the outer test remained untouched.
+commit. The audited recovery runtime is pinned to
+`d188a53a7dd754bf3636347a4cba940a86351736`. This commit contains the same
+recovery scientific/runtime source as the earlier `982291...` recovery pin but
+uses the corrected preflight test state that already passed repository CI.
+Notebook-source inspection tests are validated by branch CI and are excluded
+from the pinned Kaggle runtime preflight; Kaggle preflight tests only the
+scientific/runtime code. This amendment exists solely because checkpoint files
+were lost while the outer test remained untouched.
 
 ## 2. Outer-test structure
 
