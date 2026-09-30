@@ -1,6 +1,6 @@
 # Coffee17 Experiment Ledger — Check Before Proposing Anything New
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 This file is the **first stop before proposing, implementing, or training any
 new Coffee17 method**.
@@ -56,7 +56,7 @@ Status meanings:
 | WR-HBP SAR V1 | self-assessment / reassessment branch | FAIL_STOP | `docs/results/WR_HBP_SELF_ASSESSMENT_V1_RESULTS.md` |
 | Frozen representation audit | frozen ImageNet MobileNetV3 vs frozen DINOv2-S/14, kNN + linear probe | FAIL_STOP | `docs/results/COFFEE17_REPRESENTATION_GEOMETRY_V1_RESULTS.md` |
 | DCL local learning V1 | local region destruction/shuffle + original/shuffled auxiliary task + location reconstruction | FAIL_STOP | `docs/results/COFFEE17_DCL_LOCAL_LEARNING_V1_RESULTS.md` |
-| HF–Deep Complementarity V1 | Tulsi-aligned 71D handcrafted descriptors -> train-fold MRMR20, compared with HBP embedding and equal-block concatenation under one fixed logistic probe | REGISTERED | `docs/protocols/COFFEE17_HF_DEEP_COMPLEMENTARITY_V1.md` |
+| HF–Deep Complementarity V1 | Tulsi-aligned 71D handcrafted descriptors -> train-fold MRMR20, compared with HBP embedding and equal-block concatenation under one fixed logistic probe | FAIL_STOP | `docs/results/COFFEE17_HF_DEEP_COMPLEMENTARITY_V1_RESULTS.md` |
 
 ## Explicit near-duplicate blocks
 
@@ -74,7 +74,7 @@ recovering/using the prior evidence first:
   strongly; destructive-local variants are blocked by default;
 - "change WR-HBP loss to GCE" -> failed;
 - "add physical descriptor residual to WR-HBP logits" -> failed;
-- "another preprocessing-to-raw feature transfer" -> transfer family closed.
+- "another preprocessing-to-raw feature transfer" -> transfer family closed;\n- "add Tulsi-style handcrafted descriptors to HBP embedding" -> HF–Deep V1 failed its frozen gate; do not rescue it with RealMLP/FT-Transformer, alternate MRMR K, probe C, feature-family pruning, learned fusion, or reweighting on the reused folds.
 
 ## Known repository gap
 
