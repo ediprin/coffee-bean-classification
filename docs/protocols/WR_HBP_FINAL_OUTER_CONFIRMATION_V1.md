@@ -1,0 +1,161 @@
+# WR-HBP Final Outer-Test Confirmation V1
+
+Status: **registered before outer-test access**
+
+Purpose: perform the one-shot final confirmation of the only Coffee17 method
+that passed the frozen development gate:
+
+- control: R0-HBP
+- candidate: WR-HBP
+
+No new method search, tuning, checkpoint selection, or retraining is authorized
+after the outer test is materialized.
+
+## 1. Development evidence required before authorization
+
+The final test may be materialized only if all five completed development folds
+from `coffee17-wavelet-residual-hbp-v1` are available together with their exact
+selected checkpoints.
+
+For every fold, the authority builder must verify:
+
+- protocol = `coffee17-wavelet-residual-hbp-v1`;
+- seed = 42;
+- matched shared-core initialization;
+- matched validation rows;
+- R0-HBP was retrained as the matched control;
+- WR-HBP was trained as the candidate;
+- `outer_test_accessed = false`;
+- both `best.pt` files exist;
+- each actual checkpoint SHA-256 equals the SHA-256 recorded in
+  `pair_result.json`.
+
+The development gate is recomputed from those five pair results and must still
+be PASS:
+
+1. mean development Macro-F1 delta > 0;
+2. Macro-F1 positive in at least 3/5 folds;
+3. mean development Hard-F1 delta >= 0;
+4. mean development Worst-F1 delta >= 0.
+
+Only then is an authority file emitted with:
+
+`decision = AUTHORIZE_OOF_TEST_EVALUATION`.
+
+This authority explicitly sets
+`further_primary_tuning_authorized = false`.
+
+## 2. Outer-test structure
+
+The existing Coffee17 fold manifest is preserved exactly.
+
+Each fold has a locked `test` subset that has never been materialized during
+method development. The five test subsets are disjoint and their union equals
+the clean Coffee17 population.
+
+For fold k:
+
+- load the already-selected R0-HBP checkpoint from development fold k;
+- load the already-selected WR-HBP checkpoint from development fold k;
+- materialize only fold k's locked outer-test identities;
+- evaluate both checkpoints on exactly the same identities.
+
+No training occurs in final confirmation.
+
+No checkpoint is selected by outer-test performance.
+
+## 3. Frozen inference models
+
+R0-HBP:
+
+`RGB -> MobileNetV3-Large -> HBP -> Linear17`
+
+WR-HBP:
+
+`RGB -> MobileNetV3-Large + L1 luminance Haar/VisuShrink residual -> HBP -> Linear17`
+
+The WR-HBP architecture is exactly the frozen V1 development architecture:
+
+- MobileNetV3-Large;
+- HBP stages [1,3,4];
+- projection dimension 512;
+- linear 17-class classifier;
+- dropout 0.2;
+- luminance-only L1 Haar detail;
+- bands LH/HL/HH;
+- VisuShrink soft threshold;
+- 16-channel residual projection;
+- shallow residual injection;
+- learned tanh gate from the selected development checkpoint.
+
+## 4. Metrics
+
+Per outer fold and pooled out-of-fold test predictions:
+
+- Accuracy;
+- Balanced Accuracy;
+- Macro-F1;
+- Hard-F1;
+- Worst-F1;
+- six preregistered hard-pair confusion counts;
+- paired rescue/damage.
+
+The hard set is the union of these frozen difficult pairs:
+
+1. Withered ↔ Immature
+2. Severe Insect Damage ↔ Slight Insect Damage
+3. Cut ↔ Slight Insect Damage
+4. Partial Sour ↔ Full Sour
+5. Slight Insect Damage ↔ Fade
+6. Full Black ↔ Partial Black
+
+The pooled prediction set must contain each clean Coffee17 identity exactly
+once per arm.
+
+## 5. Frozen final confirmation gate
+
+WR-HBP is `CONFIRMED_WR_HBP` only if **all** hold:
+
+1. pooled Macro-F1 delta (WR-HBP - R0-HBP) > 0;
+2. per-fold Macro-F1 delta > 0 in at least 3/5 outer folds;
+3. pooled Hard-F1 delta >= 0;
+4. pooled Worst-F1 delta >= 0.
+
+Otherwise:
+
+`WR_HBP_NOT_CONFIRMED`.
+
+A paired class-stratified bootstrap 95% confidence interval for pooled
+Macro-F1 delta is reported as uncertainty information. It is **not** an
+additional pass/fail criterion because the decision gate was deliberately kept
+parallel to the development gate.
+
+## 6. One-shot boundary
+
+After any outer-test prediction is produced:
+
+- no method changes;
+- no wavelet-branch tuning;
+- no HBP changes;
+- no loss changes;
+- no feature fusion;
+- no hyperparameter rescue;
+- no checkpoint reselection;
+- no retraining based on test results.
+
+If WR-HBP is confirmed, it is the final proposed model.
+
+If WR-HBP is not confirmed, the final thesis result reports the negative
+confirmation honestly; HBP remains the reference model and WR-HBP is described
+as a development-stage improvement that did not independently confirm.
+
+## 7. Efficiency reporting
+
+Parameter counts are inherited from the frozen development record:
+
+- R0-HBP: 3,562,305 trainable parameters;
+- WR-HBP: 3,563,202 trainable parameters;
+- overhead: 897 parameters (0.0252%).
+
+End-to-end latency should be measured separately if an efficiency claim beyond
+parameter count is made.
