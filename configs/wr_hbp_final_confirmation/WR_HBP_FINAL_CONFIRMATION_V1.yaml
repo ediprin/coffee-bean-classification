@@ -31,12 +31,9 @@ wavelet_residual:
 
 evaluation:
   hard_groups:
-    withered_immature: [Withered, Immature]
-    insect_severity: [Severe Insect Damage, Slight Insect Damage]
-    cut_insect: [Cut, Slight Insect Damage]
-    sour_extent: [Partial Sour, Full Sour]
-    slight_fade: [Slight Insect Damage, Fade]
-    black_extent: [Full Black, Partial Black]
+    sour_black: [Partial Black, Partial Sour, Full Sour]
+    shape_withered: [Withered, Immature, Cut]
+    insect_damage: [Slight Insect Damage, Severe Insect Damage]
   targeted_confusion_pairs:
     - [Withered, Immature]
     - [Severe Insect Damage, Slight Insect Damage]
@@ -52,5 +49,5 @@ confirmation_gate:
   pooled_worst_delta_ge: 0.0
 
 uncertainty:
-  paired_stratified_bootstrap_replicates: 5000
+  paired_stratified_bootstrap_replicates: 10000
   seed: 42
