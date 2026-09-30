@@ -28,6 +28,12 @@ def _write_json(path: Path, payload: dict) -> None:
 def test_registered_final_confirmation_config_validates() -> None:
     cfg = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     validate_config(cfg)
+    assert cfg["uncertainty"]["paired_stratified_bootstrap_replicates"] == 10000
+    assert cfg["evaluation"]["hard_groups"] == {
+        "sour_black": ["Partial Black", "Partial Sour", "Full Sour"],
+        "shape_withered": ["Withered", "Immature", "Cut"],
+        "insect_damage": ["Slight Insect Damage", "Severe Insect Damage"],
+    }
 
 
 def test_authority_requires_exact_completed_development_checkpoints(tmp_path) -> None:
@@ -43,9 +49,30 @@ def test_authority_requires_exact_completed_development_checkpoints(tmp_path) ->
         pair = dev / f"fold_{fold}" / "seed42"
         hashes = {}
         for arm in ("R0_HBP", "WR_HBP"):
-            best = pair / arm / "best.pt"
+            arm_root = pair / arm
+            best = arm_root / "best.pt"
+            last = arm_root / "last.pt"
             best.parent.mkdir(parents=True, exist_ok=True)
-            torch.save({"fold": fold, "arm": arm}, best)
+            classes = [f"class_{i}" for i in range(17)]
+            torch.save(
+                {"fold": fold, "arm": arm, "classes": classes, "config": {}},
+                best,
+            )
+            torch.save(
+                {"fold": fold, "arm": arm, "classes": classes, "epoch": 50},
+                last,
+            )
+            _write_json(
+                arm_root / "run_contract.json",
+                {
+                    "protocol": "coffee17-wavelet-residual-hbp-v1",
+                    "arm": arm,
+                    "seed": 42,
+                    "git_commit": "01c9212965bc9040ef151204b9404d564f523a0f",
+                    "outer_test_accessed": False,
+                    "training": {"epochs": 50},
+                },
+            )
             hashes[arm] = sha256_file(best)
         _write_json(
             pair / "pair_result.json",
