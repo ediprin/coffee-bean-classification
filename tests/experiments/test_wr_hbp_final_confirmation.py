@@ -9,6 +9,7 @@ import yaml
 
 from bilinear_lmmd.core.reproducibility import sha256_file
 from bilinear_lmmd.experiments.build_wr_hbp_final_test_authority import (
+    ORIGINAL_SHARED_CORE_SHA256,
     build_authority,
 )
 from bilinear_lmmd.experiments.run_wr_hbp_final_outer_fold import validate_config
@@ -70,6 +71,7 @@ def test_authority_requires_exact_completed_development_checkpoints(tmp_path) ->
                     "seed": 42,
                     "git_commit": "01c9212965bc9040ef151204b9404d564f523a0f",
                     "outer_test_accessed": False,
+                    "shared_core_initial_sha256": ORIGINAL_SHARED_CORE_SHA256,
                     "training": {"epochs": 50},
                 },
             )
@@ -84,6 +86,7 @@ def test_authority_requires_exact_completed_development_checkpoints(tmp_path) ->
                 "r0_control_retrained": True,
                 "wr_candidate_trained": True,
                 "outer_test_accessed": False,
+                "shared_core_initial_sha256": ORIGINAL_SHARED_CORE_SHA256,
                 "best_checkpoint_sha256": hashes,
                 "DELTA_WR_MINUS_R0": {
                     "macro_f1": 0.01,
@@ -310,6 +313,7 @@ def test_authority_accepts_only_explicit_strict_checkpoint_recovery(tmp_path) ->
                     "seed": 42,
                     "git_commit": recovery_commit,
                     "outer_test_accessed": False,
+                    "shared_core_initial_sha256": ORIGINAL_SHARED_CORE_SHA256,
                     "training": {"epochs": 50},
                     "strict_determinism": strict,
                 },
