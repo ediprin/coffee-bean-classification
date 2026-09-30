@@ -11,6 +11,7 @@ from bilinear_lmmd.core.reproducibility import sha256_file
 
 FOLDS = (1, 2, 3, 4, 5)
 DEVELOPMENT_SCIENTIFIC_COMMIT = "01c9212965bc9040ef151204b9404d564f523a0f"
+ORIGINAL_SHARED_CORE_SHA256 = "6d425c6c149005afde1224ed74ccfe4eb84c95e574d21e25a0e728578d79f9cc"
 
 
 def _read(path: Path) -> dict:
@@ -60,6 +61,11 @@ def build_authority(
             raise RuntimeError(f"Fold {fold}: outer test development sudah tersentuh.")
         if int(result.get("seed", -1)) != 42:
             raise RuntimeError(f"Fold {fold}: seed development bukan 42.")
+        if result.get("shared_core_initial_sha256") != ORIGINAL_SHARED_CORE_SHA256:
+            raise RuntimeError(
+                f"Fold {fold}: shared-core initial SHA berbeda dari WR-HBP V1 "
+                f"original: {result.get('shared_core_initial_sha256')}"
+            )
 
         actual = {}
         contracts = {}
@@ -113,6 +119,10 @@ def build_authority(
                 recovery_determinism_records.append(det)
             if contract.get("outer_test_accessed") is not False:
                 raise RuntimeError(f"Fold {fold} {arm}: contract menyatakan test tersentuh.")
+            if contract.get("shared_core_initial_sha256") != ORIGINAL_SHARED_CORE_SHA256:
+                raise RuntimeError(
+                    f"Fold {fold} {arm}: contract shared-core initial SHA berubah."
+                )
             if int(contract.get("training", {}).get("epochs", -1)) != 50:
                 raise RuntimeError(f"Fold {fold} {arm}: epochs contract bukan 50.")
 
