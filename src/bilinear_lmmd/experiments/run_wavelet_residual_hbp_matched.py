@@ -35,6 +35,10 @@ METRICS = (
     "hard_class_f1",
 )
 
+ORIGINAL_WR_HBP_SHARED_CORE_SHA256 = (
+    "6d425c6c149005afde1224ed74ccfe4eb84c95e574d21e25a0e728578d79f9cc"
+)
+
 
 def _configure_strict_determinism(seed: int) -> dict:
     required_workspace = ":4096:8"
@@ -169,6 +173,14 @@ def run_matched_pair(
         else None
     )
     preflight = preflight_matched_initialization(cfg)
+    if strict_determinism:
+        observed_core_sha = preflight["shared_core_sha256"]
+        if observed_core_sha != ORIGINAL_WR_HBP_SHARED_CORE_SHA256:
+            raise RuntimeError(
+                "Strict checkpoint-loss recovery menolak shared-core initialization "
+                f"yang berbeda dari WR-HBP V1 original: {observed_core_sha} != "
+                f"{ORIGINAL_WR_HBP_SHARED_CORE_SHA256}"
+            )
     val_count, val_sha = validation_identity_label_sha256(data_root)
 
     output_root = Path(output_root).expanduser().resolve()
