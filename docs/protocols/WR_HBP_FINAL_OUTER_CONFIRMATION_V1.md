@@ -17,6 +17,14 @@ The final test may be materialized only if all five completed development folds
 from `coffee17-wavelet-residual-hbp-v1` are available together with their exact
 selected checkpoints.
 
+Operational packaging is not part of the scientific estimand. The exact frozen
+development artifacts may be mounted either as the saved
+`coffee17-wavelet-residual-hbp-project/` directory or as the dedicated
+`wavelet-residual-hbp-final-confirmation-bundle.zip`. In both cases the same
+checkpoint hashes and run contracts below must pass before any outer-test
+identity is materialized. The compact analysis-package ZIP is insufficient
+because it intentionally omits `best.pt` and `last.pt`.
+
 For every fold, the authority builder must verify:
 
 - protocol = `coffee17-wavelet-residual-hbp-v1`;
