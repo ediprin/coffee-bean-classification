@@ -80,7 +80,7 @@ Recovery checkpoints are **not described as the lost original checkpoints**.
 The final authority must record
 `development_mode = checkpoint_loss_recovery_v1` and the exact recovery code
 commit. The audited recovery runtime is pinned to
-`5578b3db3f029bce3548db71683422c39ab88741`. This commit contains the same
+`9004462d4c114e594aced9954a56435231c84ac3`. This commit contains the same
 recovery scientific/runtime source as the earlier `982291...` recovery pin but
 uses the corrected preflight test state that already passed repository CI.
 Notebook-source inspection tests are validated by branch CI and are excluded

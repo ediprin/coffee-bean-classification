@@ -235,13 +235,13 @@ def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> Non
     assert "build_wr_hbp_final_test_authority" in code
     assert "run_wr_hbp_final_outer_summary" in code
     assert (
-        'RECOVERY_CODE_COMMIT = "5578b3db3f029bce3548db71683422c39ab88741"'
+        'RECOVERY_CODE_COMMIT = "9004462d4c114e594aced9954a56435231c84ac3"'
         in code
     )
     assert "_zip_project_prefix" in code
     assert "checkpoint_loss_recovery_v1" in code
     assert (
-        'RECOVERY_CODE_COMMIT = "5578b3db3f029bce3548db71683422c39ab88741"'
+        'RECOVERY_CODE_COMMIT = "9004462d4c114e594aced9954a56435231c84ac3"'
         in code
     )
     assert (
