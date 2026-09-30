@@ -229,4 +229,28 @@ def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> Non
     assert "build_wr_hbp_final_test_authority" in code
     assert "run_wr_hbp_final_outer_summary" in code
     assert "--authorize-training" not in code
+    assert "_zip_project_prefix" in code
+    assert "wavelet-residual-hbp-final-confirmation-bundle.zip" in code
+    assert 'for name in ("best.pt", "last.pt", "run_contract.json")' in code
+    compile(code, str(notebook_path), "exec")
+
+
+def test_wr_hbp_development_notebook_exports_final_checkpoint_bundle() -> None:
+    notebook_path = Path(
+        "notebooks/Coffee17_Wavelet_Residual_HBP_Kaggle.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell.get("cell_type") == "code"
+    )
+    assert (
+        'SCIENTIFIC_CODE_COMMIT = "01c9212965bc9040ef151204b9404d564f523a0f"'
+        in code
+    )
+    assert "wavelet-residual-hbp-final-confirmation-bundle" in code
+    assert "BUNDLE_MANIFEST.json" in code
+    assert 'for name in ("best.pt", "last.pt", "run_contract.json")' in code
+    assert "pair_result.json" in code
     compile(code, str(notebook_path), "exec")
