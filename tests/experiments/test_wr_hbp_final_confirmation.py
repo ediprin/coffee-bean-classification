@@ -235,13 +235,26 @@ def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> Non
     assert "build_wr_hbp_final_test_authority" in code
     assert "run_wr_hbp_final_outer_summary" in code
     assert (
-        'RECOVERY_CODE_COMMIT = "d188a53a7dd754bf3636347a4cba940a86351736"'
+        'RECOVERY_CODE_COMMIT = "5578b3db3f029bce3548db71683422c39ab88741"'
         in code
     )
     assert "_zip_project_prefix" in code
     assert "checkpoint_loss_recovery_v1" in code
+    assert (
+        'RECOVERY_CODE_COMMIT = "5578b3db3f029bce3548db71683422c39ab88741"'
+        in code
+    )
+    assert (
+        'ORIGINAL_SHARED_CORE_SHA256 = '
+        '"6d425c6c149005afde1224ed74ccfe4eb84c95e574d21e25a0e728578d79f9cc"'
+        in code
+    )
+    assert "recovery_environment.json" in code
+    assert '"-k", "not kaggle_notebook"' in code
     assert "--strict-determinism" in code
     assert "--authorize-training" in code
+    assert "recovery_environment.json" in code
+    assert '"-k", "not kaggle_notebook"' in code
     outer_marker = "# 4. ONE-SHOT outer test"
     assert outer_marker in code
     pre_outer, post_outer = code.split(outer_marker, 1)
