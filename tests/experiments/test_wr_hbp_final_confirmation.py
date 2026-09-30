@@ -14,6 +14,9 @@ from bilinear_lmmd.experiments.build_wr_hbp_final_test_authority import (
 )
 from bilinear_lmmd.experiments.run_wr_hbp_final_outer_fold import validate_config
 from bilinear_lmmd.experiments.run_wr_hbp_final_outer_summary import summarize
+from bilinear_lmmd.experiments.run_wavelet_residual_hbp_matched import (
+    ORIGINAL_WR_HBP_SHARED_CORE_SHA256,
+)
 
 
 CONFIG = Path(
@@ -389,3 +392,11 @@ def test_recovery_and_final_v2_notebook_is_the_supported_entrypoint() -> None:
     _, post_outer = code.split(outer_marker, 1)
     assert "--authorize-training" not in post_outer
     compile(code, str(notebook_path), "exec")
+
+
+def test_recovery_and_authority_share_original_core_fingerprint() -> None:
+    assert ORIGINAL_WR_HBP_SHARED_CORE_SHA256 == ORIGINAL_SHARED_CORE_SHA256
+    assert (
+        ORIGINAL_SHARED_CORE_SHA256
+        == "6d425c6c149005afde1224ed74ccfe4eb84c95e574d21e25a0e728578d79f9cc"
+    )
