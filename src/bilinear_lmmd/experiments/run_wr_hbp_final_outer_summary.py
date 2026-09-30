@@ -9,7 +9,9 @@ import numpy as np
 from sklearn.metrics import f1_score
 
 from bilinear_lmmd.core.config import load_config
+from bilinear_lmmd.core.reproducibility import sha256_file
 from bilinear_lmmd.engine.train import classification_metrics
+from bilinear_lmmd.experiments.run_wr_hbp_final_outer_fold import validate_config
 
 
 ARMS = ("R0_HBP", "WR_HBP")
@@ -95,12 +97,21 @@ def summarize(
     output_root: Path,
     authority_path: Path,
     config_path: Path,
+    clean_manifest_path: Path,
     output: Path,
     bootstrap_replicates_override: int | None = None,
 ) -> dict:
     output_root = Path(output_root).resolve()
     authority = _json(Path(authority_path).resolve())
     cfg = load_config(config_path)
+    validate_config(cfg)
+    clean = _json(Path(clean_manifest_path).resolve())
+    expected_ids = {row["identity"] for row in clean["images"]}
+    if len(expected_ids) != int(clean["clean_count"]):
+        raise RuntimeError("Clean manifest identity count tidak konsisten.")
+    if authority.get("clean_content_sha256") != clean.get("clean_content_sha256"):
+        raise RuntimeError("Authority/clean population mismatch.")
+    authority_sha = sha256_file(Path(authority_path).resolve())
 
     if authority.get("decision") != "AUTHORIZE_OOF_TEST_EVALUATION":
         raise RuntimeError("Authority final test tidak valid.")
@@ -122,6 +133,8 @@ def summarize(
             raise RuntimeError(f"Fold {fold}: training terjadi saat final test.")
         if result.get("outer_test_accessed") is not True:
             raise RuntimeError(f"Fold {fold}: outer-test flag salah.")
+        if result.get("authority_sha256") != authority_sha:
+            raise RuntimeError(f"Fold {fold}: authority hash berbeda.")
         if result["DELTA_WR_MINUS_R0"]["macro_f1"] > 0:
             positive_macro += 1
         fold_results[str(fold)] = result
@@ -144,6 +157,13 @@ def summarize(
     if len(all_ids) != int(authority["clean_count"]):
         raise RuntimeError(
             f"Outer OOF count {len(all_ids)} != clean_count {authority['clean_count']}."
+        )
+    if set(all_ids) != expected_ids:
+        missing = sorted(expected_ids.difference(all_ids))
+        extra = sorted(set(all_ids).difference(expected_ids))
+        raise RuntimeError(
+            "Outer OOF identity set berbeda dari clean population; "
+            f"missing={missing[:5]}, extra={extra[:5]}"
         )
 
     classes = fold_results["1"]["classes"]
@@ -233,6 +253,17 @@ def summarize(
         seed=int(cfg["uncertainty"]["seed"]),
     )
 
+    per_class_delta = {
+        name: float(pooled["WR_HBP"]["per_class"][name]["f1"])
+        - float(pooled["R0_HBP"]["per_class"][name]["f1"])
+        for name in classes
+    }
+    hard_group_delta = {
+        name: float(pooled["WR_HBP"]["hard_groups"][name])
+        - float(pooled["R0_HBP"]["hard_groups"][name])
+        for name in pooled["R0_HBP"]["hard_groups"]
+    }
+
     payload = {
         "format": "bilinear_lmmd.wr_hbp_final_outer_summary.v1",
         "protocol": "wr-hbp-final-confirmation-v1",
@@ -247,6 +278,8 @@ def summarize(
         "positive_macro_outer_folds": positive_macro,
         "paired_prediction_outcomes": outcomes,
         "targeted_confusions": targeted,
+        "per_class_f1_delta": per_class_delta,
+        "hard_group_f1_delta": hard_group_delta,
         "paired_stratified_bootstrap_macro_delta": bootstrap,
         "confirmation_gate": {
             "criteria": criteria,
@@ -269,12 +302,14 @@ def main() -> None:
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--authority", required=True, type=Path)
     parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--clean-manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     summarize(
         output_root=args.output_root,
         authority_path=args.authority,
         config_path=args.config,
+        clean_manifest_path=args.clean_manifest,
         output=args.output,
     )
 
