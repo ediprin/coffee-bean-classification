@@ -100,7 +100,13 @@ Per outer fold and pooled out-of-fold test predictions:
 - six preregistered hard-pair confusion counts;
 - paired rescue/damage.
 
-The hard set is the union of these frozen difficult pairs:
+Hard-F1 uses the same development-era hard set recorded for WR-HBP:
+
+- sour/black: Partial Black, Partial Sour, Full Sour;
+- shape/withered: Withered, Immature, Cut;
+- insect damage: Slight Insect Damage, Severe Insect Damage.
+
+Separately, explanatory confusion counts are frozen for six difficult pairs:
 
 1. Withered ↔ Immature
 2. Severe Insect Damage ↔ Slight Insect Damage
@@ -108,6 +114,8 @@ The hard set is the union of these frozen difficult pairs:
 4. Partial Sour ↔ Full Sour
 5. Slight Insect Damage ↔ Fade
 6. Full Black ↔ Partial Black
+
+Those pair counts do not redefine Hard-F1.
 
 The pooled prediction set must contain each clean Coffee17 identity exactly
 once per arm.
@@ -125,8 +133,8 @@ Otherwise:
 
 `WR_HBP_NOT_CONFIRMED`.
 
-A paired class-stratified bootstrap 95% confidence interval for pooled
-Macro-F1 delta is reported as uncertainty information. It is **not** an
+A paired class-stratified bootstrap with 10,000 replicates reports a 95% confidence interval for pooled
+Macro-F1 delta as uncertainty information. It is **not** an
 additional pass/fail criterion because the decision gate was deliberately kept
 parallel to the development gate.
 
