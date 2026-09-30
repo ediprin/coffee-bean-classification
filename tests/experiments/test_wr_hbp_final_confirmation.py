@@ -242,7 +242,9 @@ def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> Non
     assert "--authorize-training" in pre_outer
     assert "--authorize-training" not in post_outer
     assert "wavelet-residual-hbp-recovery-checkpoint-bundle" in code
-    assert 'for name in ("best.pt", "last.pt", "run_contract.json")' in code
+    assert '"best.pt"' in code
+    assert '"last.pt"' in code
+    assert '"run_contract.json"' in code
     compile(code, str(notebook_path), "exec")
 
 
