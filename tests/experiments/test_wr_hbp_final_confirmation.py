@@ -228,9 +228,20 @@ def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> Non
     assert "materialize_preprocessing_test" in code
     assert "build_wr_hbp_final_test_authority" in code
     assert "run_wr_hbp_final_outer_summary" in code
-    assert "--authorize-training" not in code
+    assert (
+        'RECOVERY_CODE_COMMIT = "98229149291f1f0f54a71cc9b3cc291b81825ab7"'
+        in code
+    )
     assert "_zip_project_prefix" in code
-    assert "wavelet-residual-hbp-final-confirmation-bundle.zip" in code
+    assert "checkpoint_loss_recovery_v1" in code
+    assert "--strict-determinism" in code
+    assert "--authorize-training" in code
+    outer_marker = "# 4. ONE-SHOT outer test"
+    assert outer_marker in code
+    pre_outer, post_outer = code.split(outer_marker, 1)
+    assert "--authorize-training" in pre_outer
+    assert "--authorize-training" not in post_outer
+    assert "wavelet-residual-hbp-recovery-checkpoint-bundle" in code
     assert 'for name in ("best.pt", "last.pt", "run_contract.json")' in code
     compile(code, str(notebook_path), "exec")
 
