@@ -1,6 +1,6 @@
 # WR-HBP Final Outer-Test Confirmation V1
 
-Status: **registered before outer-test access**
+Status: **registered before outer-test access; checkpoint-loss recovery amendment registered before outer-test access**
 
 Purpose: perform the one-shot final confirmation of the only Coffee17 method
 that passed the frozen development gate:
@@ -52,6 +52,35 @@ Only then is an authority file emitted with:
 
 This authority explicitly sets
 `further_primary_tuning_authorized = false`.
+
+### 1.1 Checkpoint-loss recovery amendment
+
+The original selected development checkpoints are preferred and remain the
+primary handoff. If, and only if, those exact files are no longer recoverable
+before any outer-test image has been materialized, one recovery run is
+authorized under the following frozen constraints:
+
+- the method remains exactly R0-HBP versus WR-HBP V1;
+- the same Coffee17 clean population, five development folds, seed 42, 224x224
+  input, optimizer, 50 epochs, checkpoint selection rule, HBP stages [1,3,4],
+  projection dimension 512, and WR-HBP wavelet branch are retained;
+- no architecture, preprocessing, loss, hyperparameter, hard-group definition,
+  screening gate, or outer-test rule may be changed;
+- recovery training must use strict deterministic CUDA execution with
+  `CUBLAS_WORKSPACE_CONFIG=:4096:8`, deterministic algorithms enabled,
+  cuDNN benchmark disabled, cuDNN deterministic enabled, and TF32 disabled;
+- the recovery is a single preregistered reconstruction attempt, not a new
+  method-search round;
+- the same four-part development gate must PASS before any outer-test identity
+  is materialized;
+- if the recovery gate fails, the outer test remains unopened and WR-HBP is not
+  advanced to final confirmation under this protocol.
+
+Recovery checkpoints are **not described as the lost original checkpoints**.
+The final authority must record
+`development_mode = checkpoint_loss_recovery_v1` and the exact recovery code
+commit. This amendment exists solely because checkpoint files were lost while
+the outer test remained untouched.
 
 ## 2. Outer-test structure
 
