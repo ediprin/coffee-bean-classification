@@ -80,13 +80,17 @@ Recovery checkpoints are **not described as the lost original checkpoints**.
 The final authority must record
 `development_mode = checkpoint_loss_recovery_v1` and the exact recovery code
 commit. The audited recovery runtime is pinned to
-`9004462d4c114e594aced9954a56435231c84ac3`. This commit contains the same
-recovery scientific/runtime source as the earlier `982291...` recovery pin but
-uses the corrected preflight test state that already passed repository CI.
-Notebook-source inspection tests are validated by branch CI and are excluded
-from the pinned Kaggle runtime preflight; Kaggle preflight tests only the
-scientific/runtime code. This amendment exists solely because checkpoint files
-were lost while the outer test remained untouched.
+`9004462d4c114e594aced9954a56435231c84ac3`. It preserves the frozen WR-HBP
+V1 architecture/configuration, uses strict deterministic recovery, and adds a
+fail-fast check that the shared RGB-HBP initialization SHA-256 equals the
+original WR-HBP V1 fingerprint
+`6d425c6c149005afde1224ed74ccfe4eb84c95e574d21e25a0e728578d79f9cc`.
+The authority independently verifies the same fingerprint in every fold and
+arm contract. This exact recovery-runtime commit passed repository CI before
+being registered here. Notebook-source inspection tests are validated by branch
+CI and are excluded from the pinned Kaggle runtime preflight; Kaggle preflight
+tests only the scientific/runtime code. This amendment exists solely because
+checkpoint files were lost while the outer test remained untouched.
 
 ## 2. Outer-test structure
 
