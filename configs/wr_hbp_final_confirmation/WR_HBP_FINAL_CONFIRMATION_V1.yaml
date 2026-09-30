@@ -1,0 +1,56 @@
+seed: 42
+device: cuda:0
+
+data:
+  source: source
+  test_split: test
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  object_crop: false
+
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: false
+  head: hbp
+  classifier: linear
+  num_classes: 17
+  out_indices: [1, 3, 4]
+  projection_dim: 512
+  dropout: 0.2
+
+wavelet_residual:
+  domain: luminance
+  level: L1
+  bands: [LH, HL, HH]
+  threshold: visushrink_soft
+  injection: shallow_residual
+  hidden_channels: 16
+  gate: tanh_zero_init
+  eps: 1.0e-8
+
+evaluation:
+  hard_groups:
+    withered_immature: [Withered, Immature]
+    insect_severity: [Severe Insect Damage, Slight Insect Damage]
+    cut_insect: [Cut, Slight Insect Damage]
+    sour_extent: [Partial Sour, Full Sour]
+    slight_fade: [Slight Insect Damage, Fade]
+    black_extent: [Full Black, Partial Black]
+  targeted_confusion_pairs:
+    - [Withered, Immature]
+    - [Severe Insect Damage, Slight Insect Damage]
+    - [Cut, Slight Insect Damage]
+    - [Partial Sour, Full Sour]
+    - [Slight Insect Damage, Fade]
+    - [Full Black, Partial Black]
+
+confirmation_gate:
+  pooled_macro_delta_gt: 0.0
+  macro_positive_folds_at_least: 3
+  pooled_hard_delta_ge: 0.0
+  pooled_worst_delta_ge: 0.0
+
+uncertainty:
+  paired_stratified_bootstrap_replicates: 5000
+  seed: 42
