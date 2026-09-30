@@ -25,6 +25,7 @@ def build_authority(
     clean_manifest_path: Path,
     fold_manifest_path: Path,
     output: Path,
+    recovery_development_commit: str | None = None,
 ) -> dict:
     development_root = Path(development_root).resolve()
     clean = _read(Path(clean_manifest_path).resolve())
@@ -38,6 +39,8 @@ def build_authority(
     records = {}
     deltas = {"macro_f1": [], "hard_class_f1": [], "worst_class_f1": []}
     checkpoint_sha = {}
+    observed_development_commits: set[str] = set()
+    recovery_determinism_records: list[dict] = []
 
     for fold in FOLDS:
         pair = development_root / f"fold_{fold}" / "seed42"
@@ -77,10 +80,37 @@ def build_authority(
                 raise RuntimeError(f"Fold {fold} {arm}: run contract protocol salah.")
             if contract.get("arm") != arm or int(contract.get("seed", -1)) != 42:
                 raise RuntimeError(f"Fold {fold} {arm}: run contract arm/seed salah.")
-            if contract.get("git_commit") != DEVELOPMENT_SCIENTIFIC_COMMIT:
+            development_commit = str(contract.get("git_commit", ""))
+            allowed_commits = {DEVELOPMENT_SCIENTIFIC_COMMIT}
+            if recovery_development_commit:
+                allowed_commits.add(str(recovery_development_commit))
+            if development_commit not in allowed_commits:
                 raise RuntimeError(
-                    f"Fold {fold} {arm}: scientific commit development berubah."
+                    f"Fold {fold} {arm}: scientific commit development tidak diizinkan: "
+                    f"{development_commit}"
                 )
+            observed_development_commits.add(development_commit)
+
+            if development_commit != DEVELOPMENT_SCIENTIFIC_COMMIT:
+                det = contract.get("strict_determinism")
+                if not isinstance(det, dict):
+                    raise RuntimeError(
+                        f"Fold {fold} {arm}: recovery wajib memiliki strict_determinism."
+                    )
+                required_det = {
+                    "cublas_workspace_config": ":4096:8",
+                    "deterministic_algorithms": True,
+                    "cudnn_benchmark": False,
+                    "cudnn_deterministic": True,
+                    "cuda_matmul_allow_tf32": False,
+                    "cudnn_allow_tf32": False,
+                }
+                for key, expected_value in required_det.items():
+                    if det.get(key) != expected_value:
+                        raise RuntimeError(
+                            f"Fold {fold} {arm}: strict determinism {key} salah."
+                        )
+                recovery_determinism_records.append(det)
             if contract.get("outer_test_accessed") is not False:
                 raise RuntimeError(f"Fold {fold} {arm}: contract menyatakan test tersentuh.")
             if int(contract.get("training", {}).get("epochs", -1)) != 50:
@@ -116,6 +146,24 @@ def build_authority(
             "arm_contracts": contracts,
         }
 
+    if len(observed_development_commits) != 1:
+        raise RuntimeError(
+            "Development folds mencampur scientific commit yang berbeda."
+        )
+    observed_development_commit = next(iter(observed_development_commits))
+    development_mode = (
+        "exact_original_checkpoints"
+        if observed_development_commit == DEVELOPMENT_SCIENTIFIC_COMMIT
+        else "checkpoint_loss_recovery_v1"
+    )
+    if development_mode == "checkpoint_loss_recovery_v1":
+        if not recovery_development_commit:
+            raise RuntimeError("Recovery commit tidak diregistrasikan.")
+        if observed_development_commit != str(recovery_development_commit):
+            raise RuntimeError("Recovery development commit tidak cocok.")
+        if len(recovery_determinism_records) != 10:
+            raise RuntimeError("Strict determinism recovery tidak lengkap 5 fold x 2 arm.")
+
     gate = {
         "macro_mean_positive": statistics.mean(deltas["macro_f1"]) > 0.0,
         "macro_positive_folds_at_least_3": sum(v > 0 for v in deltas["macro_f1"]) >= 3,
@@ -134,7 +182,13 @@ def build_authority(
         "clean_count": int(clean["clean_count"]),
         "fold_manifest_file_sha256": sha256_file(Path(fold_manifest_path)),
         "development_gate": gate,
-        "development_scientific_commit": DEVELOPMENT_SCIENTIFIC_COMMIT,
+        "development_scientific_commit": observed_development_commit,
+        "development_mode": development_mode,
+        "recovery_development_commit": (
+            str(recovery_development_commit)
+            if development_mode == "checkpoint_loss_recovery_v1"
+            else None
+        ),
         "development_checkpoint_sha256": checkpoint_sha,
         "development_records": records,
         "test_images_accessed": False,
@@ -153,12 +207,14 @@ def main() -> None:
     parser.add_argument("--clean-manifest", required=True, type=Path)
     parser.add_argument("--fold-manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--recovery-development-commit")
     args = parser.parse_args()
     build_authority(
         development_root=args.development_root,
         clean_manifest_path=args.clean_manifest,
         fold_manifest_path=args.fold_manifest,
         output=args.output,
+        recovery_development_commit=args.recovery_development_commit,
     )
 
 
