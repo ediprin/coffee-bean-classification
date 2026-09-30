@@ -205,3 +205,28 @@ def test_final_config_rejects_changed_bootstrap_contract() -> None:
         assert "bootstrap" in str(exc).lower()
     else:
         raise AssertionError("Changed bootstrap contract harus ditolak")
+
+
+def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> None:
+    notebook_path = Path(
+        "notebooks/Coffee17_WR_HBP_Final_Outer_Confirmation_V1_Kaggle.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell.get("cell_type") == "code"
+    )
+    assert (
+        'SCIENTIFIC_CODE_COMMIT = "b62963faec8e337359ba4244a3ee5814709bc18f"'
+        in code
+    )
+    assert (
+        'DEVELOPMENT_CODE_COMMIT = "01c9212965bc9040ef151204b9404d564f523a0f"'
+        in code
+    )
+    assert "materialize_preprocessing_test" in code
+    assert "build_wr_hbp_final_test_authority" in code
+    assert "run_wr_hbp_final_outer_summary" in code
+    assert "--authorize-training" not in code
+    compile(code, str(notebook_path), "exec")
