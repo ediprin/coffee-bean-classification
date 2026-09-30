@@ -39,13 +39,19 @@ the historical notebook-source test failed before recovery training began.
 This was an **operational preflight failure**, not a model-training failure and
 not an outer-test failure.
 
-## Why the recovery runtime is now pinned to d188a53
+## Why the recovery runtime is pinned to 9004462
 
-The code difference from the earlier recovery pin `982291...` to
-`9004462...` is limited to documentation/notebook/test-state fixes. The
-scientific recovery runner and recovery authority implementation are unchanged.
+The audited `9004462...` runtime retains the frozen WR-HBP V1
+architecture/configuration and adds two recovery-safety checks that were absent
+from the earlier `982291...` pin:
 
-The `9004462...` branch state passed repository CI.
+1. the strict recovery runner fails before training if the shared RGB-HBP
+   initialization fingerprint differs from the original WR-HBP V1 fingerprint;
+2. the final-test authority independently verifies that same original
+   fingerprint in every fold and arm contract.
+
+Its test fixtures were updated for those guards, and the exact `9004462...`
+commit passed repository CI before being registered as the recovery runtime.
 
 Kaggle runtime preflight now excludes tests whose purpose is to inspect the
 repository notebook source itself (`-k "not kaggle_notebook"`). Those
