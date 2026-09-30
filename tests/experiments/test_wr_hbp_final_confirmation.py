@@ -229,7 +229,7 @@ def test_final_kaggle_notebook_pins_scientific_code_and_is_syntax_valid() -> Non
     assert "build_wr_hbp_final_test_authority" in code
     assert "run_wr_hbp_final_outer_summary" in code
     assert (
-        'RECOVERY_CODE_COMMIT = "98229149291f1f0f54a71cc9b3cc291b81825ab7"'
+        'RECOVERY_CODE_COMMIT = "d188a53a7dd754bf3636347a4cba940a86351736"'
         in code
     )
     assert "_zip_project_prefix" in code
