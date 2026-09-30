@@ -77,6 +77,25 @@ def validate_config(cfg: dict) -> None:
         if wavelet.get(key) != value:
             raise ValueError(f"wavelet_residual.{key} berubah.")
 
+    expected_hard_groups = {
+        "sour_black": ["Partial Black", "Partial Sour", "Full Sour"],
+        "shape_withered": ["Withered", "Immature", "Cut"],
+        "insect_damage": ["Slight Insect Damage", "Severe Insect Damage"],
+    }
+    expected_pairs = [
+        ["Withered", "Immature"],
+        ["Severe Insect Damage", "Slight Insect Damage"],
+        ["Cut", "Slight Insect Damage"],
+        ["Partial Sour", "Full Sour"],
+        ["Slight Insect Damage", "Fade"],
+        ["Full Black", "Partial Black"],
+    ]
+    evaluation = cfg["evaluation"]
+    if evaluation.get("hard_groups") != expected_hard_groups:
+        raise ValueError("Frozen development-matched hard_groups berubah.")
+    if evaluation.get("targeted_confusion_pairs") != expected_pairs:
+        raise ValueError("Frozen targeted_confusion_pairs berubah.")
+
     gate = cfg["confirmation_gate"]
     if gate != {
         "pooled_macro_delta_gt": 0.0,
@@ -85,6 +104,13 @@ def validate_config(cfg: dict) -> None:
         "pooled_worst_delta_ge": 0.0,
     }:
         raise ValueError("Frozen confirmation gate berubah.")
+
+    uncertainty = cfg["uncertainty"]
+    if uncertainty != {
+        "paired_stratified_bootstrap_replicates": 10000,
+        "seed": 42,
+    }:
+        raise ValueError("Frozen bootstrap contract berubah.")
 
 
 def _checkpoint_compatible(checkpoint: dict, cfg: dict, arm: str) -> None:
