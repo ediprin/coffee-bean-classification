@@ -57,7 +57,7 @@ Status meanings:
 | Frozen representation audit | frozen ImageNet MobileNetV3 vs frozen DINOv2-S/14, kNN + linear probe | FAIL_STOP | `docs/results/COFFEE17_REPRESENTATION_GEOMETRY_V1_RESULTS.md` |
 | DCL local learning V1 | local region destruction/shuffle + original/shuffled auxiliary task + location reconstruction | FAIL_STOP | `docs/results/COFFEE17_DCL_LOCAL_LEARNING_V1_RESULTS.md` |
 | HF–Deep Complementarity V1 | Tulsi-aligned 71D handcrafted descriptors -> train-fold MRMR20, compared with HBP embedding and equal-block concatenation under one fixed logistic probe | FAIL_STOP | `docs/results/COFFEE17_HF_DEEP_COMPLEMENTARITY_V1_RESULTS.md` |
-| WR-HBP Final Outer Confirmation V1 | one-shot evaluation of frozen development-selected R0-HBP vs WR-HBP checkpoints on disjoint locked outer-test folds; no retraining or post-test tuning | REGISTERED | `docs/protocols/WR_HBP_FINAL_OUTER_CONFIRMATION_V1.md` |
+| WR-HBP Final Outer Confirmation V1 | one-shot evaluation of frozen R0-HBP vs WR-HBP on disjoint locked outer-test folds; exact original checkpoints are preferred, with one preregistered strict-deterministic `checkpoint_loss_recovery_v1` allowed only if checkpoint files are irrecoverably lost before any outer-test access; no post-test retraining/tuning | REGISTERED | `docs/protocols/WR_HBP_FINAL_OUTER_CONFIRMATION_V1.md` |
 
 ## Explicit near-duplicate blocks
 
