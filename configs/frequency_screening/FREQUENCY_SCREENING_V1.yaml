@@ -43,6 +43,3 @@ training:
   ema_decay: 0.0
   ema_start_epoch: 0
   output_dir: outputs/frequency-architecture-screening-v1
-
-evaluation:
-  hard_groups: {}
