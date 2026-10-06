@@ -32,7 +32,7 @@ def _cfg() -> dict:
             "classifier": "linear",
             "num_classes": 17,
             "out_indices": [1, 3, 4],
-            "projection_dim": 64,
+            "projection_dim": 512,
             "dropout": 0.0,
         },
         "frequency": {
