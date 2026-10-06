@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import torch
 
+from bilinear_lmmd.data.preprocessing.runtime import imagenet_normalize
 from bilinear_lmmd.experiments.run_master_screening_v1 import (
     MASTER_CANDIDATES,
     build_master_model,
@@ -94,12 +95,13 @@ def test_master_candidate_registry_is_complete() -> None:
 
 def test_master_build_representative_candidates() -> None:
     cfg = _cfg()
-    images = torch.randn(1, 3, 224, 224)
+    raw_images = torch.rand(1, 3, 224, 224)
+    images = imagenet_normalize(raw_images)
     for candidate in ("B0", "B1", "B2", "R1", "R3", "R4", "W3", "W7", "F1", "F2"):
         torch.manual_seed(42)
         model = build_master_model(candidate, cfg)
         if candidate == "B2":
-            output = model(images, raw_rgb=images)
+            output = model(images, raw_rgb=raw_images)
         else:
             output = model(images)
         assert output.logits.shape == (1, 17)
