@@ -1,0 +1,51 @@
+seed: 42
+device: auto
+
+data:
+  root: data/coffee17-representation-screening-development
+  source: source
+  train_split: train
+  val_split: val
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  rotation_angles: [0, 45, 90, 135, 180, 225, 270]
+  augmentation_mode: preprocessing_study
+  object_crop: false
+
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  classifier: linear
+  num_classes: 17
+  projection_dim: 512
+  dropout: 0.2
+
+representation:
+  mfr_reduction: 8
+  mfr_alpha: 0.8
+  mfr_rho: 0.2
+  lrbp_reduced_dim: 100
+  lrbp_rank: 8
+  lrbp_regularization: 0.0005
+  multistage_dim: 384
+  dualdomain_dim: 256
+  ffc_alpha: 0.5
+  fusion_loss_ce_weight: 0.7
+  fusion_loss_focal_weight: 0.3
+  fusion_loss_gamma: 2.0
+
+adaptation:
+  method: source_only
+
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  freeze_backbone: false
+  scheduler: cosine
+  ema_decay: 0.0
+  ema_start_epoch: 0
+  output_dir: outputs/representation-screening-v1
