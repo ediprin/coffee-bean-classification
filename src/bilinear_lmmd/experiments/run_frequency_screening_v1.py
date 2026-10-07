@@ -123,6 +123,21 @@ def validate_config(cfg: dict) -> None:
     if float(training.get("ema_decay", 0.0)) != 0.0:
         raise ValueError("EMA tidak dipakai.")
 
+    focused = cfg.get("focused_efficiency")
+    if focused is not None:
+        if focused.get("frecsa_filter") != "high_pass":
+            raise ValueError("Focused FReCSA harus memakai predefined high-pass.")
+        if int(focused.get("frecsa_kernel_size", -1)) != 7:
+            raise ValueError("Focused FReCSA kernel harus 7x7.")
+        if abs(float(focused.get("frecsa_bias", -1.0)) - 0.5) > 1.0e-12:
+            raise ValueError("Focused FReCSA bias harus 0.5.")
+        if focused.get("frecsa_interaction") != "local_local":
+            raise ValueError("Focused FReCSA interaction harus local-local.")
+        if focused.get("frecsa_placement") != "deep_feature_only":
+            raise ValueError("Focused FReCSA placement harus deep_feature_only.")
+        if int(focused.get("compact_hbp_projection_dim", -1)) != 384:
+            raise ValueError("Focused compact HBP projection harus 384.")
+
 
 def _core_sha(model: nn.Module) -> str:
     digest = hashlib.sha256()
