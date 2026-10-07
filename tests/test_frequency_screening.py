@@ -3,6 +3,8 @@ from __future__ import annotations
 import torch
 
 from bilinear_lmmd.modeling.frequency_screening import (
+    FrequencyRegulatedChannelSpatialAttention,
+    FrequencyRegulatedSpatialAttention,
     assert_shared_core_equal,
     build_frequency_screening_model,
     haar_dwt2d,
@@ -67,6 +69,56 @@ def test_shared_core_initialization_matches_anchor() -> None:
         ("W4", "B1"),
         ("W5", "B0"),
         ("W6", "B1"),
+    ):
+        torch.manual_seed(42)
+        baseline = build_frequency_screening_model(anchor, cfg)
+        torch.manual_seed(42)
+        model = build_frequency_screening_model(candidate, cfg)
+        assert_shared_core_equal(baseline, model)
+
+
+
+def test_frecsa_modules_preserve_shape_and_are_lightweight() -> None:
+    torch.manual_seed(42)
+    x = torch.randn(4, 32, 14, 14)
+
+    frsa = FrequencyRegulatedSpatialAttention(32)
+    frecsa = FrequencyRegulatedChannelSpatialAttention(32)
+
+    assert frsa(x).shape == x.shape
+    assert frecsa(x).shape == x.shape
+
+    # FRSA has only BN affine parameters; the 7x7 high-pass is predefined.
+    assert sum(p.numel() for p in frsa.parameters()) == 2 * 32
+    # Full FReCSA: channel BN + channel scale + spatial BN.
+    assert sum(p.numel() for p in frecsa.parameters()) == 5 * 32
+
+
+def test_focused_efficiency_candidates_forward() -> None:
+    cfg = _cfg()
+    images = torch.randn(2, 3, 224, 224)
+    expected_embedding = {
+        "H384": 384 * 3,
+        "C1": 960,
+        "C2": 960,
+        "C3": 384 * 3,
+        "C4": 384 * 3,
+    }
+    for candidate in ("H384", "C1", "C2", "C3", "C4"):
+        torch.manual_seed(42)
+        model = build_frequency_screening_model(candidate, cfg)
+        output = model(images)
+        assert output.logits.shape == (2, 17)
+        assert output.embedding.shape == (2, expected_embedding[candidate])
+
+
+def test_focused_efficiency_matched_shared_core() -> None:
+    cfg = _cfg()
+    for candidate, anchor in (
+        ("C1", "B0"),
+        ("C2", "B0"),
+        ("C3", "H384"),
+        ("C4", "H384"),
     ):
         torch.manual_seed(42)
         baseline = build_frequency_screening_model(anchor, cfg)
