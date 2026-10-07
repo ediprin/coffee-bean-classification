@@ -22,12 +22,36 @@ from bilinear_lmmd.modeling.models import (
 FREQUENCY_CANDIDATES = {
     "B0": {"head": "gap", "module": None, "anchor": "B0"},
     "B1": {"head": "hbp", "module": None, "anchor": "B1"},
+    "H384": {
+        "head": "hbp",
+        "module": None,
+        "anchor": "H384",
+        "projection_dim": 384,
+    },
     "W1": {"head": "gap", "module": "wca", "anchor": "B0"},
     "W2": {"head": "hbp", "module": "wca", "anchor": "B1"},
     "W3": {"head": "gap", "module": "fda", "anchor": "B0"},
     "W4": {"head": "hbp", "module": "fda", "anchor": "B1"},
     "W5": {"head": "gap", "module": "fca_lf2", "anchor": "B0"},
     "W6": {"head": "hbp", "module": "fca_lf2", "anchor": "B1"},
+    # Focused efficiency follow-up. C1/C2 test FReCSA-style frequency
+    # regulation on the same late MobileNetV3 feature used by W3. C3/C4
+    # use a preregistered compact HBP (p=384) and are compared only with
+    # the matched H384 anchor, never directly as a one-factor test vs B1.
+    "C1": {"head": "gap", "module": "frsa", "anchor": "B0"},
+    "C2": {"head": "gap", "module": "frecsa", "anchor": "B0"},
+    "C3": {
+        "head": "hbp",
+        "module": "fda",
+        "anchor": "H384",
+        "projection_dim": 384,
+    },
+    "C4": {
+        "head": "hbp",
+        "module": "frecsa",
+        "anchor": "H384",
+        "projection_dim": 384,
+    },
 }
 
 
@@ -136,6 +160,82 @@ class FrequencyDomainAttention(nn.Module):
         )
         return haar_iwt2d(weighted, original_hw)
 
+
+
+class FrequencyRegulatedSpatialAttention(nn.Module):
+    """Spatial branch of FReCSA (Zhuang et al., ESWA 2025).
+
+    The paper forms a predefined high-pass response as x - AvgPool7x7(x),
+    performs local-local interaction with the original feature, applies BN,
+    ReLU with fixed bias 0.5, sigmoid, and multiplicative recalibration.
+
+    This is a *late-feature adaptation* for MobileNetV3, not a reproduction
+    of the paper's ResNet block-wise placement.
+    """
+
+    def __init__(self, channels: int, kernel_size: int = 7, bias: float = 0.5):
+        super().__init__()
+        if channels <= 0:
+            raise ValueError("FRSA channels harus > 0.")
+        if kernel_size <= 0 or kernel_size % 2 == 0:
+            raise ValueError("FRSA kernel_size harus ganjil dan > 0.")
+        self.low_pass = nn.AvgPool2d(
+            kernel_size=kernel_size,
+            stride=1,
+            padding=kernel_size // 2,
+            count_include_pad=False,
+        )
+        self.norm = nn.BatchNorm2d(channels)
+        self.register_buffer(
+            "fixed_bias",
+            torch.tensor(float(bias)),
+            persistent=True,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        low = self.low_pass(x)
+        high = x - low
+        similarity = high * x
+        activated = F.relu(self.norm(similarity) + self.fixed_bias, inplace=False)
+        weights = torch.sigmoid(activated)
+        return x * weights
+
+
+class SimplifiedFrequencyChannelAttention(nn.Module):
+    """Simplified channel branch of FReCSA.
+
+    GAP -> BN -> independent per-channel scaling (zero-init) -> sigmoid.
+    There are no learned cross-channel FC/Conv connections.
+    """
+
+    def __init__(self, channels: int):
+        super().__init__()
+        if channels <= 0:
+            raise ValueError("FReCSA channel attention channels harus > 0.")
+        self.norm = nn.BatchNorm2d(channels)
+        self.scale = nn.Parameter(torch.zeros(1, channels, 1, 1))
+
+    def forward(self, x: Tensor) -> Tensor:
+        descriptor = F.adaptive_avg_pool2d(x, 1)
+        normalized = self.norm(descriptor)
+        weights = torch.sigmoid(normalized * self.scale)
+        return x * weights
+
+
+class FrequencyRegulatedChannelSpatialAttention(nn.Module):
+    """Full FReCSA channel -> frequency-regulated spatial recalibration."""
+
+    def __init__(self, channels: int, kernel_size: int = 7, bias: float = 0.5):
+        super().__init__()
+        self.channel = SimplifiedFrequencyChannelAttention(channels)
+        self.spatial = FrequencyRegulatedSpatialAttention(
+            channels,
+            kernel_size=kernel_size,
+            bias=bias,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.spatial(self.channel(x))
 
 def _dct_basis(
     height: int,
@@ -257,6 +357,14 @@ class FrequencyRecalibratedClassifier(nn.Module):
             self.feature_module = FcaLowFrequencyAttention(
                 channels[-1], reduction=reduction
             )
+        elif module == "frsa":
+            self.feature_module = FrequencyRegulatedSpatialAttention(
+                channels[-1], kernel_size=7, bias=0.5
+            )
+        elif module == "frecsa":
+            self.feature_module = FrequencyRegulatedChannelSpatialAttention(
+                channels[-1], kernel_size=7, bias=0.5
+            )
         else:
             raise ValueError(f"Frequency module tidak dikenal: {module}")
         torch.random.set_rng_state(rng_state)
@@ -277,10 +385,12 @@ def build_frequency_screening_model(candidate: str, cfg: dict) -> nn.Module:
         )
     spec = FREQUENCY_CANDIDATES[candidate]
     model_cfg = cfg["model"]
+    projection_dim = int(spec.get("projection_dim", model_cfg.get("projection_dim", 512)))
     if spec["module"] is None:
         anchor_cfg = dict(model_cfg)
         anchor_cfg["head"] = spec["head"]
         anchor_cfg["out_indices"] = [4] if spec["head"] == "gap" else [1, 3, 4]
+        anchor_cfg["projection_dim"] = projection_dim
         return build_model(anchor_cfg)
     frequency_cfg = cfg.get("frequency", {})
     return FrequencyRecalibratedClassifier(
@@ -288,7 +398,7 @@ def build_frequency_screening_model(candidate: str, cfg: dict) -> nn.Module:
         num_classes=int(model_cfg["num_classes"]),
         head=spec["head"],
         module=spec["module"],
-        projection_dim=int(model_cfg.get("projection_dim", 512)),
+        projection_dim=projection_dim,
         dropout=float(model_cfg.get("dropout", 0.2)),
         pretrained=bool(model_cfg.get("pretrained", True)),
         reduction=int(frequency_cfg.get("attention_reduction", 16)),
