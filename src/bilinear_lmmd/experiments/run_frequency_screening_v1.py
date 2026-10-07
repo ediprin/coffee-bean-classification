@@ -418,9 +418,16 @@ def run_fold(
         FREQUENCY_CANDIDATES[candidate]["anchor"] for candidate in candidates
     }
     ordered = []
-    for name in ("B0", "B1"):
+    # Keep known anchors first. H384 is the matched compact-HBP control used
+    # only by the focused C3/C4 efficiency follow-up.
+    for name in ("B0", "B1", "H384"):
         if name in required_anchors or name in candidates:
             ordered.append(name)
+    # Future self-anchored controls are also supported without changing this
+    # ordering block.
+    for anchor in sorted(required_anchors):
+        if anchor not in ordered:
+            ordered.append(anchor)
     for candidate in candidates:
         if candidate not in ordered:
             ordered.append(candidate)
