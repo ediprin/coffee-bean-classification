@@ -44,6 +44,15 @@ From the source-paper ablations:
 - spatial attention: high-pass -> local-local product -> BN -> ReLU(+0.5) -> sigmoid
 - placement in this adaptation: deepest selected MobileNetV3 feature only
 
+Important source discrepancy: the published paper explicitly includes a fixed
+bias term and reports b=0.5 as the selected default, while the authors'
+released `models_lpf/resnet_csha.py` implementation omits that additive bias
+in the forward path. V1 follows the published equations/ablation for b=0.5,
+but matches the released source for `AvgPool2d(kernel=7, stride=1, padding=3)`
+semantics (including PyTorch's default `count_include_pad=True`). This
+difference must be reported rather than silently treated as an exact
+reproduction.
+
 No Coffee17-specific search over kernel, bias, interaction, or filter type is
 allowed in this screening.
 
