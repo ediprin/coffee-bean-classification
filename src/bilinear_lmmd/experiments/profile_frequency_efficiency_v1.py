@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from bilinear_lmmd.config import load_config
+from bilinear_lmmd.core.config import load_config
 from bilinear_lmmd.modeling.frequency_screening import (
     FREQUENCY_CANDIDATES,
     build_frequency_screening_model,
