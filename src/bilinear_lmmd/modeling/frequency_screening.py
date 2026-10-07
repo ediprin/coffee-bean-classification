@@ -322,6 +322,8 @@ class FrequencyRecalibratedClassifier(nn.Module):
         pretrained: bool = True,
         reduction: int = 16,
         fda_hidden: int = 4,
+        frecsa_kernel_size: int = 7,
+        frecsa_bias: float = 0.5,
     ):
         super().__init__()
         if head not in {"gap", "hbp"}:
@@ -359,11 +361,15 @@ class FrequencyRecalibratedClassifier(nn.Module):
             )
         elif module == "frsa":
             self.feature_module = FrequencyRegulatedSpatialAttention(
-                channels[-1], kernel_size=7, bias=0.5
+                channels[-1],
+                kernel_size=frecsa_kernel_size,
+                bias=frecsa_bias,
             )
         elif module == "frecsa":
             self.feature_module = FrequencyRegulatedChannelSpatialAttention(
-                channels[-1], kernel_size=7, bias=0.5
+                channels[-1],
+                kernel_size=frecsa_kernel_size,
+                bias=frecsa_bias,
             )
         else:
             raise ValueError(f"Frequency module tidak dikenal: {module}")
@@ -393,6 +399,7 @@ def build_frequency_screening_model(candidate: str, cfg: dict) -> nn.Module:
         anchor_cfg["projection_dim"] = projection_dim
         return build_model(anchor_cfg)
     frequency_cfg = cfg.get("frequency", {})
+    focused_cfg = cfg.get("focused_efficiency", {})
     return FrequencyRecalibratedClassifier(
         backbone=model_cfg["backbone"],
         num_classes=int(model_cfg["num_classes"]),
@@ -403,6 +410,8 @@ def build_frequency_screening_model(candidate: str, cfg: dict) -> nn.Module:
         pretrained=bool(model_cfg.get("pretrained", True)),
         reduction=int(frequency_cfg.get("attention_reduction", 16)),
         fda_hidden=int(frequency_cfg.get("fda_hidden", 4)),
+        frecsa_kernel_size=int(focused_cfg.get("frecsa_kernel_size", 7)),
+        frecsa_bias=float(focused_cfg.get("frecsa_bias", 0.5)),
     )
 
 
