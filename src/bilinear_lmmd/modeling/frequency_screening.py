@@ -179,11 +179,12 @@ class FrequencyRegulatedSpatialAttention(nn.Module):
             raise ValueError("FRSA channels harus > 0.")
         if kernel_size <= 0 or kernel_size % 2 == 0:
             raise ValueError("FRSA kernel_size harus ganjil dan > 0.")
+        # Match the released FReCSA implementation: PyTorch AvgPool2d
+        # default count_include_pad=True with kernel=7, stride=1, padding=3.
         self.low_pass = nn.AvgPool2d(
             kernel_size=kernel_size,
             stride=1,
             padding=kernel_size // 2,
-            count_include_pad=False,
         )
         self.norm = nn.BatchNorm2d(channels)
         self.register_buffer(
