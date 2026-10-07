@@ -1,0 +1,56 @@
+seed: 42
+device: auto
+
+data:
+  root: data/coffee17-focused-efficiency-development
+  source: source
+  train_split: train
+  val_split: val
+  image_size: 224
+  batch_size: 32
+  workers: 4
+  rotation_angles: [0, 45, 90, 135, 180, 225, 270]
+  augmentation_mode: preprocessing_study
+  object_crop: false
+
+model:
+  backbone: mobilenetv3_large_100
+  pretrained: true
+  classifier: linear
+  num_classes: 17
+  projection_dim: 512
+  dropout: 0.2
+
+frequency:
+  wavelet: haar
+  attention_reduction: 16
+  fda_hidden: 4
+  fca_variant: LF
+  fca_components: 2
+  hbp_frequency_stage: deep_only
+
+focused_efficiency:
+  # Paper-grounded FReCSA defaults from Zhuang et al. (ESWA 2025).
+  frecsa_filter: high_pass
+  frecsa_kernel_size: 7
+  frecsa_bias: 0.5
+  frecsa_interaction: local_local
+  frecsa_placement: deep_feature_only
+  compact_hbp_projection_dim: 384
+  candidates: [C1, C2, C3, C4]
+  controls: [B0, H384]
+
+adaptation:
+  method: source_only
+
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  classification_loss: cross_entropy
+  label_smoothing: 0.1
+  freeze_backbone: false
+  scheduler: cosine
+  ema_decay: 0.0
+  ema_start_epoch: 0
+  output_dir: outputs/focused-frequency-efficiency-v1
