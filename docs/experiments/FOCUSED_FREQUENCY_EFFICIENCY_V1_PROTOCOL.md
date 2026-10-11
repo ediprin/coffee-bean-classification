@@ -115,3 +115,34 @@ Interpretation:
 A candidate is not promoted merely for a tiny Macro-F1 gain if it worsens
 runtime efficiency materially. The final choice is made on the observed
 accuracy-efficiency Pareto frontier, not parameter count alone.
+
+
+---
+
+## Recorded stage outcome — C1/C2 completed
+
+Canonical result:
+
+`docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md`
+
+The first focused stage is complete:
+
+- C1 FRSA-GAP: **FAIL_STOP**;
+- C2 FReCSA-GAP: **KEEP / primary efficient candidate**.
+
+C2 achieved 91.36% mean Macro-F1, 87.38% Hard-F1, and 70.72% Worst-F1,
+with only 2.993M parameters. Relative to verified historical B0, the deltas are
++1.62 pp Macro, +2.18 pp Hard, and +4.57 pp Worst; Macro and Hard improved in
+5/5 folds.
+
+The efficiency preflight measured C2 at 5.700 ms batch-1 median latency versus
+5.590 ms for B0 in the same profiling run (+1.96%), with +0.161% parameters.
+
+C3/C4 currently have **preflight-only efficiency evidence** and no accuracy
+result. They must not be described as trained/evaluated classifiers.
+
+Because C2 already establishes a strong accuracy-efficiency result on the reused
+development folds, V1 does not authorize automatic FDA+FReCSA+HBP stacking.
+The next step is a frozen same-hardware repeated/interleaved runtime comparison
+of B0, W3, C2, B1, and W4 before final architecture freeze and outer-test
+evaluation.
