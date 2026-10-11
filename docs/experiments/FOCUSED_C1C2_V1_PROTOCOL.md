@@ -77,3 +77,27 @@ the already-measured efficiency preflight.
 C1/C2 do not replace W3 merely by beating B0. To become the lightweight winner,
 they must be evaluated on the accuracy-efficiency Pareto frontier against the
 existing W3 FDA-GAP result.
+
+
+---
+
+## Completed result
+
+Canonical result:
+
+`docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md`
+
+Outcome:
+
+- C1 FRSA-GAP: **FAIL_STOP**;
+- C2 FReCSA-GAP: **KEEP / primary efficient candidate**;
+- C2 Macro-F1: 91.36%;
+- C2 delta vs verified historical B0: +1.62 pp;
+- C2 Hard-F1 delta: +2.18 pp;
+- C2 Worst-F1 delta: +4.57 pp;
+- C2 Macro and Hard deltas positive in 5/5 folds;
+- C2 paired top-1 net effect: +7 correct;
+- outer test remained untouched.
+
+This protocol is now closed. No C1/C2 hyperparameter rescue is authorized on
+the reused development folds.
