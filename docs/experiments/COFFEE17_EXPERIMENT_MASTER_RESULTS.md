@@ -1519,3 +1519,145 @@ Decision:
 The negative result is specific to this explicit-descriptor complementarity
 test; it is not a universal claim that handcrafted coffee descriptors contain
 no class-related information.
+
+
+---
+
+## 26. Focused FReCSA C1/C2 V1 result: C2 becomes primary efficient candidate
+
+Canonical result:
+
+`docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md`
+
+Focused scientific commit:
+
+`6653a50e296f7b38591100b395f1a09dbaf68c56`
+
+Source compact package SHA-256:
+
+`70365b4661d0a9b8509d68cd3ccfe58ac524dfbf54ed93f20512a44feca72a32`
+
+The focused stage trained only C1/C2. Historical B0 from the master screening
+was verified fold-by-fold and was not retrained. Outer test remained untouched.
+
+| Model | Macro-F1 | Hard-F1 | Worst-F1 | Params |
+|---|---:|---:|---:|---:|
+| B0 GAP | 89.74% | 85.20% | 66.15% | 2.988M |
+| C1 FRSA-GAP | 89.68% | 85.52% | 60.91% | 2.990M |
+| **C2 FReCSA-GAP** | **91.36%** | **87.38%** | **70.72%** | **2.993M** |
+
+C1 versus B0:
+
+- Macro-F1: -0.07 pp;
+- Hard-F1: +0.32 pp;
+- Worst-F1: -5.24 pp;
+- paired rescue/damage: 7/7, net 0.
+
+Decision:
+
+> **FAIL_STOP C1 / FRSA-only.**
+
+The spatial high-pass branch by itself does not provide a reliable benefit, and
+no Coffee17-specific FRSA kernel/bias/filter search is authorized.
+
+C2 versus B0:
+
+- Macro-F1: **+1.62 pp**;
+- Hard-F1: **+2.18 pp**;
+- Worst-F1: **+4.57 pp**;
+- Macro-F1 positive in **5/5 folds**;
+- Hard-F1 positive in **5/5 folds**;
+- paired rescue/damage: 13/6, net **+7 correct**.
+
+The 485 fold-validation rows correspond to 394 unique class/filename identities
+across folds, so those rows must not be treated as independent samples for a
+naive sample-level significance claim.
+
+### Updated accuracy-efficiency comparison
+
+| Model | Macro-F1 | Hard-F1 | Worst-F1 | Params |
+|---|---:|---:|---:|---:|
+| B0 GAP | 89.74% | 85.20% | 66.15% | 2.988M |
+| W3 FDA-GAP | 90.47% | 85.59% | 68.00% | 2.992M |
+| **C2 FReCSA-GAP** | **91.36%** | **87.38%** | **70.72%** | **2.993M** |
+| B1 HBP | 91.13% | 85.63% | 60.31% | 3.562M |
+| W2 WCA-HBP | 91.43% | 86.59% | 60.89% | 3.678M |
+| W4 FDA-HBP | **91.52%** | 85.45% | 61.44% | 3.566M |
+
+C2 versus W3:
+
+- Macro +0.893 pp;
+- Hard +1.795 pp;
+- Worst +2.718 pp;
+- only +920 parameters (+0.031%).
+
+C2 versus B1:
+
+- Macro +0.235 pp;
+- Hard +1.756 pp;
+- Worst +10.410 pp;
+- -15.98% parameters.
+
+C2 versus W4:
+
+- Macro -0.151 pp;
+- Hard +1.934 pp;
+- Worst +9.281 pp;
+- -16.07% parameters.
+
+Therefore W3 is no longer the primary lightweight candidate. C2 is retained as
+the **primary efficient candidate**, while W4 remains the highest-mean-Macro
+development comparator by a very small margin.
+
+### Class-level C2 evidence
+
+Largest mean five-fold F1 improvements vs B0:
+
+- Slight Insect Damage: +5.38 pp;
+- Dry Cherry: +5.00 pp;
+- Fade: +4.81 pp;
+- Severe Insect Damage: +4.17 pp;
+- Immature: +3.27 pp;
+- Withered: +2.56 pp.
+
+Hard-group mean deltas:
+
+- insect damage: +4.77 pp;
+- shape/withered: +2.51 pp;
+- sour/black: +0.13 pp.
+
+Main observed negative class trade-off:
+
+- Broken: -2.29 pp.
+
+This is empirical development-fold evidence and is not, by itself, a causal
+claim that FReCSA has isolated a named physical color/texture cue.
+
+### Training dynamics
+
+C2 best epochs by fold were 23, 31, 23, 31, and 28. All five folds had lower
+Macro-F1 at epoch 50 than at their selected best checkpoint, with declines from
+-1.09 pp to -4.03 pp.
+
+This supports keeping best-checkpoint selection and does not support simply
+training longer or increasing capacity.
+
+### Focused efficiency preflight
+
+C2 versus B0:
+
+- parameters: +0.161%;
+- median batch-1 latency: 5.590 -> 5.700 ms (+1.96%);
+- throughput: 178.88 -> 175.44 img/s (-1.92%).
+
+C3 FDA-HBP384 showed a separate warning: counted Conv/Linear MACs increased only
+~0.023% over H384, while measured median latency increased ~14.4%. Therefore
+Params/FLOPs alone are not sufficient evidence of runtime efficiency.
+
+Decision:
+
+> **KEEP C2 / FReCSA-GAP as the current primary efficient model.**
+
+Do not immediately stack FDA + FReCSA + HBP. The next authorized step is a
+dedicated same-hardware repeated/interleaved runtime benchmark of B0, W3, C2,
+B1, and W4, followed by architecture freeze and the untouched outer test.
