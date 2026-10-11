@@ -1,6 +1,6 @@
 # Coffee17 Experiment Ledger — Check Before Proposing Anything New
 
-Last updated: 2026-09-30
+Last updated: 2026-10-11
 
 This file is the **first stop before proposing, implementing, or training any
 new Coffee17 method**.
@@ -57,6 +57,8 @@ Status meanings:
 | Frozen representation audit | frozen ImageNet MobileNetV3 vs frozen DINOv2-S/14, kNN + linear probe | FAIL_STOP | `docs/results/COFFEE17_REPRESENTATION_GEOMETRY_V1_RESULTS.md` |
 | DCL local learning V1 | local region destruction/shuffle + original/shuffled auxiliary task + location reconstruction | FAIL_STOP | `docs/results/COFFEE17_DCL_LOCAL_LEARNING_V1_RESULTS.md` |
 | HF–Deep Complementarity V1 | Tulsi-aligned 71D handcrafted descriptors -> train-fold MRMR20, compared with HBP embedding and equal-block concatenation under one fixed logistic probe | FAIL_STOP | `docs/results/COFFEE17_HF_DEEP_COMPLEMENTARITY_V1_RESULTS.md` |
+| Focused C1 FRSA-GAP V1 | late FReCSA spatial high-pass branch only before GAP | FAIL_STOP | `docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md` |
+| Focused C2 FReCSA-GAP V1 | late simplified channel attention + frequency-regulated spatial attention before GAP | KEEP | `docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md` |
 | WR-HBP Final Outer Confirmation V1 | one-shot evaluation of frozen R0-HBP vs WR-HBP on disjoint locked outer-test folds; exact original checkpoints are preferred, with one preregistered strict-deterministic `checkpoint_loss_recovery_v1` allowed only if checkpoint files are irrecoverably lost before any outer-test access; no post-test retraining/tuning | REGISTERED | `docs/protocols/WR_HBP_FINAL_OUTER_CONFIRMATION_V1.md` |
 
 ## Explicit near-duplicate blocks
@@ -77,6 +79,9 @@ recovering/using the prior evidence first:
 - "add physical descriptor residual to WR-HBP logits" -> failed;
 - "another preprocessing-to-raw feature transfer" -> transfer family closed;
 - "add Tulsi-style handcrafted descriptors to HBP embedding" -> HF–Deep V1 failed its frozen gate; do not rescue it with RealMLP/FT-Transformer, alternate MRMR K, probe C, feature-family pruning, learned fusion, or reweighting on the reused folds.
+- "use only FReCSA spatial/high-pass attention" -> C1 FRSA-only failed; do not reopen with kernel/bias/filter/interactions search on reused folds;
+- "replace C2 with another near-identical channel-spatial attention variant" -> C2 is now the retained efficient candidate; first complete the frozen runtime comparison and outer-test path before reopening attention search;
+- "stack FDA + FReCSA + HBP immediately" -> blocked by current selection-overfitting risk; individual development evidence is sufficient to freeze C2 before any new module stack.
 
 ## Known repository gap
 
