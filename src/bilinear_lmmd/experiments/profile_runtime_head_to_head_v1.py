@@ -113,7 +113,8 @@ def isolated_memory(cfg, arm, device, image_size, warmup):
     sync(device)
     empty = torch.cuda.memory_allocated(device)
     model = build(cfg, arm, device)
-    sample = torch.zeros(1, 3, image_size, image_size, device=device)
+    gen = torch.Generator(device=device).manual_seed(42)
+    sample = torch.randn(1, 3, image_size, image_size, generator=gen, device=device)
     for _ in range(warmup):
         model(sample)
     sync(device)
@@ -129,7 +130,7 @@ def isolated_memory(cfg, arm, device, image_size, warmup):
         "model_input_and_forward_peak_bytes": peak - empty,
         "forward_increment_bytes": peak - resident,
     }
-    del model, sample
+    del model, sample, gen
     gc.collect()
     torch.cuda.empty_cache()
     return result
