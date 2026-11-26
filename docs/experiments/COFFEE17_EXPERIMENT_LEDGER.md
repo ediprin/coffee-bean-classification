@@ -43,9 +43,9 @@ Status meanings:
 | M0 GAP | MobileNetV3-Large + GAP + CE | KEEP | `docs/results/FINAL_HBP_RESULTS.md` |
 | M1 HBP | MobileNetV3-Large + hierarchical bilinear pooling + CE | KEEP | `docs/results/FINAL_HBP_RESULTS.md` |
 | S1 SPPF-Attention-HBP | SPPF + channel/spatial attention before HBP | FAIL_STOP | `docs/results/FINAL_HBP_RESULTS.md` |
-| E1 HBP local MoE | HBP global expert + intermediate 14x14 local expert using 1x1 projection + global max pooling + learned gate | BLOCKED_RESULT_MISSING | config: `configs/coffee17/E1_mobilenetv3_hbp_local_moe_source.yaml`; protocol: `docs/protocols/HBP_MOE_PROTOCOL.md`; implementation commit `f10a09f9fc37467528d4e4a62e2a7266452c9d9e` |
-| M1s spatial HBP | spatially preserved HBP instead of immediate spatial averaging | BLOCKED_RESULT_MISSING | config: `configs/coffee17/M1s_mobilenetv3_sp_hbp_source.yaml`; implementation commit `110f4afa710cc9b4442ffba714bd5384a8a8a149` |
-| O1 HBP object crop | object-centric crop + HBP | BLOCKED_RESULT_MISSING | config: `configs/coffee17/O1_mobilenetv3_hbp_object_crop_source.yaml`; implementation commit `e0c18e67c087371e14de37525c1fe06476f2740b` |
+| E1 HBP local MoE | HBP global expert + intermediate 14x14 local expert using 1x1 projection + global max pooling + learned gate | FAIL_STOP (historical summary recovered) | config: `configs/coffee17/E1_mobilenetv3_hbp_local_moe_source.yaml`; protocol: `docs/protocols/HBP_MOE_PROTOCOL.md`; implementation commit `f10a09f9fc37467528d4e4a62e2a7266452c9d9e` |
+| M1s spatial HBP | spatially preserved HBP instead of immediate spatial averaging | FAIL_STOP (historical summary recovered) | config: `configs/coffee17/M1s_mobilenetv3_sp_hbp_source.yaml`; implementation commit `110f4afa710cc9b4442ffba714bd5384a8a8a149` |
+| O1 HBP object crop | object-centric crop + HBP | FAIL_STOP (historical summary recovered) | config: `configs/coffee17/O1_mobilenetv3_hbp_object_crop_source.yaml`; implementation commit `e0c18e67c087371e14de37525c1fe06476f2740b` |
 | Primary preprocessing | R0 / C0 / F0 / W0 standalone preprocessing study | ANALYSIS_ONLY | `docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md` |
 | Shared multi-view / preprocessing transfer | MVCE, SBN, AT-SBN, MVFD, W0-RAS, W0-AT, ML-MVFD, HBP+MVFD | CLOSED | master results, sections 8-15 |
 | W0-HBP matched | direct W0 input into HBP | FAIL_STOP | `docs/results/W0_HBP_MATCHED_RESULTS.md` |
@@ -58,7 +58,7 @@ Status meanings:
 | DCL local learning V1 | local region destruction/shuffle + original/shuffled auxiliary task + location reconstruction | FAIL_STOP | `docs/results/COFFEE17_DCL_LOCAL_LEARNING_V1_RESULTS.md` |
 | HF–Deep Complementarity V1 | Tulsi-aligned 71D handcrafted descriptors -> train-fold MRMR20, compared with HBP embedding and equal-block concatenation under one fixed logistic probe | FAIL_STOP | `docs/results/COFFEE17_HF_DEEP_COMPLEMENTARITY_V1_RESULTS.md` |
 | Focused C1 FRSA-GAP V1 | late FReCSA spatial high-pass branch only before GAP | FAIL_STOP | `docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md` |
-| Focused C2 FReCSA-GAP V1 | late simplified channel attention + frequency-regulated spatial attention before GAP | KEEP | `docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md` |
+| Focused C2 FReCSA-GAP V1 | late simplified channel attention + frequency-regulated spatial attention before GAP | FAIL_STOP (final internal OOF) | `docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md` |
 | WR-HBP Final Outer Confirmation V1 | one-shot evaluation of frozen R0-HBP vs WR-HBP on disjoint locked outer-test folds; exact original checkpoints are preferred, with one preregistered strict-deterministic `checkpoint_loss_recovery_v1` allowed only if checkpoint files are irrecoverably lost before any outer-test access; no post-test retraining/tuning | REGISTERED | `docs/protocols/WR_HBP_FINAL_OUTER_CONFIRMATION_V1.md` |
 
 | Frozen prototype geometry V1 | Frozen B0 GAP embeddings, train-only spherical K1/K2 decoders | FAIL_STOP | `docs/results/COFFEE17_PROTOTYPE_GEOMETRY_V1_RESULTS.md` |
@@ -85,7 +85,7 @@ recovering/using the prior evidence first:
 - "replace C2 with another near-identical channel-spatial attention variant" -> C2 is now the retained efficient candidate; first complete the frozen runtime comparison and outer-test path before reopening attention search;
 - "stack FDA + FReCSA + HBP immediately" -> blocked by current selection-overfitting risk; individual development evidence is sufficient to freeze C2 before any new module stack.
 
-## Known repository gap
+## Historical repository gap (superseded by cross-branch audit below)
 
 Three older local-evidence experiments have implementation/config evidence but
 their numerical outcome is not currently stored in the canonical result
@@ -136,3 +136,8 @@ User confirmed previous mounted outputs were correct and authorized matched reco
 ## Prototype Geometry V1 — completed 2026-11-26
 
 [Results](docs/results/COFFEE17_PROTOTYPE_GEOMETRY_V1_RESULTS.md). Source SHA256 `a33b6ce8feea236a74c0f91e815f4650f68266145ad4cf7c453af768b6cf3154`. All 15 fold-arm metrics and means recomputed, five B0 checkpoint hash records and validation predictions match recovery ZIP. Mean Macro B0/K1/K2 89.4684/87.5163/88.1177%; K2-K1 +0.6015 pp, Hard -0.1034 pp, 3/5 positive; K2-B0 -1.3506 pp and loses 5/5 folds. K2-K1 rescue/damage 7/5; K2-B0 3/10. 12/85 singleton secondary clusters; 32/85 <=3 members. **NO_CLEAR_FROZEN_MULTICENTER_SIGNAL**. Close frozen prototype decoder path; no K tuning or automatic end-to-end rescue. Does not falsify end-to-end metric learning. No neural training or new test inference. Next proposed direction: single stronger alternative backbone reference, subject to prior-work audit, frozen protocol and user approval; independent evaluation data still unresolved.
+
+
+## Cross-branch anti-loop audit — 2026-11-26
+
+Read the [cross-branch audit](docs/audits/COFFEE17_CROSS_BRANCH_ANTI_LOOP_AUDIT_20261126.md) and the [historical master log](https://github.com/ediprin/coffee-bean-classification/blob/8570468435926eb66ec7a20e482905fb046a7658/docs/results/EXPERIMENT_MASTER_LOG.md) before any new proposal. Earlier active ledger omitted older branches. ConvNeXtV2-Atto, EfficientNetV2, MobileNetV4, PVTv2 and SHViT already screened; ArcFace, vanilla SupCon and confusion-aware SupCon, progressive multigranularity, hierarchy, MPN-COV, EMA, DSConv, Chang-Liu MDE, adaptive multistage recalibration and earlier EfficientNet DCL all tested and stopped per original gates. E1 local MoE, M1s spatial HBP and O1 crop now have recovered historical result summaries (all FAIL_STOP); raw artifacts not independently verified. C2 final OOF failure supersedes development KEEP. SNI instance-crop v1/v2/v3 history exists; v3.1 Jiao protocol recorded not run, public-with-paper requirement unresolved. No new training, backbone sweep or method selected. Research direction HOLD pending genuinely distinct, source-checked hypothesis and evaluation plan. Historical scores belong to their original protocols; archived transcriptions are not raw-prediction reaudits.
