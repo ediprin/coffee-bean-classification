@@ -1,0 +1,22 @@
+# Coffee17 SAM–AdamW reference V1 — frozen development protocol
+
+Registered 2026-11-26 before training, after user's instruction to continue the proposed SAM reference. Status: IMPLEMENTED / KAGGLE EXECUTION PENDING / NOVELTY UNRESOLVED.
+Scientific pin: a539a776b7960c9622fd59280d17252a0c27401a
+Runner: src/bilinear_lmmd/experiments/run_sam_reference_v1.py
+Notebook: notebooks/Coffee17_B0_SAM_Reference_V1_Kaggle.ipynb
+Prior audit: docs/audits/COFFEE17_CROSS_BRANCH_ANTI_LOOP_AUDIT_20261126.md
+Literature: docs/research/COFFEE17_WEIGHT_SPACE_GENERALIZATION_CANDIDATE.md; Foret et al., ICLR 2021, https://openreview.net/forum?id=6Tm1mposlrM. This is a PyTorch SAM-AdamW adaptation, not a reproduction of all original paper settings or an invention.
+
+## Frozen comparison
+Only B0_SAM is trained (5 folds, seed42). B0 historical anchor is the audited matched B0/C2 recovery, mean Macro/Hard/Worst 89.4684/84.5785/58.0513%. Do not retrain B0, C2, HBP or any additional arm. B0 architecture (2,988,289 parameters), raw RGB, original 965 clean identities, same five 97-image validation assignments, online deterministic rotation, 224, batch32, 50 epochs, AdamW lr 3e-4 WD 1e-4, cosine, CE smoothing .1, dropout .2, no EMA. Preserve first maximum validation Macro-F1 selection. Same number of epochs and base-optimizer updates, not equal gradient evaluations or compute budget. No rho sweep. No outer-test inference or selection from opened OOF.
+
+## SAM step
+Global absolute L2 gradient perturbation radius .05, epsilon denominator guard 1e-12, same normalized minibatch and labels for both passes. Compute first gradient at original weights, perturb, zero gradients, replay torch CPU/CUDA RNG to preserve dropout realization, compute second gradient, restore original parameter values by exact saved copies and restore BN running buffers/counters to post-first-pass state, restore RNG to post-first-pass state. AdamW updates original parameters using second gradient. No weight decay inside the perturbation gradient. Restore perturbed state even if second pass fails. Only one AdamW update and two backward passes per batch. Record epoch loss at original and perturbed weights, training-loop duration, number of updates and gradient evaluations. No claim of measured relative speedup: historical B0 training time not measured with this timer.
+
+## Preflight and persistence
+Verify exact historical recovery authority SHA, raw manifest SHA, all five B0 completion marker hashes and each non-weight artifact listed therein, contract/config, all 979 source byte hashes, clean/fold hashes and validation identities. Historical weights not needed for comparison; no C2 checkpoint required. Use original B0 pretrained shared-core fingerprint, parameter count, eight unchanged model/config/loader dependencies verified by Git blob SHA versus recovery pin. Compare numerical environment to historical; reject drift in torch, torchvision, timm, CUDA, cuDNN, GPU type or relevant backend flags; record other differences. Numerical tests (rho=0 matches AdamW with BN/dropout, nonzero quadratic expected update, global norm, BN count, exact restore, exception safety) before training on CPU and GPU plus actual B0 GPU synthetic forward/backward SAM step. Local CPU extracted core fixture passed on torch 2.10.0 CPU; full runner, real GPU and Kaggle mount not executed here. Each fold's run contract binds environment and baseline marker. Resume only same contract, verify completion hashes, never delete old weights or logs. Preserve 10 best/last checkpoint files and all configs/history/predictions. Compact ZIP excludes weights and log (log retained in saved output). No changed result claims before actual execution.
+
+## Diagnostic gate
+Compare mean development-fold Macro-F1, Hard-F1 and Worst-F1, all matched validation rows, positive Macro fold count and paired rescue/damage. EXPLORATORY_SAM_SIGNAL only if mean Macro delta >0, positive folds >=3/5, mean Hard and Worst delta >=0. Otherwise FAIL_STOP for this protocol; no automatic rho tuning or combined SAM/HBP rescue. Even a pass is not a novel method, not independent confirmation, and does not authorize outer-test inference. Same reused development population; no independent significance claim. New independent public dataset with associated paper remains unresolved.
+
+Output coffee17-b0-sam-reference-analysis-v1.zip. Keep complete coffee17-b0-sam-reference-v1 saved project separately.
