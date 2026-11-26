@@ -6,9 +6,9 @@ Active research branch: `codex/representation-screening-v1`.
 
 ## 0. Start here — current decision
 
-**C2 = MobileNetV3-Large + late full FReCSA + GAP + Linear(17) is the primary efficient architecture candidate.** It is selected from development evidence, not yet confirmed on an independent final test. Do not restart an architecture search merely because a new chat begins.
+**C2 = MobileNetV3-Large + late full FReCSA + GAP + Linear(17), frozen evaluated candidate. Internal OOF completed with NO_INTERNAL_SUPPORT. B0 remains the accuracy/latency reference. Do not claim C2 superiority.**
 
-**Next task:** recovery analysis passed. Run the inference-only internal OOF notebook with saved recovery checkpoints and original dataset; actual weight and source hashes must pass before inference. No training. C2 remains frozen, internal OOF only. Thesis novelty is still open; do not claim a new attention mechanism merely from integrating two published methods.
+**Next task:** internal OOF completed; no post-test tuning or training. Descriptive error analysis/XAI and reassess thesis framing. Independent data required for new confirmatory claims.
 
 The canonical evidence is [C1/C2 results](docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md), [experiment ledger](docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md), and [master results](docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md). Read the latest versions, not just this snapshot. If a later experiment exists, use its audited evidence and update this file.
 
@@ -169,3 +169,8 @@ User confirmed previous mounted outputs were correct and authorized matched reco
 ## Recovery audit completed — 2026-11-26
 
 [Canonical recovery results](docs/results/COFFEE17_B0_C2_RECOVERY_V1_RESULTS.md). Source ZIP SHA256 `07e9e796cc6357bfa178f3e46ec85c86a372dd2a2f893dfe1840207209b4ee6f`. All ten 50-epoch histories, non-weight completion hashes, five historical validation hashes, manifest coverage and recomputed prediction metrics pass. B0/C2 mean Macro 89.4684/91.5181%, Hard 84.5785/87.4576%, Worst 58.0513/64.0160%; Macro +2.0497 pp, 4/5 positive, one tie; rescue/damage 11/2, net +9. Recovery C2 Worst lower than historical C2 (70.72%); preserve both. Physical weights absent from compact ZIP; mounted weights and actual image bytes must pass audit before any inference. Next execute [internal OOF notebook](notebooks/Coffee17_B0_C2_Internal_OOF_V1_Kaggle.ipynb), inference-only runner scientific pin `cdef70e2d56eabbe1c83dbdaf2e000b65375176d`, attach original dataset and saved recovery project, not ZIP alone. All 10 exact best and last files checked against audited marker SHA, 979 raw source byte hashes, original selected epochs/classes/config and strict load plus synthetic forward before test inference. Report `coffee17-b0-c2-internal-oof-v1.zip`; no new training. Same-population evaluation is retrospective internal OOF only. No OOF measurements yet; Kaggle runtime not tested. No architecture tuning authorized.
+
+
+## Final internal OOF outcome — 2026-11-26
+
+[Audited results](docs/results/COFFEE17_B0_C2_INTERNAL_OOF_V1_RESULTS.md). ZIP SHA256 `ec6d17f6426f075a6b5b84e0dd898ef8510569c72ac57384b0b2d827082c3fc3`. All 965 test identities per arm matched recovery manifest, 10 selected weight hashes matched recorded recovery markers, recomputed metrics and confusion matrices matched. Runtime reports 979 source-byte checks; physical weights/images not in analysis archive. Pooled B0/C2 Macro 86.8490/86.5665%, Hard 81.2547/80.1174%, Worst 65.4545/68.9655%, accuracy 87.0466/86.5285%. Macro delta -0.2826 pp, 2/5 folds positive, Hard -1.1373 pp, Worst +3.5110 pp, rescue/damage 28/33 net -5. **NO_INTERNAL_SUPPORT** (three of four criteria fail). C2 is the frozen evaluated candidate, not a confirmed superior model. B0 remains accuracy/latency reference. No post-test tuning, rescue training, candidate substitution or independent confirmation claim. Next: descriptive error analysis and optional XAI with preserved checkpoints, reconsider thesis framing and novelty; genuinely new independent protocol/data required if pursuing a superior new model. No new training authorized.
