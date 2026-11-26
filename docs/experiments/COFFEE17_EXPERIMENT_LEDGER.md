@@ -61,6 +61,8 @@ Status meanings:
 | Focused C2 FReCSA-GAP V1 | late simplified channel attention + frequency-regulated spatial attention before GAP | KEEP | `docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md` |
 | WR-HBP Final Outer Confirmation V1 | one-shot evaluation of frozen R0-HBP vs WR-HBP on disjoint locked outer-test folds; exact original checkpoints are preferred, with one preregistered strict-deterministic `checkpoint_loss_recovery_v1` allowed only if checkpoint files are irrecoverably lost before any outer-test access; no post-test retraining/tuning | REGISTERED | `docs/protocols/WR_HBP_FINAL_OUTER_CONFIRMATION_V1.md` |
 
+| Frozen prototype geometry V1 | Frozen B0 GAP embeddings, train-only spherical K1/K2 decoders | FAIL_STOP | `docs/results/COFFEE17_PROTOTYPE_GEOMETRY_V1_RESULTS.md` |
+
 ## Explicit near-duplicate blocks
 
 The following proposals are **not new** enough to justify another run without
@@ -129,3 +131,8 @@ User confirmed previous mounted outputs were correct and authorized matched reco
 ## Final internal OOF outcome — 2026-11-26
 
 [Audited results](docs/results/COFFEE17_B0_C2_INTERNAL_OOF_V1_RESULTS.md). ZIP SHA256 `ec6d17f6426f075a6b5b84e0dd898ef8510569c72ac57384b0b2d827082c3fc3`. All 965 test identities per arm matched recovery manifest, 10 selected weight hashes matched recorded recovery markers, recomputed metrics and confusion matrices matched. Runtime reports 979 source-byte checks; physical weights/images not in analysis archive. Pooled B0/C2 Macro 86.8490/86.5665%, Hard 81.2547/80.1174%, Worst 65.4545/68.9655%, accuracy 87.0466/86.5285%. Macro delta -0.2826 pp, 2/5 folds positive, Hard -1.1373 pp, Worst +3.5110 pp, rescue/damage 28/33 net -5. **NO_INTERNAL_SUPPORT** (three of four criteria fail). C2 is the frozen evaluated candidate, not a confirmed superior model. B0 remains accuracy/latency reference. No post-test tuning, rescue training, candidate substitution or independent confirmation claim. Next: descriptive error analysis and optional XAI with preserved checkpoints, reconsider thesis framing and novelty; genuinely new independent protocol/data required if pursuing a superior new model. No new training authorized.
+
+
+## Prototype Geometry V1 — completed 2026-11-26
+
+[Results](docs/results/COFFEE17_PROTOTYPE_GEOMETRY_V1_RESULTS.md). Source SHA256 `a33b6ce8feea236a74c0f91e815f4650f68266145ad4cf7c453af768b6cf3154`. All 15 fold-arm metrics and means recomputed, five B0 checkpoint hash records and validation predictions match recovery ZIP. Mean Macro B0/K1/K2 89.4684/87.5163/88.1177%; K2-K1 +0.6015 pp, Hard -0.1034 pp, 3/5 positive; K2-B0 -1.3506 pp and loses 5/5 folds. K2-K1 rescue/damage 7/5; K2-B0 3/10. 12/85 singleton secondary clusters; 32/85 <=3 members. **NO_CLEAR_FROZEN_MULTICENTER_SIGNAL**. Close frozen prototype decoder path; no K tuning or automatic end-to-end rescue. Does not falsify end-to-end metric learning. No neural training or new test inference. Next proposed direction: single stronger alternative backbone reference, subject to prior-work audit, frozen protocol and user approval; independent evaluation data still unresolved.
