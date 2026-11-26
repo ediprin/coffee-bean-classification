@@ -99,3 +99,8 @@ remain `BLOCKED_RESULT_MISSING`, not `NOT_RUN`.
 
 This rule exists specifically to stop the project from cycling through old
 ideas under slightly different names.
+
+
+## Runtime Head-to-Head V1 — completed 2026-11-26
+
+Canonical result: `docs/results/COFFEE17_RUNTIME_HEAD_TO_HEAD_V1_RESULTS.md`. Artifact SHA256 `75deecaf770b97db4a38aed0e29833199ea29bc4b5bb4183f0bfee977ca1016d`. Tesla T4, FP32 eager, synthetic inputs, random weights; no training/dataset/test access. 10 balanced rounds, 500 latency observations per arm. Median ms / throughput img/s / isolated peak MiB: B0 5.789/171.05/19.72; W3 6.797/146.56/19.74; C2 6.028/161.02/19.76; B1 6.694/149.60/27.15; W4 7.658/129.39/27.22. C2 vs B0 +4.13% latency, +0.161% params, +1.62 pp development Macro-F1. C2 vs W3 -11.32% latency, +0.893 pp Macro; vs B1 -9.96% latency, +0.235 pp Macro; vs W4 -21.28% latency, +24.44% throughput, -27.41% peak memory, -16.07% params, -0.151 pp Macro. C2 faster than W3/B1/W4 in all ten rounds. Two-objective Macro-F1/latency frontier: B0, C2, W4. C2 retained and architecture frozen for confirmation, not independently validated. No new training or architecture search authorized. Next audit checkpoint availability and historical image exposure, then register C2-specific evaluation protocol. Runtime numbers are model-only and hardware/session-specific; no end-to-end or independent significance claim.
