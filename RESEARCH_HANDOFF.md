@@ -8,7 +8,7 @@ Active research branch: `codex/representation-screening-v1`.
 
 **C2 = MobileNetV3-Large + late full FReCSA + GAP + Linear(17), frozen evaluated candidate. Internal OOF completed with NO_INTERNAL_SUPPORT. B0 remains the accuracy/latency reference. Do not claim C2 superiority.**
 
-**Next task:** prototype geometry diagnostic completed with NO_CLEAR_FROZEN_MULTICENTER_SIGNAL. Close frozen decoder path. Consider one stronger backbone baseline, with active-branch audit and separate protocol; no new training authorized.
+**Next task:** read cross-branch anti-loop audit and historical master log. Research direction HOLD; no new backbone sweep, contrastive, or near-duplicate experiment authorized. Identify a materially distinct methodology only after checking all recovered prior evidence and literature.
 
 The canonical evidence is [C1/C2 results](docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md), [experiment ledger](docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md), and [master results](docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md). Read the latest versions, not just this snapshot. If a later experiment exists, use its audited evidence and update this file.
 
@@ -183,3 +183,8 @@ User requires an actual performance improvement for thesis using secondary data.
 ## Prototype Geometry V1 — completed 2026-11-26
 
 [Results](docs/results/COFFEE17_PROTOTYPE_GEOMETRY_V1_RESULTS.md). Source SHA256 `a33b6ce8feea236a74c0f91e815f4650f68266145ad4cf7c453af768b6cf3154`. All 15 fold-arm metrics and means recomputed, five B0 checkpoint hash records and validation predictions match recovery ZIP. Mean Macro B0/K1/K2 89.4684/87.5163/88.1177%; K2-K1 +0.6015 pp, Hard -0.1034 pp, 3/5 positive; K2-B0 -1.3506 pp and loses 5/5 folds. K2-K1 rescue/damage 7/5; K2-B0 3/10. 12/85 singleton secondary clusters; 32/85 <=3 members. **NO_CLEAR_FROZEN_MULTICENTER_SIGNAL**. Close frozen prototype decoder path; no K tuning or automatic end-to-end rescue. Does not falsify end-to-end metric learning. No neural training or new test inference. Next proposed direction: single stronger alternative backbone reference, subject to prior-work audit, frozen protocol and user approval; independent evaluation data still unresolved.
+
+
+## Cross-branch anti-loop audit — 2026-11-26
+
+Read the [cross-branch audit](docs/audits/COFFEE17_CROSS_BRANCH_ANTI_LOOP_AUDIT_20261126.md) and the [historical master log](https://github.com/ediprin/coffee-bean-classification/blob/8570468435926eb66ec7a20e482905fb046a7658/docs/results/EXPERIMENT_MASTER_LOG.md) before any new proposal. Earlier active ledger omitted older branches. ConvNeXtV2-Atto, EfficientNetV2, MobileNetV4, PVTv2 and SHViT already screened; ArcFace, vanilla SupCon and confusion-aware SupCon, progressive multigranularity, hierarchy, MPN-COV, EMA, DSConv, Chang-Liu MDE, adaptive multistage recalibration and earlier EfficientNet DCL all tested and stopped per original gates. E1 local MoE, M1s spatial HBP and O1 crop now have recovered historical result summaries (all FAIL_STOP); raw artifacts not independently verified. C2 final OOF failure supersedes development KEEP. SNI instance-crop v1/v2/v3 history exists; v3.1 Jiao protocol recorded not run, public-with-paper requirement unresolved. No new training, backbone sweep or method selected. Research direction HOLD pending genuinely distinct, source-checked hypothesis and evaluation plan. Historical scores belong to their original protocols; archived transcriptions are not raw-prediction reaudits.
