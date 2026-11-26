@@ -39,3 +39,8 @@ Read-only CPU scan of attached Kaggle saved output directories and direct ZIP me
 4. If independence is required for thesis, seek genuinely new data; no claim it is available until verified. Do not access test images or train a new model solely to bypass this audit.
 
 C2 remains frozen as primary architecture from development + runtime evidence. No novel FReCSA invention claimed. The WR-HBP confirmation protocol does not transfer to C2.
+
+
+## Checkpoint inventory outcome — 2026-11-26
+
+Canonical result: `docs/results/COFFEE17_CHECKPOINT_INVENTORY_V1_RESULTS.md`. User JSON SHA256 `f99d68912e4e0aad65a7031c033a4ac0376d85916d4950e1b7654fad34b26bfb`. Zero weight files/members hashed, one ZIP inspected, no scan errors, 0/25 exact matches. Original primary checkpoints not found within mounted scope; not proof of permanent loss. No training or test access. Do not repeat the same scan; check older saved versions/backups if available. If no recovery source remains, propose one matched B0/C2 recovery per fold (10 runs total), only with explicit authorization and frozen recovery-specific protocol. Preserve all weights/logs; recovered checkpoints are not originals. Same Coffee17 OOF remains internal only. C2 architecture unchanged.
