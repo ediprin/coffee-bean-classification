@@ -8,7 +8,7 @@ Active research branch: `codex/representation-screening-v1`.
 
 **C2 = MobileNetV3-Large + late full FReCSA + GAP + Linear(17), frozen evaluated candidate. Internal OOF completed with NO_INTERNAL_SUPPORT. B0 remains the accuracy/latency reference. Do not claim C2 superiority.**
 
-**Next task:** user approved exploratory class-geometry pivot, no new neural training or test inference. Run the registered prototype geometry diagnostic on saved B0 recovery features; see latest section. C2 remains closed for its tested protocol.
+**Next task:** prototype geometry diagnostic completed with NO_CLEAR_FROZEN_MULTICENTER_SIGNAL. Close frozen decoder path. Consider one stronger backbone baseline, with active-branch audit and separate protocol; no new training authorized.
 
 The canonical evidence is [C1/C2 results](docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md), [experiment ledger](docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md), and [master results](docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md). Read the latest versions, not just this snapshot. If a later experiment exists, use its audited evidence and update this file.
 
@@ -178,3 +178,8 @@ User confirmed previous mounted outputs were correct and authorized matched reco
 
 ## New exploratory research pivot — 2026-11-26
 User requires an actual performance improvement for thesis using secondary data. C2 failure remains final for that protocol. No post-test tuning. New hypothesis: class-conditional embedding geometry; [protocol](docs/protocols/COFFEE17_PROTOTYPE_GEOMETRY_V1.md), [analysis-only notebook](notebooks/Coffee17_Prototype_Geometry_V1_Kaggle.ipynb). Use saved B0 recovery weights, train-only K1/K2 spherical prototypes, validation only, exact linear reference check. No neural training or test inference. Return `coffee17-prototype-geometry-v1.json`. Local numerical smoke test passes; Kaggle execution not verified. ArcMarginClassifier exists on active branch, so no ArcFace novelty claim. Independent 17-class coffee dataset not established; Mendeley SNI segmentation data candidate requires paper/provenance audit. SoftTriple is prior retrieval work, ECC prior FGVC work, neither is a novel thesis method by itself. No new candidate superiority claim.
+
+
+## Prototype Geometry V1 — completed 2026-11-26
+
+[Results](docs/results/COFFEE17_PROTOTYPE_GEOMETRY_V1_RESULTS.md). Source SHA256 `a33b6ce8feea236a74c0f91e815f4650f68266145ad4cf7c453af768b6cf3154`. All 15 fold-arm metrics and means recomputed, five B0 checkpoint hash records and validation predictions match recovery ZIP. Mean Macro B0/K1/K2 89.4684/87.5163/88.1177%; K2-K1 +0.6015 pp, Hard -0.1034 pp, 3/5 positive; K2-B0 -1.3506 pp and loses 5/5 folds. K2-K1 rescue/damage 7/5; K2-B0 3/10. 12/85 singleton secondary clusters; 32/85 <=3 members. **NO_CLEAR_FROZEN_MULTICENTER_SIGNAL**. Close frozen prototype decoder path; no K tuning or automatic end-to-end rescue. Does not falsify end-to-end metric learning. No neural training or new test inference. Next proposed direction: single stronger alternative backbone reference, subject to prior-work audit, frozen protocol and user approval; independent evaluation data still unresolved.
