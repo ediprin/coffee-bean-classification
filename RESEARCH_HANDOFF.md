@@ -8,7 +8,7 @@ Active research branch: `codex/representation-screening-v1`.
 
 **C2 = MobileNetV3-Large + late full FReCSA + GAP + Linear(17), frozen evaluated candidate. Internal OOF completed with NO_INTERNAL_SUPPORT. B0 remains the accuracy/latency reference. Do not claim C2 superiority.**
 
-**Next task:** internal OOF completed; no post-test tuning or training. Descriptive error analysis/XAI and reassess thesis framing. Independent data required for new confirmatory claims.
+**Next task:** user approved exploratory class-geometry pivot, no new neural training or test inference. Run the registered prototype geometry diagnostic on saved B0 recovery features; see latest section. C2 remains closed for its tested protocol.
 
 The canonical evidence is [C1/C2 results](docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md), [experiment ledger](docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md), and [master results](docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md). Read the latest versions, not just this snapshot. If a later experiment exists, use its audited evidence and update this file.
 
@@ -174,3 +174,7 @@ User confirmed previous mounted outputs were correct and authorized matched reco
 ## Final internal OOF outcome — 2026-11-26
 
 [Audited results](docs/results/COFFEE17_B0_C2_INTERNAL_OOF_V1_RESULTS.md). ZIP SHA256 `ec6d17f6426f075a6b5b84e0dd898ef8510569c72ac57384b0b2d827082c3fc3`. All 965 test identities per arm matched recovery manifest, 10 selected weight hashes matched recorded recovery markers, recomputed metrics and confusion matrices matched. Runtime reports 979 source-byte checks; physical weights/images not in analysis archive. Pooled B0/C2 Macro 86.8490/86.5665%, Hard 81.2547/80.1174%, Worst 65.4545/68.9655%, accuracy 87.0466/86.5285%. Macro delta -0.2826 pp, 2/5 folds positive, Hard -1.1373 pp, Worst +3.5110 pp, rescue/damage 28/33 net -5. **NO_INTERNAL_SUPPORT** (three of four criteria fail). C2 is the frozen evaluated candidate, not a confirmed superior model. B0 remains accuracy/latency reference. No post-test tuning, rescue training, candidate substitution or independent confirmation claim. Next: descriptive error analysis and optional XAI with preserved checkpoints, reconsider thesis framing and novelty; genuinely new independent protocol/data required if pursuing a superior new model. No new training authorized.
+
+
+## New exploratory research pivot — 2026-11-26
+User requires an actual performance improvement for thesis using secondary data. C2 failure remains final for that protocol. No post-test tuning. New hypothesis: class-conditional embedding geometry; [protocol](docs/protocols/COFFEE17_PROTOTYPE_GEOMETRY_V1.md), [analysis-only notebook](notebooks/Coffee17_Prototype_Geometry_V1_Kaggle.ipynb). Use saved B0 recovery weights, train-only K1/K2 spherical prototypes, validation only, exact linear reference check. No neural training or test inference. Return `coffee17-prototype-geometry-v1.json`. Local numerical smoke test passes; Kaggle execution not verified. ArcMarginClassifier exists on active branch, so no ArcFace novelty claim. Independent 17-class coffee dataset not established; Mendeley SNI segmentation data candidate requires paper/provenance audit. SoftTriple is prior retrieval work, ECC prior FGVC work, neither is a novel thesis method by itself. No new candidate superiority claim.
