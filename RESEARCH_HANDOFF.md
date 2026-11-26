@@ -8,7 +8,7 @@ Active research branch: `codex/representation-screening-v1`.
 
 **C2 = MobileNetV3-Large + late full FReCSA + GAP + Linear(17) is the primary efficient architecture candidate.** It is selected from development evidence, not yet confirmed on an independent final test. Do not restart an architecture search merely because a new chat begins.
 
-**Next task:** C2 is frozen; data-exposure audit rules out independent confirmation on the reused Coffee17 population. Checkpoint inventory returned 0/25 matches in mounted scope. Check older saved outputs or backups if available; otherwise register a matched recovery protocol with explicit authorization. Verify original manifests before internal OOF evaluation. External confirmation requires new independent data. No evaluation or training authorized yet. Thesis novelty is still open; do not claim a new attention mechanism merely from integrating two published methods.
+**Next task:** user authorized matched B0/C2 recovery (10 runs). Execute registered recovery notebook, preserve all checkpoints, return analysis ZIP. C2 remains frozen; same Coffee17 evaluation is internal only. OOF inference remains locked pending recovery audit. Thesis novelty is still open; do not claim a new attention mechanism merely from integrating two published methods.
 
 The canonical evidence is [C1/C2 results](docs/results/COFFEE17_FOCUSED_FRECSA_C1C2_V1_RESULTS.md), [experiment ledger](docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md), and [master results](docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md). Read the latest versions, not just this snapshot. If a later experiment exists, use its audited evidence and update this file.
 
@@ -159,3 +159,8 @@ See [readiness audit](docs/protocols/COFFEE17_C2_EVALUATION_READINESS_AUDIT_V1.m
 ## Checkpoint inventory outcome — 2026-11-26
 
 Canonical result: `docs/results/COFFEE17_CHECKPOINT_INVENTORY_V1_RESULTS.md`. User JSON SHA256 `f99d68912e4e0aad65a7031c033a4ac0376d85916d4950e1b7654fad34b26bfb`. Zero weight files/members hashed, one ZIP inspected, no scan errors, 0/25 exact matches. Original primary checkpoints not found within mounted scope; not proof of permanent loss. No training or test access. Do not repeat the same scan; check older saved versions/backups if available. If no recovery source remains, propose one matched B0/C2 recovery per fold (10 runs total), only with explicit authorization and frozen recovery-specific protocol. Preserve all weights/logs; recovered checkpoints are not originals. Same Coffee17 OOF remains internal only. C2 architecture unchanged.
+
+
+## Authorized B0/C2 recovery V1 — 2026-11-26
+
+User confirmed previous mounted outputs were correct and authorized matched recovery. No further inventory repeat. [Protocol](docs/protocols/COFFEE17_B0_C2_RECOVERY_INTERNAL_OOF_V1.md), [notebook](notebooks/Coffee17_B0_C2_Recovery_V1_Kaggle.ipynb), scientific pin `12cc8e614c63968cd2df69db42490f6f3da19450`. B0 and C2 only, five original folds, seed 42, 50 epochs, no outer test. All five historical validation hashes and original pretrained shared-core SHA required before training. Preserve all 20 best/last checkpoints plus contracts and manifests; separate compact analysis ZIP. Recovered scores/weights separate from historical. Return `coffee17-b0-c2-recovery-analysis-v1.zip` and retain saved output. Internal OOF plan registered but evaluator execution locked pending successful artifact audit. No independent confirmation claim, no new architecture search. Actual Kaggle recovery not yet run.
