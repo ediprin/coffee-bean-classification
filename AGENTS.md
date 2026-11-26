@@ -6,7 +6,7 @@ Scope: this repository, especially branch `codex/representation-screening-v1`.
 
 Read [RESEARCH_HANDOFF.md](RESEARCH_HANDOFF.md), [experiment ledger](docs/experiments/COFFEE17_EXPERIMENT_LEDGER.md), [master results](docs/experiments/COFFEE17_EXPERIMENT_MASTER_RESULTS.md), and the latest canonical results under `docs/results/`. Inspect relevant configs, code and scientific commit pins before proposing a change. If this guidance conflicts with a newer verified result or an explicit user instruction, explain the conflict; do not silently rewrite history.
 
-Current handoff: C2 MobileNetV3-Large + late FReCSA + GAP is the retained efficient development candidate. Next documented step is runtime-only head-to-head B0/W3/C2/B1/W4; final evaluation and methodological novelty remain unresolved. The existing WR-HBP outer protocol is not authority to test C2.
+Current handoff: C2 MobileNetV3-Large + late FReCSA + GAP is the retained efficient development candidate. Runtime-only head-to-head B0/W3/C2/B1/W4 is complete; C2 is frozen for confirmation. Next audit original checkpoint availability and historical data exposure, then register a C2-specific evaluation protocol; final evaluation and methodological novelty remain unresolved. The existing WR-HBP outer protocol is not authority to test C2.
 
 ## Research integrity
 
